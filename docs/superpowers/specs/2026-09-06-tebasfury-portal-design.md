@@ -1,0 +1,207 @@
+# Tebasfury — Portal de gestió de lliga privada LaLiga Fantasy
+
+## Context
+
+Repositori buit (`main`, cap commit). Projecte personal nou.
+
+Un grup d'amics juga una lliga privada de LaLiga Fantasy. L'app oficial cobreix el joc
+però no cobreix res del que fa que la lliga sigui *seva*: no guarda històric per
+analitzar l'evolució, no coneix les normes internes del grup, i no té enquestes.
+
+El portal ha de cobrir aquest buit:
+
+- **Històric i evolució** — punts globals i per equip al llarg de la temporada, i
+  evolució de valor dels jugadors, que l'app oficial no reté.
+- **Norma interna de fair play** — al grup no es venen jugadors abans de 5 dies. Ningú
+  la pot fer complir tècnicament, però tenir-ho registrat i visible canvia el
+  comportament.
+- **Operacions programades** — poder deixar programada una puja o una venda a hora
+  exacta, sense haver d'estar amb el mòbil a la matinada.
+- **Necroporra** — enquesta setmanal on cada manager vota dos equips rivals candidats a
+  fer l'últim de la jornada. Avui es fa a mà i els resultats es perden.
+
+Resultat esperat: un portal desplegat a Vercel on tot el grup entra amb el seu compte,
+veu la lliga amb profunditat històrica, i on la Necroporra es publica, es vota i es
+resol sola.
+
+## Decisions preses (sessió de brainstorming)
+
+| Decisió | Valor escollit |
+|---|---|
+| Font de dades | API no oficial de LaLiga Fantasy |
+| Model de comptes | Token central de lectura + opt-in individual per escriure |
+| Operacions programades | Execució real contra l'API |
+| Fair play | Detecció automàtica + registre públic. Sense expedient ni justificacions |
+| Necroporra | Auto-resolució + rànquing d'encerts acumulat de temporada |
+| Rol Colaborator | Enquestes, registre fair play, forçar sync, corregir dades. No gestiona usuaris |
+| Abast | Una sola lliga (sense multi-tenant) |
+| Primer slice | Classificació i evolució |
+| Scheduler | Upstash QStash + Vercel Hobby |
+
+## Riscos acceptats — escrits explícitament
+
+1. **L'API no és oficial.** Pot canviar o desaparèixer sense avís, i el seu ús pot anar
+   contra els termes de servei de LaLiga Fantasy. Tot el projecte hi depèn.
+   *Mitigació:* tot el coneixement de l'API viu en una sola capa aïllada
+   (`lib/fantasy-client/`); la resta del sistema no en sap res. Si canvia, es toca un
+   directori.
+2. **Custòdia de credencials de tercers.** L'execució real obliga a desar tokens de
+   LaLiga d'altres persones. És el punt de més risc del sistema.
+   *Mitigació:* xifratge AES-256-GCM en repòs amb clau fora de la BD, mai la contrasenya
+   en clar, opt-in explícit, i pantalla per revocar la connexió en qualsevol moment.
+3. **Latència de dades.** Les vistes llegeixen instantànies, no l'API en viu. Sempre s'ha
+   de veure a la UI quan va ser l'últim sync correcte.
+
+## Arquitectura
+
+### Principi rector: magatzem d'instantànies
+
+El portal **no truca mai a LaLiga durant una petició web**. Un worker sincronitza
+periòdicament i escriu instantànies a Postgres. Totes les vistes llegeixen només de la
+BD pròpia.
+
+Això dóna tres coses que aquí no són negociables: pàgines ràpides, un portal que segueix
+viu quan l'API cau, i **l'acumulació d'històric que és tota la raó de ser del projecte**.
+
+A més es desa el **payload cru** de cada sync (retenció curta, ~30 dies). Costa poc i
+permet reconstruir dades quan es descobreixi un bug de parsing.
+
+### Stack
+
+- **Next.js 15** (App Router, RSC) + TypeScript — desplegament natiu a Vercel
+- **Postgres a Neon** via la integració de Vercel
+- **Drizzle ORM** + drizzle-kit per a migracions
+- **Auth.js v5** amb proveïdor Google + adapter de Drizzle
+- **Tailwind + shadcn/ui**
+- **Zod** — validació de *tota* resposta de l'API no oficial abans d'entrar al sistema
+- **Upstash QStash** — sync periòdic i operacions a hora exacta
+- **Vitest** (unitari/integració) + **Playwright** (E2E)
+
+### Mòduls i fronteres
+
+Cada mòdul té un propòsit, una interfície i unes dependències explícites.
+
+| Mòdul | Fa | Depèn de |
+|---|---|---|
+| `lib/fantasy-client/` | **Capa anticorrupció.** L'únic lloc que coneix l'HTTP de LaLiga. Exposa funcions de domini (`getStandings`, `getTeamRoster`, `getMarket`, `placeBid`, `sellPlayer`) i valida cada resposta amb Zod. No filtra mai tipus crus cap enfora. | res |
+| `lib/sync/` | Orquestra els pulls, escriu instantànies idempotents per `(jornada, entitat)`, desa payloads crus, registra cada execució | fantasy-client, db |
+| `lib/domain/` | **Lògica pura, zero I/O.** Càlcul de classificació, sèries d'evolució, avaluació de la regla dels 5 dies, resolució i puntuació de la Necroporra | res |
+| `lib/db/` | Esquema Drizzle i queries | res |
+| `lib/auth/` | Sessió, rols, guards de servidor | db |
+| `lib/scheduler/` | Publicació a QStash i verificació de signatura a la recepció | res |
+| `app/(portal)/` | Rutes i vistes | tots els anteriors |
+
+`lib/domain/` sense I/O és deliberat: és on viu tota la lògica que us és pròpia, i és
+testejable sense xarxa ni base de dades.
+
+## Model de dades
+
+Nucli:
+
+- `users` — id, email, nom, rol (`user` | `colaborator` | `admin`), `fantasy_team_id`
+- `accounts`, `sessions`, `verification_tokens` — Auth.js
+- `league_credentials` — **token central de lectura**. Fila única, token xifrat,
+  refresh, expiració, `updated_by`. És el que alimenta tots els syncs i, per tant,
+  totes les vistes del portal per a tothom
+- `fantasy_credentials` — token individual d'un manager, xifrat, refresh, expiració.
+  *Opt-in, només necessari per a l'execució d'operacions programades*
+- `teams` — id de l'API, nom, manager, `user_id` nullable
+- `gameweeks` — número, inici, fi, estat
+- `sync_runs` — inici, fi, estat, error, entitats tocades
+- `raw_sync_payloads` — endpoint, timestamp, payload `jsonb`
+
+Classificació i evolució *(slice 1)*:
+
+- `team_gameweek_stats` — `(team_id, gameweek)`, punts jornada, punts acumulats, posició,
+  valor d'equip
+
+Jugadors i mercat:
+
+- `players` — id, nom, posició, equip real
+- `player_value_history` — `(player_id, date)`, valor de mercat, punts
+- `roster_entries` — `team_id`, `player_id`, `acquired_at`, `acquired_via`, `released_at`
+  → **és la taula que fa computable la norma dels 5 dies**
+- `market_operations` — tipus, equip, jugador, import, `occurred_at`, origen
+- `fairplay_violations` — equip, jugador, `acquired_at`, `sold_at`, dies retingut,
+  `detected_at`, nota. Clau única per fer la detecció idempotent
+- `scheduled_operations` — usuari, tipus, jugador, import màxim, `execute_at`, estat,
+  `qstash_message_id`, resultat
+
+Enquestes:
+
+- `poll_templates` — nom, `kind`, `config jsonb`
+- `polls` — template, jornada, títol, obertura, tancament, estat, `vote_rules jsonb`
+- `poll_options` — poll, etiqueta, `ref_type`, `ref_id`
+- `poll_votes` — poll, usuari, opció. Únic per `(poll_id, user_id, option_id)`, que
+  impedeix votar dos cops la mateixa opció. El límit de vots per persona i la
+  prohibició de votar-se un mateix són regles de `vote_rules`, validades a
+  `lib/domain/` abans d'escriure
+- `poll_results` — poll, `resolved_at`, opcions correctes
+- `poll_scores` — usuari, poll, punts
+
+La **Necroporra és una instància de template**, no una taula especial:
+`kind = 'necroporra'`, opcions autogenerades a partir dels equips, regla de vot
+"2 vots, no pots votar el teu equip", i resolució "l'opció amb menys punts de la
+jornada". Afegir una altra mena d'enquesta serà afegir un template, no codi nou.
+
+## Pla d'execució
+
+### Pas 0 — Spike de viabilitat *(bloquejant)*
+
+Abans de qualsevol línia de producte, verificar contra l'API real: com s'obté i es
+refresca el token, quins endpoints donen classificació, plantilles, valors i mercat, si
+la lliga privada és accessible, i si hi ha rate limits.
+
+**Sortida:** un informe i un joc de payloads crus reals que serviran de fixtures per als
+tests. Codi llençable, etiquetat com a tal. Si aquest pas falla, tornem a la decisió de
+font de dades abans de construir res.
+
+### Pas 1 — Esquelet
+
+Projecte Next.js, Drizzle + Neon, Auth.js amb Google, taula d'usuaris amb rols i guards
+de servidor, layout base, desplegament a Vercel funcionant. Sense funcionalitat de
+producte.
+
+### Pas 2 — Slice vertical: classificació i evolució
+
+`fantasy-client` amb autenticació + `getStandings` + punts per jornada, job de sync a
+QStash, taules `teams` / `gameweeks` / `team_gameweek_stats`, i dues vistes:
+classificació actual i evolució de punts (gràfic global + detall per equip). Indicador
+visible d'"últim sync".
+
+Aquest slice valida la canonada sencera — token → sync → BD → vista — amb la mínima
+inversió.
+
+### Passos posteriors *(spec pròpia cadascun, després)*
+
+3. Jugadors: `player_value_history`, `roster_entries`, vistes d'evolució i oportunitats
+4. Fair play: detecció per diff de plantilles + registre públic
+5. Operacions programades: connexió opt-in de compte, xifratge, execució via QStash
+6. Enquestes i Necroporra: motor de templates, restriccions de vot, auto-resolució,
+   rànquing d'encerts
+
+## Estratègia de test
+
+- `lib/domain/` → unitaris purs. És on viu la lògica de negoci; ha d'estar cobert de debò.
+- `lib/fantasy-client/` → tests contra els payloads reals capturats al Pas 0. Detecten
+  quan l'API canvia de forma.
+- `lib/sync/` → integració amb un client fals injectat, contra una BD de test.
+- Vistes principals → Playwright.
+
+## Verificació d'extrem a extrem
+
+En acabar el Pas 2 s'ha de poder comprovar, en aquest ordre:
+
+1. `pnpm test` i `pnpm test:e2e` en verd
+2. `pnpm drizzle-kit migrate` sobre una BD neta aixeca tot l'esquema sense error
+3. Disparar el sync manualment i veure una fila nova a `sync_runs` amb estat correcte i
+   files a `team_gameweek_stats`
+4. Entrar al portal amb Google i veure la classificació amb les dades reals de la lliga
+5. Comprovar que un usuari amb rol `user` no accedeix a l'acció de forçar sync
+6. Aturar la BD o falsejar un error de l'API i confirmar que el portal segueix servint
+   l'última instantània amb l'avís d'antiguitat, sense petar
+
+## Estat d'aquest document
+
+Spec validada en sessió de brainstorming el 2026-09-06. El següent artefacte és el pla
+d'implementació detallat del Pas 0 i el Pas 1.
