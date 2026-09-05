@@ -1,4 +1,4 @@
-# Tebasfury — Portal de gestió de lliga privada LaLiga Fantasy
+# TebasFury — Portal de gestió de lliga privada LaLiga Fantasy
 
 ## Context
 
@@ -19,6 +19,9 @@ El portal ha de cobrir aquest buit:
   exacta, sense haver d'estar amb el mòbil a la matinada.
 - **Necroporra** — enquesta setmanal on cada manager vota dos equips rivals candidats a
   fer l'últim de la jornada. Avui es fa a mà i els resultats es perden.
+
+El portal es diu **TebasFury**. S'escriu així, amb F majúscula, i és el nom que ha
+d'aparèixer a la UI, al `package.json`, al títol de les pàgines i als metadades.
 
 Resultat esperat: un portal desplegat a Vercel on tot el grup entra amb el seu compte,
 veu la lliga amb profunditat històrica, i on la Necroporra es publica, es vota i es
