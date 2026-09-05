@@ -105,7 +105,7 @@ I l'atribut de llengua de l'arrel: `<html lang="ca">`.
 - [ ] **Step 4: Instal·lar Vitest i crear-ne la configuració**
 
 ```bash
-pnpm add -D -E vitest@5.0.0 @vitejs/plugin-react@5.0.5 vite-tsconfig-paths@6.0.4
+pnpm add -D -E vitest@5.0.0 vite-tsconfig-paths@6.1.1
 ```
 
 `vitest.config.ts`:
@@ -418,7 +418,7 @@ no depèn de Docker ni de cap servidor extern."
 - Test: `src/lib/auth/permissions.test.ts`
 
 **Interfaces:**
-- Consumes: `createTestDatabase()` de la Task 2.
+- Consumes: `db` de la Task 2 (per a l'adapter de Drizzle). El test de polítiques no toca la base de dades: les polítiques són pures.
 - Produces:
   - `ac` — control d'accés compartit entre servidor i client.
   - `roles` — `{ user, colaborator, admin }`.
