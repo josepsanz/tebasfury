@@ -71,14 +71,21 @@ permet reconstruir dades quan es descobreixi un bug de parsing.
 
 ### Stack
 
-- **Next.js 15** (App Router, RSC) + TypeScript — desplegament natiu a Vercel
-- **Postgres a Neon** via la integració de Vercel
-- **Drizzle ORM** + drizzle-kit per a migracions
-- **Auth.js v5** amb proveïdor Google + adapter de Drizzle
-- **Tailwind + shadcn/ui**
-- **Zod** — validació de *tota* resposta de l'API no oficial abans d'entrar al sistema
-- **Upstash QStash** — sync periòdic i operacions a hora exacta
-- **Vitest** (unitari/integració) + **Playwright** (E2E)
+Versions verificades el 2026-09-06.
+
+- **Next.js 16.3** (App Router, RSC) + **React 19.2** + TypeScript — natiu a Vercel
+- **Postgres a Neon** (`@neondatabase/serverless` 1.1) via la integració de Vercel
+- **Drizzle ORM 0.45** + drizzle-kit 0.31 per a migracions
+- **better-auth 1.7** amb proveïdor Google i adapter de Drizzle
+- **Tailwind 4** + shadcn/ui
+- **Zod 4** — validació de *tota* resposta de l'API no oficial abans d'entrar al sistema
+- **Upstash QStash 2.11** — sync periòdic i operacions a hora exacta
+- **Vitest 5** + **PGlite** (Postgres en procés, sense Docker) i **Playwright 1.63** (E2E)
+
+**Sobre l'autenticació:** l'esborrany inicial deia Auth.js v5, però continua en beta
+(`5.0.0-beta.32`) mentre que better-auth és estable a la 1.7.2 i ja té més ús. A més
+porta els plugins `admin` i `access`, que donen control de rols d'origen — els tres rols
+del portal es declaren com a polítiques i no com a codi propi.
 
 ### Mòduls i fronteres
 
@@ -90,7 +97,7 @@ Cada mòdul té un propòsit, una interfície i unes dependències explícites.
 | `lib/sync/` | Orquestra els pulls, escriu instantànies idempotents per `(jornada, entitat)`, desa payloads crus, registra cada execució | fantasy-client, db |
 | `lib/domain/` | **Lògica pura, zero I/O.** Càlcul de classificació, sèries d'evolució, avaluació de la regla dels 5 dies, resolució i puntuació de la Necroporra | res |
 | `lib/db/` | Esquema Drizzle i queries | res |
-| `lib/auth/` | Sessió, rols, guards de servidor | db |
+| `lib/auth/` | Config de better-auth, polítiques de rol i guards de servidor | db |
 | `lib/scheduler/` | Publicació a QStash i verificació de signatura a la recepció | res |
 | `app/(portal)/` | Rutes i vistes | tots els anteriors |
 
@@ -101,8 +108,8 @@ testejable sense xarxa ni base de dades.
 
 Nucli:
 
-- `users` — id, email, nom, rol (`user` | `colaborator` | `admin`), `fantasy_team_id`
-- `accounts`, `sessions`, `verification_tokens` — Auth.js
+- `user`, `session`, `account`, `verification` — taules generades per better-auth
+- Camp addicional `role` a `user` (`user` | `colaborator` | `admin`) i `fantasy_team_id`
 - `league_credentials` — **token central de lectura**. Fila única, token xifrat,
   refresh, expiració, `updated_by`. És el que alimenta tots els syncs i, per tant,
   totes les vistes del portal per a tothom
