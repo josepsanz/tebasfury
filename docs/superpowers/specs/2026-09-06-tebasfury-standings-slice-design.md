@@ -110,6 +110,19 @@ the direction: **`teams.user_id` is the link**, and `user.fantasy_team_id` is dr
 - `raw_sync_payloads` — `endpoint`, `fetched_at`, `payload` jsonb. 30-day retention,
   pruned by the sync itself.
 
+## New configuration
+
+This slice introduces one new environment variable, and it must be added to
+`.env.example`, to `.env.local` and to Vercel:
+
+| Variable | Purpose |
+|---|---|
+| `CREDENTIALS_KEY` | 32-byte key, base64, for the AES-256-GCM sealing of the refresh token. Generate with `openssl rand -base64 32`. **Different per environment**, and losing it means re-bootstrapping the credential |
+
+The existing `LALIGA_REFRESH_TOKEN` in `.env.local` is Phase 0 scaffolding. Once the
+credential lives in `league_credentials`, it is read from the database, and the
+variable is removed rather than left to rot into a second source of truth.
+
 ## Sync
 
 ### The self-scheduling chain
