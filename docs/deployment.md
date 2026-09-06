@@ -3,6 +3,22 @@
 Checklist for deploying TebasFury to Vercel for the first time. This is done once;
 subsequent deployments only need a `git push origin main`.
 
+## 0. Create the project on Vercel
+
+Import `github.com/josepsanz/tebasfury` from the Vercel dashboard. Vercel detects
+Next.js on its own; no build settings need changing.
+
+**The first deployment will fail, and that is expected.** The build loads `auth.ts`,
+which validates the environment at module load, and none of the variables exist yet.
+The error will name the missing variables. Steps 1 to 3 supply them; step 5 redeploys.
+
+What matters at this point is that the project now exists and Vercel has assigned it
+a public domain — something like `tebasfury.vercel.app`, possibly with a suffix if the
+name is taken. **A custom domain is not needed**: the `.vercel.app` one comes with
+HTTPS and Google accepts it as an OAuth redirect URI. Note it down; steps 2 and 3
+both need it. If you add a custom domain later, update the redirect URI in step 2 and
+`BETTER_AUTH_URL` in step 3 to match, and redeploy.
+
 ## 1. Create the database on Neon
 
 From the project's panel on Vercel, **Storage** tab, create a **Neon Postgres**
@@ -21,9 +37,9 @@ http://localhost:3000/api/auth/callback/google
 https://<vercel-domain>/api/auth/callback/google
 ```
 
-where `<vercel-domain>` is the public domain Vercel assigns to the deployment (for
-example, `tebasfury.vercel.app`, or the custom domain, if there is one). Both need to
-be added, not just the production one: the first is the one `pnpm dev` uses locally.
+where `<vercel-domain>` is the domain noted down in step 0 (for example,
+`tebasfury.vercel.app`). Both need to be added, not just the production one: the first
+is the one `pnpm dev` uses locally.
 
 Once the client is created, save the **Client ID** and **Client Secret**: they're
 needed in the next step.
@@ -58,11 +74,12 @@ The `DATABASE_URL` passed inline takes priority over the one in `.env.local`: th
 the migrations are applied against the **production** database even if `.env.local`
 points to the local development one.
 
-## 5. Deploy and verify
+## 5. Redeploy and verify
 
-```bash
-git push origin main
-```
+The code is already on GitHub, so there is nothing to push. Trigger a new build from
+the Vercel dashboard instead — **Deployments → the failed one → Redeploy** — so it
+picks up the variables added in step 3. From here on, every `git push origin main`
+deploys on its own.
 
 Once deployed, check on the public URL that:
 
