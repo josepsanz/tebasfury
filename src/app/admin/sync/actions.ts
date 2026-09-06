@@ -9,6 +9,7 @@ import { getEnv } from "@/lib/env";
 import { requirePermission } from "@/lib/auth/guards";
 import { scheduleNextRun } from "@/lib/scheduler";
 import { runSync } from "@/lib/sync";
+import { failureMessage, runAndSchedule } from "@/lib/sync/scheduled-run";
 
 /** The public client id of the LaLiga web app, which is what issues the token. */
 const CLIENT_ID = "6457fa17-1224-416a-b21a-ee6ce76e9bc0";
@@ -35,25 +36,21 @@ export async function bootstrapCredential(formData: FormData): Promise<ActionRes
 export async function triggerSyncNow(): Promise<ActionResult> {
   await requirePermission({ sync: ["trigger"] });
 
-  try {
-    const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
-    const result = await runSync({
-      db,
-      client,
-      now: new Date(),
-      runId: randomUUID(),
-      trigger: "manual",
-    });
-    await scheduleNextRun(result.nextRunAt);
-    revalidatePath("/standings");
-    revalidatePath("/progress");
-    revalidatePath("/admin/sync");
-    return {
-      ok: true,
-      message: `Synced ${result.weeksSynced.length} gameweek(s). Next run at ${result.nextRunAt.toISOString()}.`,
-    };
-  } catch (error) {
-    if (error instanceof CredentialError) {
+  const now = new Date();
+  // Through `runAndSchedule` like the endpoint, so a manual run that fails also
+  // leaves a successor behind: the chain may well be the thing that is broken, and
+  // this button is where someone comes to find out.
+  const outcome = await runAndSchedule({
+    now,
+    schedule: (at) => scheduleNextRun(at, now),
+    run: async () => {
+      const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
+      return runSync({ db, client, now, runId: randomUUID(), trigger: "manual" });
+    },
+  });
+
+  if (outcome.status === "failed") {
+    if (outcome.error instanceof CredentialError) {
       return {
         ok: false,
         message:
@@ -61,6 +58,15 @@ export async function triggerSyncNow(): Promise<ActionResult> {
           "refresh token from the network tab, and paste it above. See spike/README.md.",
       };
     }
-    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    return { ok: false, message: failureMessage(outcome.error) };
   }
+
+  revalidatePath("/standings");
+  revalidatePath("/progress");
+  revalidatePath("/admin/sync");
+  const { weeksSynced, nextRunAt } = outcome.result;
+  return {
+    ok: true,
+    message: `Synced ${weeksSynced.length} gameweek(s). Next run at ${nextRunAt.toISOString()}.`,
+  };
 }
