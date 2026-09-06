@@ -19,11 +19,22 @@ HTTPS and Google accepts it as an OAuth redirect URI. Note it down; steps 2 and 
 both need it. If you add a custom domain later, update the redirect URI in step 2 and
 `BETTER_AUTH_URL` in step 3 to match, and redeploy.
 
-## 1. Create the database on Neon
+## 1. Point at the Neon database
 
-From the project's panel on Vercel, **Storage** tab, create a **Neon Postgres**
-database and connect it to the project. Vercel injects the `DATABASE_URL` variable
-automatically: there's no need to paste it into the environment variables by hand.
+The project already has a Neon database, and production reuses the same branch that
+local development uses. So do **not** create a new one from Vercel's **Storage** tab:
+that would provision a second, empty Neon project and leave you with two databases.
+
+Instead, copy the connection string from the Neon dashboard (**Connect**) and set it
+as `DATABASE_URL` by hand in step 3, alongside the other variables.
+
+Two things follow from sharing one branch, both of them deliberate:
+
+- The migrations are already applied and the first admin is already promoted, so
+  step 4 has nothing to do and step 6 can be skipped.
+- Local development writes to the same data the league sees. While there is no league
+  data this costs nothing; once there is history worth keeping, create a `dev` branch
+  in Neon (one button) and point `.env.local` at it instead.
 
 ## 2. Configure the Google credentials
 
@@ -58,21 +69,20 @@ In the project's settings on Vercel (**Settings → Environment Variables**), de
 | `BETTER_AUTH_URL` | The public production URL (e.g. `https://<vercel-domain>`) |
 | `GOOGLE_CLIENT_ID` | The Client ID created in step 2 |
 | `GOOGLE_CLIENT_SECRET` | The Client Secret created in step 2 |
+| `DATABASE_URL` | The Neon connection string from step 1 |
 
-`DATABASE_URL` is **not** set by hand: Vercel already injected it in step 1.
+## 4. Apply migrations
 
-## 4. Apply migrations to the production database
-
-From local, using the Neon connection from step 1 (found in the project's Storage
-tab, or in the environment variables Vercel generated from it):
+Nothing to do while production and local share one Neon branch: the migrations were
+already applied from local. Run this only after a later migration is added, or if you
+ever split production onto a branch of its own:
 
 ```bash
 DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
 ```
 
-The `DATABASE_URL` passed inline takes priority over the one in `.env.local`: this way
-the migrations are applied against the **production** database even if `.env.local`
-points to the local development one.
+The inline `DATABASE_URL` takes priority over the one in `.env.local`, so the
+migrations land on the database you name here rather than the development one.
 
 ## 5. Redeploy and verify
 
@@ -90,8 +100,12 @@ Once deployed, check on the public URL that:
 
 ## 6. Promote the first admin
 
-The `defaultRole` configured in `src/lib/auth/auth.ts` is `"user"`, so **everyone who
-signs in for the first time — including the project owner — gets the `user` role**.
+Nothing to do while production and local share one Neon branch: the first admin was
+already promoted from local, and the same row serves production.
+
+The rest of this section applies to a fresh database. The `defaultRole` configured in
+`src/lib/auth/auth.ts` is `"user"`, so **everyone who signs in for the first time —
+including the project owner — gets the `user` role**.
 There is no `admin` user until someone is promoted by hand directly in the database:
 this is a manual step needed only once, for the first admin.
 
