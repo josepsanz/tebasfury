@@ -15,7 +15,6 @@ import type { TooltipProps } from "recharts";
 import type { Series, TeamRef } from "@/lib/domain/standings";
 
 const PINNED_COLOURS = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
-const MAX_PINNED = 3;
 
 type ChartSpec = {
   key: keyof Series;
@@ -35,17 +34,35 @@ const CHARTS: ChartSpec[] = [
   },
 ];
 
-export function ProgressCharts({ series, teams }: { series: Series; teams: TeamRef[] }) {
-  const [pinned, setPinned] = useState<string[]>([]);
+// One slot per palette colour — that cap is the whole reason the palette is legal.
+const EMPTY_PINS: (string | null)[] = PINNED_COLOURS.map(() => null);
 
-  const toggle = (teamId: string) =>
-    setPinned((current) =>
-      current.includes(teamId)
-        ? current.filter((id) => id !== teamId)
-        : current.length >= MAX_PINNED
-          ? current
-          : [...current, teamId],
-    );
+/**
+ * A manager's colour is `PINNED_COLOURS[pinned.indexOf(teamId)]`, so the slot a
+ * manager occupies must never move once assigned — pinning and unpinning must
+ * not repaint the survivors. Modelling `pinned` as three fixed slots (rather
+ * than a list that shifts on removal) is what makes that true: unpinning clears
+ * a manager's own slot to `null` and leaves every other slot exactly where it
+ * was. Extracted so this property can be unit tested directly.
+ */
+export function applyPin(current: (string | null)[], teamId: string): (string | null)[] {
+  const slot = current.indexOf(teamId);
+  if (slot !== -1) {
+    const next = [...current];
+    next[slot] = null;
+    return next;
+  }
+  const free = current.indexOf(null);
+  if (free === -1) return current; // all three slots taken
+  const next = [...current];
+  next[free] = teamId;
+  return next;
+}
+
+export function ProgressCharts({ series, teams }: { series: Series; teams: TeamRef[] }) {
+  const [pinned, setPinned] = useState<(string | null)[]>(EMPTY_PINS);
+
+  const toggle = (teamId: string) => setPinned((current) => applyPin(current, teamId));
 
   return (
     <div className="space-y-12">
@@ -69,7 +86,7 @@ export function ProgressCharts({ series, teams }: { series: Series; teams: TeamR
           );
         })}
       </div>
-      {pinned.length >= MAX_PINNED && (
+      {pinned.every((id) => id !== null) && (
         <p className="-mt-8 text-[12px]" style={{ color: "var(--board-ink-dim)" }}>
           Three at a time. Unpin one to compare someone else.
         </p>
@@ -96,6 +113,21 @@ function toRows(points: { teamId: string; gameweek: number; value: number | null
 }
 
 /**
+ * Recharts declares a tooltip payload's `value` as `number` (never `null`), but a
+ * real gap in the underlying series — a team value before its first sync, say,
+ * since that series only accumulates forward — does come through as `null` at
+ * runtime, not `undefined`. Treating only `undefined` as "absent" turned a
+ * genuine gap into a false "0.0M": `Number(null)` is `0`, which reads as a real
+ * measurement. Extracted so this distinction can be unit tested directly.
+ */
+export function formatTooltipValue(
+  raw: number | null | undefined,
+  format: (v: number) => string,
+): string {
+  return raw === null || raw === undefined ? "—" : format(raw);
+}
+
+/**
  * The tooltip content, restricted to pinned managers.
  *
  * Thirteen rows of tooltip is unreadable, so unpinned lines carry no identity
@@ -110,7 +142,7 @@ function ChartTooltip({
   nameOf,
   format,
 }: TooltipProps<number, string> & {
-  pinned: string[];
+  pinned: (string | null)[];
   nameOf: (teamId: string) => string;
   format: (v: number) => string;
 }) {
@@ -133,7 +165,7 @@ function ChartTooltip({
       <p style={{ margin: 0, color: "var(--board-ink-dim)" }}>Gameweek {label}</p>
       {rows.map((p) => (
         <p key={p.dataKey} style={{ margin: "4px 0 0", color: PINNED_COLOURS[pinned.indexOf(p.dataKey)] }}>
-          {nameOf(p.dataKey)}: {p.value === undefined ? "—" : format(Number(p.value))}
+          {nameOf(p.dataKey)}: {formatTooltipValue(p.value as number | null | undefined, format)}
         </p>
       ))}
     </div>
@@ -180,7 +212,7 @@ function EndLabels({
   lastIndex,
   nameOf,
 }: {
-  pinned: string[];
+  pinned: (string | null)[];
   rows: Row[];
   lastIndex: number;
   nameOf: (teamId: string) => string;
@@ -188,13 +220,14 @@ function EndLabels({
   return function Overlay(props: ChartInternals) {
     const scale = Object.values(props.yAxisMap ?? {})[0]?.scale;
     const offset = props.offset;
-    if (!scale || !offset || pinned.length === 0) return null;
+    if (!scale || !offset) return null;
 
     const last = rows[lastIndex];
     const x = offset.left + offset.width + 8;
 
     const items = pinned
       .map((teamId, index) => {
+        if (teamId === null) return null;
         const value = last[teamId];
         return value === null || value === undefined
           ? null
@@ -231,7 +264,7 @@ function ChartBlock({
   spec: ChartSpec;
   points: { teamId: string; gameweek: number; value: number | null }[];
   teams: TeamRef[];
-  pinned: string[];
+  pinned: (string | null)[];
 }) {
   const rows = toRows(points);
   const nameOf = (teamId: string) => teams.find((t) => t.id === teamId)?.managerName ?? teamId;
@@ -296,6 +329,7 @@ function ChartBlock({
             ))}
 
             {pinned.map((teamId, index) => {
+              if (teamId === null) return null;
               const colour = PINNED_COLOURS[index];
               return (
                 <Line
