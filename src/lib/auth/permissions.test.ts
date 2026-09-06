@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { roles } from "./permissions";
+import { colaboratorGrants, roles } from "./permissions";
+import type { Permissions } from "./access-decision";
+
+/** Totes les parelles (recurs, acció) que `colaboratorGrants` concedeix. */
+const grantCases = Object.entries(colaboratorGrants).flatMap(([resource, actions]) =>
+  actions.map((action) => [resource, action] as const),
+);
+
+function permissionFor(resource: string, action: string): Permissions {
+  return { [resource]: [action] } as Permissions;
+}
 
 describe("polítiques de rol", () => {
   describe("user", () => {
@@ -21,14 +31,10 @@ describe("polítiques de rol", () => {
   });
 
   describe("colaborator", () => {
-    it.each([
-      ["crear enquestes", { poll: ["create"] }],
-      ["resoldre enquestes", { poll: ["resolve"] }],
-      ["anotar el fair play", { fairplay: ["annotate"] }],
-      ["forçar la sincronització", { sync: ["trigger"] }],
-      ["corregir dades de la lliga", { leagueData: ["correct"] }],
-    ] as const)("pot %s", (_nom, permis) => {
-      expect(roles.colaborator.authorize(permis).success).toBe(true);
+    it.each(grantCases)("pot %s:%s", (resource, action) => {
+      expect(roles.colaborator.authorize(permissionFor(resource, action)).success).toBe(
+        true,
+      );
     });
 
     it("no pot gestionar usuaris", () => {
@@ -41,10 +47,8 @@ describe("polítiques de rol", () => {
       expect(roles.admin.authorize({ user: ["set-role"] }).success).toBe(true);
     });
 
-    it("pot fer tot el que fa un colaborator", () => {
-      expect(roles.admin.authorize({ poll: ["create"], sync: ["trigger"] }).success).toBe(
-        true,
-      );
+    it.each(grantCases)("pot fer tot el que fa un colaborator: %s:%s", (resource, action) => {
+      expect(roles.admin.authorize(permissionFor(resource, action)).success).toBe(true);
     });
   });
 });

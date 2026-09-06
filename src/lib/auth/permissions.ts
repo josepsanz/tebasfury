@@ -17,19 +17,24 @@ const user = ac.newRole({
   fairplay: ["read"],
 });
 
-/** Tot el que fa l'admin excepte gestionar usuaris i rols. */
-const colaborator = ac.newRole({
+/**
+ * Concessions del colaborator: tot el que fa l'admin excepte gestionar
+ * usuaris i rols. Es defineixen un sol cop aquí perquè `admin` les hereti
+ * per composició en lloc de repetir-les — si `colaborator` guanya un recurs
+ * nou, `admin` el rep automàticament.
+ */
+export const colaboratorGrants = {
   poll: ["create", "publish", "close", "resolve"],
   fairplay: ["read", "annotate", "delete"],
   sync: ["trigger"],
   leagueData: ["correct"],
-});
+} as const;
+
+/** Tot el que fa l'admin excepte gestionar usuaris i rols. */
+const colaborator = ac.newRole({ ...colaboratorGrants });
 
 const admin = ac.newRole({
-  poll: ["create", "publish", "close", "resolve"],
-  fairplay: ["read", "annotate", "delete"],
-  sync: ["trigger"],
-  leagueData: ["correct"],
+  ...colaboratorGrants,
   ...adminAc.statements,
 });
 
