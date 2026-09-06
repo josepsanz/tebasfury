@@ -15,7 +15,13 @@ describe("parseEnv", () => {
   });
 
   it("falla i anomena la variable que manca", () => {
-    const { GOOGLE_CLIENT_SECRET, ...incomplete } = valid;
+    const incomplete: Record<string, string | undefined> = {
+      DATABASE_URL: valid.DATABASE_URL,
+      BETTER_AUTH_SECRET: valid.BETTER_AUTH_SECRET,
+      BETTER_AUTH_URL: valid.BETTER_AUTH_URL,
+      GOOGLE_CLIENT_ID: valid.GOOGLE_CLIENT_ID,
+      // GOOGLE_CLIENT_SECRET falta a propòsit.
+    };
     expect(() => parseEnv(incomplete)).toThrowError(/GOOGLE_CLIENT_SECRET/);
   });
 
@@ -23,6 +29,15 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...valid, BETTER_AUTH_SECRET: "massa-curt" })).toThrowError(
       /BETTER_AUTH_SECRET/,
     );
+  });
+
+  it("rebutja el secret d'exemple publicat a .env.example", () => {
+    expect(() =>
+      parseEnv({
+        ...valid,
+        BETTER_AUTH_SECRET: "genera'l amb: openssl rand -base64 32",
+      }),
+    ).toThrowError(/BETTER_AUTH_SECRET/);
   });
 
   it("rebutja una URL de base de dades que no és una URL", () => {
