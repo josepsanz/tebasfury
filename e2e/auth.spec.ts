@@ -1,26 +1,26 @@
 import { expect, test } from "@playwright/test";
 
-test("la portada convida a entrar quan no hi ha sessió", async ({ page }) => {
+test("the homepage invites you to sign in when there is no session", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Entra" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
 });
 
-test("la pàgina d'entrada ofereix Google", async ({ page }) => {
+test("the sign-in page offers Google", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByRole("button", { name: /Google/i })).toBeVisible();
 });
 
-test("una ruta d'administració desvia qui no ha entrat", async ({ page }) => {
-  await page.goto("/admin/sincronitzacio");
+test("an admin route redirects anyone who has not signed in", async ({ page }) => {
+  await page.goto("/admin/sync");
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test("el títol del portal és TebasFury", async ({ page }) => {
+test("the portal is titled TebasFury", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/TebasFury/);
 });
 
-test("el control de sortida no es mostra sense sessió", async ({ page }) => {
+test("the sign-out control is hidden without a session", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("button", { name: "Surt" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
 });

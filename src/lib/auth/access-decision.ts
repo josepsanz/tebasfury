@@ -6,8 +6,8 @@ type SessionLike = { user: { id: string; role?: string | null } } | null;
 export type AccessDecision = { kind: "allow" } | { kind: "redirect"; to: string };
 
 /**
- * Decideix si una sessió pot accedir a un recurs. Funció pura, sense I/O:
- * és el que fa que la regla d'accés sigui testejable sense aixecar Next.
+ * Decides whether a session may reach a resource. A pure function with no I/O,
+ * which is what makes the access rule testable without standing up Next.
  */
 export function decideAccess(session: SessionLike, permissions: Permissions): AccessDecision {
   if (!session) return { kind: "redirect", to: "/login" };

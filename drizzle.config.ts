@@ -1,11 +1,11 @@
 import { defineConfig } from "drizzle-kit";
 
-// drizzle-kit incorpora el seu propi dotenv, que només llegeix `.env` — mai
-// `.env.local`. Next.js sí que llegeix `.env.local`, així que ho fem nosaltres
-// també aquí perquè `pnpm drizzle-kit migrate` faci servir la mateixa
-// configuració que `pnpm dev`. `process.loadEnvFile` no sobreescriu variables
-// que ja existeixin a l'entorn (p. ex. la `DATABASE_URL` inline que fa servir
-// `docs/desplegament.md` per a producció).
+// drizzle-kit bundles its own dotenv, which only ever reads `.env` — never
+// `.env.local`. Next.js does read `.env.local`, so we load it here too, and
+// `pnpm drizzle-kit migrate` ends up using the same configuration as
+// `pnpm dev`. `process.loadEnvFile` does not overwrite variables already set
+// in the environment (such as the inline `DATABASE_URL` that
+// `docs/deployment.md` uses for production).
 try {
   process.loadEnvFile(".env.local");
 } catch (error) {
@@ -15,8 +15,8 @@ try {
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
   throw new Error(
-    "Configuració d'entorn invàlida: cal definir DATABASE_URL a .env.local (o a l'entorn) " +
-      "abans d'executar drizzle-kit.",
+    "Invalid environment configuration: DATABASE_URL must be set in .env.local " +
+      "(or in the environment) before running drizzle-kit.",
   );
 }
 

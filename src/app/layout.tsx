@@ -15,13 +15,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "TebasFury",
-  description: "Portal de gestió de la lliga privada de LaLiga Fantasy",
+  description: "Management portal for our private LaLiga Fantasy league",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="ca"
+      lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

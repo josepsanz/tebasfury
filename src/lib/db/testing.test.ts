@@ -13,20 +13,20 @@ describe("createTestDatabase", () => {
     await harness.close();
   });
 
-  it("aplica les migracions i deixa la taula d'equips buida", async () => {
+  it("applies the migrations and leaves the teams table empty", async () => {
     expect(await harness.db.select().from(teams)).toEqual([]);
   });
 
-  it("desa i recupera un equip", async () => {
+  it("stores and reads back a team", async () => {
     await harness.db.insert(teams).values({
       id: "team-1",
-      name: "Els Necrofílics",
-      managerName: "Josep",
+      name: "The Grave Diggers",
+      managerName: "Alex",
     });
 
     const rows = await harness.db.select().from(teams);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: "team-1", name: "Els Necrofílics" });
+    expect(rows[0]).toMatchObject({ id: "team-1", name: "The Grave Diggers" });
     expect(rows[0].createdAt).toBeInstanceOf(Date);
   });
 });

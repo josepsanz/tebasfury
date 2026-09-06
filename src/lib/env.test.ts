@@ -10,38 +10,38 @@ const valid = {
 };
 
 describe("parseEnv", () => {
-  it("retorna la configuració quan totes les variables hi són", () => {
+  it("returns the configuration when every variable is present", () => {
     expect(parseEnv(valid)).toEqual(valid);
   });
 
-  it("falla i anomena la variable que manca", () => {
+  it("fails and names the missing variable", () => {
     const incomplete: Record<string, string | undefined> = {
       DATABASE_URL: valid.DATABASE_URL,
       BETTER_AUTH_SECRET: valid.BETTER_AUTH_SECRET,
       BETTER_AUTH_URL: valid.BETTER_AUTH_URL,
       GOOGLE_CLIENT_ID: valid.GOOGLE_CLIENT_ID,
-      // GOOGLE_CLIENT_SECRET falta a propòsit.
+      // GOOGLE_CLIENT_SECRET is left out on purpose.
     };
     expect(() => parseEnv(incomplete)).toThrowError(/GOOGLE_CLIENT_SECRET/);
   });
 
-  it("rebutja un secret massa curt", () => {
-    expect(() => parseEnv({ ...valid, BETTER_AUTH_SECRET: "massa-curt" })).toThrowError(
+  it("rejects a secret that is too short", () => {
+    expect(() => parseEnv({ ...valid, BETTER_AUTH_SECRET: "too-short" })).toThrowError(
       /BETTER_AUTH_SECRET/,
     );
   });
 
-  it("rebutja el secret d'exemple publicat a .env.example", () => {
+  it("rejects the placeholder secret published in .env.example", () => {
     expect(() =>
       parseEnv({
         ...valid,
-        BETTER_AUTH_SECRET: "genera'l amb: openssl rand -base64 32",
+        BETTER_AUTH_SECRET: "generate one with: openssl rand -base64 32",
       }),
     ).toThrowError(/BETTER_AUTH_SECRET/);
   });
 
-  it("rebutja una URL de base de dades que no és una URL", () => {
-    expect(() => parseEnv({ ...valid, DATABASE_URL: "no-soc-una-url" })).toThrowError(
+  it("rejects a database URL that is not a URL", () => {
+    expect(() => parseEnv({ ...valid, DATABASE_URL: "not-a-url" })).toThrowError(
       /DATABASE_URL/,
     );
   });
