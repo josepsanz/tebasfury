@@ -2,17 +2,25 @@
 
 Throwaway investigation. Nothing here is production code.
 
-## Verdict: VIABLE
+## Verdict: VIABLE — verified against the live API
 
-Every question that gated the design is answered, and the answer to the one that
-worried me most — whether per-gameweek history is retrievable — is favourable.
+Every question that gated the design is answered, and the one that worried me most —
+whether per-gameweek history is retrievable — came back favourable.
 
-One caveat on provenance: most of what follows comes from reading several independent
-open-source projects that use this API, cross-checked against each other, plus a
-TLS-encrypted capture of the official Android app and direct probes of the public
-metadata endpoints. **It has not yet been exercised with a real token.** That is the
-first task of Step 2, and it is cheap: one authenticated call either works or it
-doesn't.
+This is no longer inference from third-party code. On 2026-09-06 a real refresh token
+was exchanged for an access token and used to call the API successfully:
+
+| Call | Result |
+|---|---|
+| `POST …/token` (refresh grant) | HTTP 200, `Bearer`, `expires_in` 86400 (24h), refresh token rotated |
+| `GET /v4/user/me` | HTTP 200 |
+| `GET /v1/competition/1/leagues?x-lang=es` | HTTP 200, the owner's league found |
+| `GET …/week/current` | HTTP 200, gameweek 4, `isLive: true` |
+| `GET …/leagues/{id}/standing` | HTTP 200, 13 teams |
+| `GET …/leagues/{id}/standing/3` | HTTP 200, 13 teams — **per-gameweek history confirmed** |
+
+Anonymised responses are in `fixtures/`. They keep their exact shape and types; manager
+names, ids and the league token are replaced with stable fakes.
 
 ## Evidence gathered first-hand
 
@@ -88,10 +96,14 @@ segment: `/v1/competition/1/...`, where 1 is LaLiga EA Sports.
 
 `x-lang=es` appears as a query parameter on league calls.
 
-### Full history is available
+### Full history is available — verified
 
-The player endpoint returns a points breakdown **per gameweek across the season**, not
-just the current one. The standings endpoint takes an optional week.
+`GET …/leagues/{id}/standing/3` returned the full 13-team table for gameweek 3 while
+gameweek 4 was live. The standings endpoint takes an optional week and serves the past.
+
+The standing entries carry `position`, `previousPosition`, `points`, `livePoints`, and
+a nested `team` with `teamValue`, `teamPoints`, `teamMoney` and `isAdmin` — which is
+most of what the standings-and-progress slice needs, from one call per gameweek.
 
 This removes the risk flagged in the spec: the historical series does not depend on our
 sync never missing a gameweek. We can backfill.
@@ -172,3 +184,16 @@ field to paste the bootstrap token into, not a password field.
 If the refresh token is ever lost or expires past 90 days of disuse, recovery is the
 four steps above: a person, a browser, two minutes. Worth stating in the runbook so it
 is not rediscovered under pressure.
+
+
+## Reproducing this
+
+`refresh.mjs`, `probe.mjs`, `probe2.mjs` and `anonymise.mjs` are throwaway scripts kept
+only so the next person can re-run the investigation. They read `.env.local` for
+`LALIGA_REFRESH_TOKEN` and `LALIGA_LEAGUE_ID`, and `refresh.mjs` writes the rotated
+refresh token straight back to it.
+
+The access token is deliberately **not** persisted anywhere: it lives 24 hours and is
+one call away from the refresh token, so storing it would add a second secret to guard
+for no benefit. Production should do the same — fetch it at the start of a sync and
+keep it in memory.

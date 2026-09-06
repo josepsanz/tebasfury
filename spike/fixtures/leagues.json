@@ -1,0 +1,57 @@
+[
+  {
+    "id": "9000001",
+    "access": "private",
+    "type": {
+      "id": "9000002",
+      "canBeDuplicated": false,
+      "sponsorId": 2,
+      "prizeInformation": {
+        "title": "¿Qué premios hay en LALIGA FANTASY?",
+        "description": "Queda entre los tres primeros de la clasificación global de la Liga Pública de LALIGA cada mes y gana premios FANTASY: 1.º: trofeo y camiseta FANTASY personalizada. 2.º y 3.º: camiseta personalizada FANTASY. Además, el campeón de la temporada se llevará un trofeo y una camiseta personalizada de FANTASY especial."
+      }
+    },
+    "managersNumber": 13,
+    "name": "Test League 2026",
+    "config": {
+      "features": {
+        "buyoutClause": true
+      },
+      "premiumFeatures": {
+        "formations": false,
+        "captain": false,
+        "bench": false,
+        "loan": false,
+        "ideal": false,
+        "coach": false
+      },
+      "premiumConfigurations": {
+        "loan": {
+          "duration": 1,
+          "maxLoans": 3,
+          "enableConclude": true,
+          "minPercentage": 0.25
+        },
+        "ideal": {
+          "reward": 100000
+        }
+      }
+    },
+    "isDuplicated": false,
+    "isSecondRound": false,
+    "token": "redacted-league-token",
+    "description": "Soy Tebas y te azotaré con el Fairplay!",
+    "premium": false,
+    "team": {
+      "id": 9000003,
+      "money": 2182336,
+      "teamPoints": 118,
+      "playersNumber": 21,
+      "teamValue": 207642576,
+      "canPunctuate": true,
+      "position": 7,
+      "previousPosition": 7,
+      "isAdmin": true
+    }
+  }
+]

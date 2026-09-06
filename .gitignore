@@ -47,3 +47,6 @@ next-env.d.ts
 
 # others
 secrets/
+
+# Spike scratch: never commit captured tokens
+spike/.access_token

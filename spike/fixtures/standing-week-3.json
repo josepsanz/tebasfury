@@ -1,0 +1,248 @@
+[
+  {
+    "position": 1,
+    "points": 60,
+    "team": {
+      "managerWarned": false,
+      "id": "9000004",
+      "managerId": 9000005,
+      "banned": false,
+      "teamValue": 246653836,
+      "teamPoints": 166,
+      "manager": {
+        "id": "9000005",
+        "managerName": "Manager A",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 2,
+    "points": 57,
+    "team": {
+      "managerWarned": false,
+      "id": "9000006",
+      "managerId": 9000007,
+      "banned": false,
+      "teamValue": 215049079,
+      "teamPoints": 122,
+      "manager": {
+        "id": "9000007",
+        "managerName": "Manager B",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 3,
+    "points": 57,
+    "team": {
+      "managerWarned": false,
+      "id": "9000008",
+      "managerId": 9000009,
+      "banned": false,
+      "teamValue": 180958125,
+      "teamPoints": 122,
+      "manager": {
+        "id": "9000009",
+        "managerName": "Manager C",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 4,
+    "points": 49,
+    "team": {
+      "managerWarned": false,
+      "id": "9000010",
+      "managerId": 9000011,
+      "banned": false,
+      "teamValue": 263691306,
+      "teamPoints": 139,
+      "manager": {
+        "id": "9000011",
+        "managerName": "Manager D",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 5,
+    "points": 48,
+    "team": {
+      "managerWarned": false,
+      "id": "9000003",
+      "managerId": 9000012,
+      "banned": false,
+      "teamValue": 207642576,
+      "teamPoints": 118,
+      "manager": {
+        "id": "9000012",
+        "managerName": "Manager E",
+        "avatar": ""
+      },
+      "isAdmin": true
+    }
+  },
+  {
+    "position": 6,
+    "points": 48,
+    "team": {
+      "managerWarned": false,
+      "id": "9000013",
+      "managerId": 9000014,
+      "banned": false,
+      "teamValue": 258695254,
+      "teamPoints": 106,
+      "manager": {
+        "id": "9000014",
+        "managerName": "Manager F",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 7,
+    "points": 43,
+    "team": {
+      "managerWarned": false,
+      "id": "9000015",
+      "managerId": 9000016,
+      "banned": false,
+      "teamValue": 187454417,
+      "teamPoints": 118,
+      "manager": {
+        "id": "9000016",
+        "managerName": "Manager G",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 8,
+    "points": 37,
+    "team": {
+      "managerWarned": false,
+      "id": "9000017",
+      "managerId": 9000018,
+      "banned": false,
+      "teamValue": 199479734,
+      "teamPoints": 97,
+      "manager": {
+        "id": "9000018",
+        "managerName": "Manager H",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 9,
+    "points": 36,
+    "team": {
+      "managerWarned": false,
+      "id": "9000019",
+      "managerId": 9000020,
+      "banned": false,
+      "teamValue": 250131187,
+      "teamPoints": 141,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 10,
+    "points": 35,
+    "team": {
+      "managerWarned": false,
+      "id": "9000021",
+      "managerId": 9000022,
+      "banned": false,
+      "teamValue": 172174831,
+      "teamPoints": 53,
+      "manager": {
+        "id": "9000022",
+        "managerName": "Manager J",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 11,
+    "points": 30,
+    "team": {
+      "managerWarned": false,
+      "id": "9000023",
+      "managerId": 9000024,
+      "banned": false,
+      "teamValue": 246999877,
+      "teamPoints": 151,
+      "manager": {
+        "id": "9000024",
+        "managerName": "Manager K",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 12,
+    "points": 14,
+    "team": {
+      "managerWarned": false,
+      "id": "9000025",
+      "managerId": 9000026,
+      "banned": false,
+      "teamValue": 182859470,
+      "teamPoints": 79,
+      "manager": {
+        "id": "9000026",
+        "managerName": "Manager L",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  },
+  {
+    "position": 13,
+    "points": 0,
+    "team": {
+      "managerWarned": false,
+      "id": "9000027",
+      "managerId": 9000028,
+      "banned": false,
+      "teamValue": 219284936,
+      "teamPoints": 72,
+      "manager": {
+        "id": "9000028",
+        "managerName": "Manager M",
+        "avatar": ""
+      },
+      "teamMoney": null,
+      "isAdmin": false
+    }
+  }
+]
