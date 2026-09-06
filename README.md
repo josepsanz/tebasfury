@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TebasFury
 
-## Getting Started
+TebasFury és el portal de gestió de la lliga privada de LaLiga Fantasy d'un grup
+d'amics. Cobreix el que l'app oficial no ofereix: classificació i evolució amb
+profunditat històrica, un registre intern de fair play (la norma de no vendre un
+jugador abans de 5 dies), operacions de mercat programades a hora exacta, i enquestes
+internes com la Necroporra setmanal, on cada manager vota els dos equips rivals
+candidats a fer l'últim de la jornada.
 
-First, run the development server:
+## Stack
+
+- **Next.js** 16.3.4 (App Router) + **React** 19.2.8 + **TypeScript** 5.9.3
+- **Postgres a Neon** (`@neondatabase/serverless` 1.1.0)
+- **Drizzle ORM** 0.45.2 + **drizzle-kit** 0.31.10 per a les migracions
+- **better-auth** 1.7.2, amb proveïdor Google i adapter de Drizzle
+- **Tailwind CSS** 4.3.3
+- **Zod** 4.5.4
+- **Vitest** 5.0.0 + **PGlite** 0.5.8 (Postgres en procés, sense Docker) per als tests
+  unitaris i d'integració
+- **Playwright** 1.63.0 per als tests E2E
+- Node ≥ 24, **pnpm** 11.4.0
+
+## Arrencada en local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+cp .env.example .env.local
+pnpm install
+pnpm drizzle-kit migrate
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Cal omplir `.env.local` amb una `DATABASE_URL` pròpia (per exemple, una branca de Neon)
+i unes credencials d'OAuth de Google. `BETTER_AUTH_SECRET` es genera amb
+`openssl rand -base64 32`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm test
+```
 
-## Learn More
+Executa els tests unitaris i d'integració amb Vitest (aquests últims contra PGlite).
+No requereix cap variable d'entorn ni `.env.local`: cap test hi depèn.
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm test:e2e
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Executa els tests d'extrem a extrem amb Playwright. Aixeca ell mateix `pnpm build` i
+`pnpm start` amb un joc de variables d'entorn fictícies (vegeu `playwright.config.ts`),
+així que tampoc necessita `.env.local`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Estat actual
 
-## Deploy on Vercel
+Aquest repositori és l'**esquelet** del projecte: Next.js, la capa de base de dades amb
+Drizzle, l'autenticació amb Google i els tres rols (`user`, `colaborator`, `admin`) amb
+els seus guards de servidor, i el desplegament a Vercel, ja funcionen. Encara **no hi ha
+cap funcionalitat de producte** — ni classificació, ni fair play, ni operacions
+programades, ni enquestes.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+El següent pas és el *Pas 2: slice vertical de classificació i evolució*, descrit a
+l'spec. Vegeu el seu roadmap ("Pla d'execució") per a l'ordre dels passos posteriors.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Documentació
+
+- [Spec de disseny del portal](docs/superpowers/specs/2026-09-06-tebasfury-portal-design.md)
+- [Pla d'implementació de l'esquelet](docs/superpowers/plans/2026-09-06-tebasfury-esquelet.md)
+- [Desplegament a Vercel](docs/desplegament.md)
