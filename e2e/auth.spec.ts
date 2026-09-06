@@ -24,3 +24,8 @@ test("the sign-out control is hidden without a session", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
 });
+
+test("the sync endpoint refuses an unsigned request", async ({ request }) => {
+  const res = await request.post("/api/sync", { data: { trigger: "manual" } });
+  expect(res.status()).toBe(401);
+});

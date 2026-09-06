@@ -20,6 +20,9 @@ const envSchema = z.object({
     message: "must be 32 bytes, base64 encoded",
   }),
   LALIGA_LEAGUE_ID: z.string().min(1),
+  QSTASH_TOKEN: z.string().min(1),
+  QSTASH_CURRENT_SIGNING_KEY: z.string().min(1),
+  QSTASH_NEXT_SIGNING_KEY: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

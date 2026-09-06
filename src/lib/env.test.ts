@@ -9,6 +9,9 @@ const valid = {
   GOOGLE_CLIENT_SECRET: "google-client-secret",
   CREDENTIALS_KEY: Buffer.alloc(32).toString("base64"),
   LALIGA_LEAGUE_ID: "018012894",
+  QSTASH_TOKEN: "qstash-token",
+  QSTASH_CURRENT_SIGNING_KEY: "sig-current",
+  QSTASH_NEXT_SIGNING_KEY: "sig-next",
 };
 
 describe("parseEnv", () => {

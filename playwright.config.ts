@@ -19,6 +19,9 @@ export default defineConfig({
       GOOGLE_CLIENT_SECRET: "e2e-dummy-google-client-secret",
       CREDENTIALS_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
       LALIGA_LEAGUE_ID: "test-league",
+      QSTASH_TOKEN: "qstash-dummy-token",
+      QSTASH_CURRENT_SIGNING_KEY: "sig-current",
+      QSTASH_NEXT_SIGNING_KEY: "sig-next",
     },
   },
 });

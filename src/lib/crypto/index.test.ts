@@ -11,6 +11,9 @@ process.env.BETTER_AUTH_URL = "http://localhost:3000";
 process.env.GOOGLE_CLIENT_ID = "google-client-id";
 process.env.GOOGLE_CLIENT_SECRET = "google-client-secret";
 process.env.LALIGA_LEAGUE_ID = "test-league";
+process.env.QSTASH_TOKEN = "qstash-token";
+process.env.QSTASH_CURRENT_SIGNING_KEY = "sig-current";
+process.env.QSTASH_NEXT_SIGNING_KEY = "sig-next";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
 process.env.CREDENTIALS_KEY = KEY;
