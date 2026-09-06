@@ -1,51 +1,51 @@
 import { describe, expect, it } from "vitest";
 import { decideAccess } from "./access-decision";
 
-const sessioDe = (role: string) => ({ user: { id: "u1", role } });
+const sessionFor = (role: string) => ({ user: { id: "u1", role } });
 
 describe("decideAccess", () => {
-  it("envia a /login quan no hi ha sessió", () => {
+  it("sends you to /login when there is no session", () => {
     expect(decideAccess(null, { sync: ["trigger"] })).toEqual({
       kind: "redirect",
       to: "/login",
     });
   });
 
-  it("envia a l'arrel quan el rol no té el permís", () => {
-    expect(decideAccess(sessioDe("user"), { sync: ["trigger"] })).toEqual({
+  it("sends you to the root when the role lacks the permission", () => {
+    expect(decideAccess(sessionFor("user"), { sync: ["trigger"] })).toEqual({
       kind: "redirect",
       to: "/",
     });
   });
 
-  it("deixa passar el colaborator que té el permís", () => {
-    expect(decideAccess(sessioDe("colaborator"), { sync: ["trigger"] })).toEqual({
+  it("lets a collaborator through when the role holds the permission", () => {
+    expect(decideAccess(sessionFor("collaborator"), { sync: ["trigger"] })).toEqual({
       kind: "allow",
     });
   });
 
-  it("deixa passar l'admin", () => {
-    expect(decideAccess(sessioDe("admin"), { user: ["set-role"] })).toEqual({
+  it("lets an admin through", () => {
+    expect(decideAccess(sessionFor("admin"), { user: ["set-role"] })).toEqual({
       kind: "allow",
     });
   });
 
-  it("envia a l'arrel quan el rol és desconegut", () => {
-    expect(decideAccess(sessioDe("intrus"), { fairplay: ["read"] })).toEqual({
+  it("sends you to the root when the role is unknown", () => {
+    expect(decideAccess(sessionFor("intruder"), { fairplay: ["read"] })).toEqual({
       kind: "redirect",
       to: "/",
     });
   });
 
-  it("envia a l'arrel quan el rol és 'constructor' i no es cola per prototip", () => {
-    expect(decideAccess(sessioDe("constructor"), { fairplay: ["read"] })).toEqual({
+  it("sends 'constructor' to the root instead of leaking through the prototype", () => {
+    expect(decideAccess(sessionFor("constructor"), { fairplay: ["read"] })).toEqual({
       kind: "redirect",
       to: "/",
     });
   });
 
-  it("envia a l'arrel quan el rol és 'toString' i no es cola per prototip", () => {
-    expect(decideAccess(sessioDe("toString"), { fairplay: ["read"] })).toEqual({
+  it("sends 'toString' to the root instead of leaking through the prototype", () => {
+    expect(decideAccess(sessionFor("toString"), { fairplay: ["read"] })).toEqual({
       kind: "redirect",
       to: "/",
     });

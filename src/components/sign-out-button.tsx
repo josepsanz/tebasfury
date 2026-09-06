@@ -13,7 +13,7 @@ export function SignOutButton() {
 
   return (
     <button type="button" className="text-sm underline" onClick={handleSignOut}>
-      Surt
+      Sign out
     </button>
   );
 }

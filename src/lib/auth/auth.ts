@@ -22,7 +22,7 @@ export const auth = betterAuth({
   },
   plugins: [
     adminPlugin({ ac, roles, adminRoles: ["admin"], defaultRole: "user" }),
-    // nextCookies ha de ser sempre l'últim plugin de la llista.
+    // nextCookies must always be the last plugin in the list.
     nextCookies(),
   ],
 });

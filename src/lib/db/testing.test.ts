@@ -13,15 +13,15 @@ describe("createTestDatabase", () => {
     await harness.close();
   });
 
-  it("aplica les migracions i deixa la taula d'equips buida", async () => {
+  it("applies the migrations and leaves the teams table empty", async () => {
     expect(await harness.db.select().from(teams)).toEqual([]);
   });
 
-  it("desa i recupera un equip", async () => {
+  it("stores and reads back a team", async () => {
     await harness.db.insert(teams).values({
       id: "team-1",
       name: "Els Necrofílics",
-      managerName: "Josep",
+      managerName: "Alex",
     });
 
     const rows = await harness.db.select().from(teams);

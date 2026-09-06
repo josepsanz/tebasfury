@@ -4,7 +4,7 @@ import { SignOutButton } from "@/components/sign-out-button";
 
 export async function AppNav() {
   const session = await getSession();
-  const potSincronitzar =
+  const canTriggerSync =
     decideAccess(session, { sync: ["trigger"] }).kind === "allow";
 
   return (
@@ -12,7 +12,7 @@ export async function AppNav() {
       <Link href="/" className="font-semibold">
         TebasFury
       </Link>
-      {potSincronitzar && <Link href="/admin/sincronitzacio">Sincronització</Link>}
+      {canTriggerSync && <Link href="/admin/sync">Sync</Link>}
       <span className="ml-auto flex items-center gap-3 text-sm">
         {session ? (
           <>
@@ -20,7 +20,7 @@ export async function AppNav() {
             <SignOutButton />
           </>
         ) : (
-          <Link href="/login">Entra</Link>
+          <Link href="/login">Sign in</Link>
         )}
       </span>
     </nav>

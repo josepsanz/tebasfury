@@ -9,7 +9,7 @@ export function SignInButton() {
       className="rounded-md bg-black px-4 py-2 text-white"
       onClick={() => signIn.social({ provider: "google", callbackURL: "/" })}
     >
-      Entra amb Google
+      Sign in with Google
     </button>
   );
 }

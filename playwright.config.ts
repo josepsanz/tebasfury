@@ -8,11 +8,11 @@ export default defineConfig({
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    // Valors ficticis: `pnpm build` carrega `auth.ts`, que crida `getEnv()`
-    // en temps de mòdul. Cap dels quatre tests passa per Google, així que
-    // no calen credencials reals ni un `.env.local` al disc.
+    // Dummy values: `pnpm build` loads `auth.ts`, which calls `getEnv()` at
+    // module load. None of the tests go through Google, so neither real
+    // credentials nor a `.env.local` on disk are needed.
     env: {
-      DATABASE_URL: "postgres://usuari:contrasenya@localhost:5432/tebasfury_e2e",
+      DATABASE_URL: "postgres://user:password@localhost:5432/tebasfury_e2e",
       BETTER_AUTH_SECRET: "e2e-dummy-secret-that-is-at-least-32-chars-long",
       BETTER_AUTH_URL: "http://localhost:3000",
       GOOGLE_CLIENT_ID: "e2e-dummy-google-client-id",

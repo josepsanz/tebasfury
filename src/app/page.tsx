@@ -3,7 +3,7 @@ export default function HomePage() {
     <section>
       <h1 className="text-2xl font-semibold">TebasFury</h1>
       <p className="mt-2 text-neutral-600">
-        Portal de gestió de la lliga privada de LaLiga Fantasy.
+        Management portal for our private LaLiga Fantasy league.
       </p>
     </section>
   );

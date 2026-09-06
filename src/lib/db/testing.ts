@@ -9,10 +9,10 @@ export type TestDatabase = {
 };
 
 /**
- * Aixeca un Postgres en procés amb l'esquema ja migrat.
+ * Brings up an in-process Postgres with the schema already migrated.
  *
- * PGlite corre dins del mateix procés de Node, sense Docker ni servidor extern,
- * de manera que cada fitxer de test pot tenir la seva base de dades neta.
+ * PGlite runs inside the Node process itself, with no Docker and no external
+ * server, so every test file can have a database of its own, freshly created.
  */
 export async function createTestDatabase(): Promise<TestDatabase> {
   const client = new PGlite();

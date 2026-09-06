@@ -5,9 +5,9 @@ export default async function SyncPage() {
 
   return (
     <section>
-      <h1 className="text-xl font-semibold">Sincronització</h1>
+      <h1 className="text-xl font-semibold">Sync</h1>
       <p className="mt-2 text-neutral-600">
-        Encara no hi ha res a sincronitzar. Arribarà amb el slice de classificació.
+        Nothing to sync yet. This arrives with the standings slice.
       </p>
     </section>
   );

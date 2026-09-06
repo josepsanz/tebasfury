@@ -1,26 +1,26 @@
 # TebasFury
 
-TebasFury és el portal de gestió de la lliga privada de LaLiga Fantasy d'un grup
-d'amics. Cobreix el que l'app oficial no ofereix: classificació i evolució amb
-profunditat històrica, un registre intern de fair play (la norma de no vendre un
-jugador abans de 5 dies), operacions de mercat programades a hora exacta, i enquestes
-internes com la Necroporra setmanal, on cada manager vota els dos equips rivals
-candidats a fer l'últim de la jornada.
+TebasFury is the management portal for a group of friends' private LaLiga Fantasy
+league. It covers what the official app doesn't: standings and progress with
+historical depth, an internal fair-play log (the rule against selling a player within
+5 days of buying them), market operations scheduled to the exact hour, and internal
+polls like the weekly Necroporra, where every manager votes for the two rival teams
+most likely to finish last in the round.
 
 ## Stack
 
 - **Next.js** 16.3.4 (App Router) + **React** 19.2.8 + **TypeScript** 5.9.3
-- **Postgres a Neon** (`@neondatabase/serverless` 1.1.0)
-- **Drizzle ORM** 0.45.2 + **drizzle-kit** 0.31.10 per a les migracions
-- **better-auth** 1.7.2, amb proveïdor Google i adapter de Drizzle
+- **Postgres on Neon** (`@neondatabase/serverless` 1.1.0)
+- **Drizzle ORM** 0.45.2 + **drizzle-kit** 0.31.10 for migrations
+- **better-auth** 1.7.2, with a Google provider and the Drizzle adapter
 - **Tailwind CSS** 4.3.3
 - **Zod** 4.5.4
-- **Vitest** 5.0.0 + **PGlite** 0.5.8 (Postgres en procés, sense Docker) per als tests
-  unitaris i d'integració
-- **Playwright** 1.63.0 per als tests E2E
+- **Vitest** 5.0.0 + **PGlite** 0.5.8 (in-process Postgres, no Docker) for unit and
+  integration tests
+- **Playwright** 1.63.0 for E2E tests
 - Node ≥ 24, **pnpm** 11.4.0
 
-## Arrencada en local
+## Running locally
 
 ```bash
 cp .env.example .env.local
@@ -29,8 +29,8 @@ pnpm drizzle-kit migrate
 pnpm dev
 ```
 
-Cal omplir `.env.local` amb una `DATABASE_URL` pròpia (per exemple, una branca de Neon)
-i unes credencials d'OAuth de Google. `BETTER_AUTH_SECRET` es genera amb
+`.env.local` needs a `DATABASE_URL` of your own (for example, a Neon branch) and a set
+of Google OAuth credentials. `BETTER_AUTH_SECRET` is generated with
 `openssl rand -base64 32`.
 
 ## Tests
@@ -39,39 +39,39 @@ i unes credencials d'OAuth de Google. `BETTER_AUTH_SECRET` es genera amb
 pnpm test
 ```
 
-Executa els tests unitaris i d'integració amb Vitest (aquests últims contra PGlite).
-No requereix cap variable d'entorn ni `.env.local`: cap test hi depèn.
+Runs the unit and integration tests with Vitest (the latter against PGlite). No
+environment variables or `.env.local` are required: no test depends on them.
 
 ```bash
 pnpm test:e2e
 ```
 
-Executa els tests d'extrem a extrem amb Playwright. Aixeca ell mateix `pnpm build` i
-`pnpm start` amb un joc de variables d'entorn fictícies (vegeu `playwright.config.ts`),
-així que tampoc necessita `.env.local`.
+Runs the end-to-end tests with Playwright. It brings up `pnpm build` and `pnpm start`
+itself with a set of dummy environment variables (see `playwright.config.ts`), so this
+doesn't need `.env.local` either.
 
-## Estat actual
+## Current status
 
-Aquest repositori és l'**esquelet** del projecte. Construït i verificat amb tests:
-Next.js, la capa de base de dades amb Drizzle, la configuració d'autenticació amb
-Google i els tres rols (`user`, `colaborator`, `admin`) amb els seus guards de servidor,
-i la interfície bàsica (entrada, sortida, navegació condicionada pel rol). `pnpm test`
-(38 tests) i `pnpm test:e2e` (5 tests) passen.
+This repository is the project's **skeleton**. Built and test-verified: Next.js, the
+database layer with Drizzle, Google authentication configuration and the three roles
+(`user`, `collaborator`, `admin`) with their server-side guards, and the basic UI
+(sign-in, sign-out, role-conditioned navigation). `pnpm test` (38 tests) and
+`pnpm test:e2e` (5 tests) pass.
 
-Dos aspectes estan **escrits però encara no executats**: el flux real d'entrada amb
-Google (els tests eviten deliberadament OAuth real i fan servir credencials fictícies) i
-el desplegament a Vercel (els passos són a `docs/desplegament.md` com a checklist per al
-propietari del projecte, encara no aplicada). El cablejat és correcte per inspecció, però
-ningú l'ha executat en un entorn real.
+Two things are **written but not yet run**: the real Google sign-in flow (the tests
+deliberately avoid real OAuth and use dummy credentials instead) and the deployment to
+Vercel (the steps are in `docs/deployment.md` as a checklist for the project owner,
+not yet carried out). The wiring is correct by inspection, but no one has run it in a
+real environment yet.
 
-Encara **no hi ha cap funcionalitat de producte** — ni classificació, ni fair play, ni
-operacions programades, ni enquestes.
+There is **no product functionality at all yet** — no standings, no fair play, no
+scheduled operations, no polls.
 
-El següent pas és el *Pas 2: slice vertical de classificació i evolució*, descrit a
-l'spec. Vegeu el seu roadmap ("Pla d'execució") per a l'ordre dels passos posteriors.
+The next step is *Step 2: standings-and-progress vertical slice*, described in the
+spec. See its roadmap ("Execution plan") for the order of the steps after that.
 
-## Documentació
+## Documentation
 
-- [Spec de disseny del portal](docs/superpowers/specs/2026-09-06-tebasfury-portal-design.md)
-- [Pla d'implementació de l'esquelet](docs/superpowers/plans/2026-09-06-tebasfury-esquelet.md)
-- [Desplegament a Vercel](docs/desplegament.md)
+- [Portal design spec](docs/superpowers/specs/2026-09-06-tebasfury-portal-design.md)
+- [Skeleton implementation plan](docs/superpowers/plans/2026-09-06-tebasfury-skeleton.md)
+- [Deploying to Vercel](docs/deployment.md)
