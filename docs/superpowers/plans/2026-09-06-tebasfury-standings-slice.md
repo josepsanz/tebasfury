@@ -18,7 +18,7 @@
 - TypeScript `strict`. No explicit `any` in production code.
 - Roles are `user`, `collaborator`, `admin`.
 - **`pnpm test` must keep running with no environment variables, no `.env.local` and no network.** Every test in this plan obeys that.
-- **Never `db.transaction()`.** `neon-http` does not support it and PGlite does, so a transaction passes every test and throws in production. Group writes with **`db.batch()`**.
+- **Never `db.transaction()` and never `db.batch()`.** `transaction` works in tests and fails in production; `batch` exists only on `NeonHttpDatabase`, so it works in production and fails in every test. Use plain sequential awaits — the upserts are idempotent, so a half-finished run is corrected by the next one.
 - **The API is the only source of truth for shape.** Every response is parsed with Zod before it enters the system; nothing else in the codebase may import from `lib/fantasy-client/` except its own public functions.
 - No secrets in the repository.
 
@@ -1475,9 +1475,9 @@ const PAYLOAD_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * One sync run.
  *
- * Writes are grouped with `db.batch()`, never `db.transaction()`: the production
- * driver is neon-http, which has no transaction support, while the PGlite used in
- * tests does — so a transaction would pass every test and throw in production.
+ * Writes are plain sequential awaits, never `db.transaction()` and never `db.batch()`:
+ * `transaction` works in tests and fails in production, `batch` does the reverse. The
+ * upserts are idempotent, so a run that dies halfway is corrected by the next one.
  */
 export async function runSync(deps: {
   db: Db; client: FantasyClient; now: Date; runId: string;
@@ -1515,15 +1515,13 @@ export async function runSync(deps: {
         })
         .onConflictDoUpdate({ target: gameweeks.number, set: { isLive: provisional } });
 
-      await db.batch([
-        ...upsertTeams(db, entries),
-        ...upsertStats(db, entries, w, provisional),
-        db.insert(rawSyncPayloads).values({
-          id: `${runId}-${w}`,
-          endpoint: `standing/${provisional ? "live" : w}`,
-          payload: entries,
-        }),
-      ]);
+      for (const write of upsertTeams(db, entries)) await write;
+      for (const write of upsertStats(db, entries, w, provisional)) await write;
+      await db.insert(rawSyncPayloads).values({
+        id: `${runId}-${w}`,
+        endpoint: `standing/${provisional ? "live" : w}`,
+        payload: entries,
+      });
 
       weeksSynced.push(w);
     }
@@ -1649,10 +1647,10 @@ Append to `src/lib/sync/index.test.ts`, inside the `runSync` describe:
 Run: `pnpm test src/lib/sync`
 Expected: PASS, 13 tests across the two files.
 
-- [ ] **Step 10: Confirm no transaction crept in**
+- [ ] **Step 10: Confirm neither forbidden call crept in**
 
-Run: `grep -rn 'db.transaction' src/`
-Expected: **no output.**
+Run: `grep -rn 'db\.transaction\|db\.batch' src/`
+Expected: **no output.** `transaction` fails in production, `batch` fails in tests.
 
 - [ ] **Step 11: Commit**
 
@@ -1668,8 +1666,9 @@ deciding when to come back — ten minutes while live, otherwise the next
 gameweek's opening, capped at a day so a lost schedule cannot strand the
 chain.
 
-Writes group with db.batch(). neon-http has no transactions and PGlite does,
-so a transaction would pass every test and fail only in production."
+Writes are sequential awaits. neon-http has no transactions while PGlite does,
+and db.batch() exists only on neon-http, so each would fail on exactly the
+side the other works on. The upserts are idempotent instead."
 ```
 
 ---

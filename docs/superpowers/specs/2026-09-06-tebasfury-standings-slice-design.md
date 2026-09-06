@@ -161,9 +161,20 @@ cron — would make 144 calls a day to observe nothing.
 ### Transactions — the trap from the skeleton review
 
 `neon-http` **does not support transactions**; PGlite does. A run wrapped in
-`db.transaction()` would pass every test and throw in production. Writes are grouped
-with **`db.batch()`**, which `neon-http` does support and which is atomic in one
-round trip. This is a hard rule for this slice and everything after it.
+`db.transaction()` would pass every test and throw in production.
+
+The obvious replacement, `db.batch()`, has the mirror-image problem: it exists **only**
+on `NeonHttpDatabase`, not on PGlite and not on the `PgDatabase` type shared by both.
+It would compile and run in production and fail in every test.
+
+So the rule for this slice is neither: **plain sequential awaits.** The writes are
+idempotent upserts, so a run that dies halfway is corrected by the next one, and
+nothing reads a half-written gameweek and acts on it. Atomicity buys nothing here and
+would cost an abstraction that exists only to paper over the driver gap.
+
+Hard rule for this slice and everything after it: **no `db.transaction()`, no
+`db.batch()`.** If a future slice genuinely needs atomicity across statements, the
+driver question gets reopened then, deliberately.
 
 ## Views
 
