@@ -118,6 +118,13 @@ This slice introduces one new environment variable, and it must be added to
 | Variable | Purpose |
 |---|---|
 | `CREDENTIALS_KEY` | 32-byte key, base64, for the AES-256-GCM sealing of the refresh token. Generate with `openssl rand -base64 32`. **Different per environment**, and losing it means re-bootstrapping the credential |
+| `LALIGA_LEAGUE_ID` | The private league's id as the API reports it. Discoverable with `GET /v1/competition/1/leagues` |
+| `QSTASH_TOKEN` | Publishes the next scheduled sync |
+| `QSTASH_CURRENT_SIGNING_KEY` | Verifies that an incoming `/api/sync` call really came from QStash |
+| `QSTASH_NEXT_SIGNING_KEY` | The same, during QStash's key rotation |
+
+All five must be added to `.env.example`, to `.env.local`, to Vercel, and — with dummy
+values — to `playwright.config.ts`, so the E2E suite keeps building with no `.env.local`.
 
 The existing `LALIGA_REFRESH_TOKEN` in `.env.local` is Phase 0 scaffolding. Once the
 credential lives in `league_credentials`, it is read from the database, and the

@@ -50,3 +50,6 @@ secrets/
 
 # Spike scratch: never commit captured tokens
 spike/.access_token
+
+# Brainstorming and SDD scratch
+.superpowers/
