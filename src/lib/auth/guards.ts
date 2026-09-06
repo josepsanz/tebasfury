@@ -1,25 +1,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "./auth";
-import { roles, type RoleName } from "./permissions";
+import { decideAccess, type AccessDecision, type Permissions } from "./access-decision";
 
-type Permissions = Parameters<(typeof roles)["admin"]["authorize"]>[0];
-type SessionLike = { user: { id: string; role?: string | null } } | null;
-
-export type AccessDecision = { kind: "allow" } | { kind: "redirect"; to: string };
-
-/**
- * Decideix si una sessió pot accedir a un recurs. Funció pura, sense I/O:
- * és el que fa que la regla d'accés sigui testejable sense aixecar Next.
- */
-export function decideAccess(session: SessionLike, permissions: Permissions): AccessDecision {
-  if (!session) return { kind: "redirect", to: "/login" };
-
-  const role = roles[session.user.role as RoleName];
-  if (!role) return { kind: "redirect", to: "/" };
-
-  return role.authorize(permissions).success ? { kind: "allow" } : { kind: "redirect", to: "/" };
-}
+export { decideAccess, type AccessDecision };
 
 export async function getSession() {
   return auth.api.getSession({ headers: await headers() });

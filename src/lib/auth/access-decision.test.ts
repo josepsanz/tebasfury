@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideAccess } from "./guards";
+import { decideAccess } from "./access-decision";
 
 const sessioDe = (role: string) => ({ user: { id: "u1", role } });
 
