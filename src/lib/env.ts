@@ -19,6 +19,7 @@ const envSchema = z.object({
   CREDENTIALS_KEY: z.string().refine((v) => Buffer.from(v, "base64").length === 32, {
     message: "must be 32 bytes, base64 encoded",
   }),
+  LALIGA_LEAGUE_ID: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -18,6 +18,7 @@ export default defineConfig({
       GOOGLE_CLIENT_ID: "e2e-dummy-google-client-id",
       GOOGLE_CLIENT_SECRET: "e2e-dummy-google-client-secret",
       CREDENTIALS_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+      LALIGA_LEAGUE_ID: "test-league",
     },
   },
 });

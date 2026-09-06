@@ -8,6 +8,7 @@ const valid = {
   GOOGLE_CLIENT_ID: "google-client-id",
   GOOGLE_CLIENT_SECRET: "google-client-secret",
   CREDENTIALS_KEY: Buffer.alloc(32).toString("base64"),
+  LALIGA_LEAGUE_ID: "018012894",
 };
 
 describe("parseEnv", () => {

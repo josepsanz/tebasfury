@@ -12,6 +12,7 @@ process.env.BETTER_AUTH_SECRET = "x".repeat(32);
 process.env.BETTER_AUTH_URL = "http://localhost:3000";
 process.env.GOOGLE_CLIENT_ID = "google-client-id";
 process.env.GOOGLE_CLIENT_SECRET = "google-client-secret";
+process.env.LALIGA_LEAGUE_ID = "test-league";
 
 process.env.CREDENTIALS_KEY = Buffer.alloc(32, 3).toString("base64");
 

@@ -1,6 +1,14 @@
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import { loadRefreshToken, saveRefreshToken } from "./credentials";
+import {
+  currentWeekSchema,
+  leaguesSchema,
+  standingSchema,
+  type CurrentWeek,
+  type League,
+  type StandingEntry,
+} from "./schemas";
 
 /**
  * The production database is `neon-http`, tests run against an in-process
@@ -63,4 +71,58 @@ export async function getAccessToken(db: Db): Promise<string> {
   }
 
   return body.access_token;
+}
+
+const API_BASE = "https://fantasy-api.llt-services.com/api";
+const COMPETITION = "1"; // LaLiga EA Sports
+
+async function apiGet<T>(
+  accessToken: string,
+  path: string,
+  schema: { parse: (v: unknown) => T },
+): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`LaLiga API answered ${res.status} for ${path}`);
+  }
+  return schema.parse(await res.json());
+}
+
+export function getCurrentWeek(accessToken: string): Promise<CurrentWeek> {
+  return apiGet(accessToken, `/v1/competition/${COMPETITION}/week/current`, currentWeekSchema);
+}
+
+export function getLeagues(accessToken: string): Promise<League[]> {
+  return apiGet(accessToken, `/v1/competition/${COMPETITION}/leagues?x-lang=es`, leaguesSchema);
+}
+
+/** Omit `week` for the live table; pass one to read a settled gameweek. */
+export function getStanding(
+  accessToken: string,
+  leagueId: string,
+  week?: number,
+): Promise<StandingEntry[]> {
+  const suffix = week === undefined ? "" : `/${week}`;
+  return apiGet(
+    accessToken,
+    `/v1/competition/${COMPETITION}/leagues/${leagueId}/standing${suffix}`,
+    standingSchema,
+  );
+}
+
+/** The narrow surface a sync run needs. Task 6 injects a fake shaped like this. */
+export type FantasyClient = {
+  getCurrentWeek(): Promise<CurrentWeek>;
+  getStanding(week?: number): Promise<StandingEntry[]>;
+};
+
+/** Exchanges the credential once and binds it, so one run means one token exchange. */
+export async function createClient(db: Db, leagueId: string): Promise<FantasyClient> {
+  const accessToken = await getAccessToken(db);
+  return {
+    getCurrentWeek: () => getCurrentWeek(accessToken),
+    getStanding: (week) => getStanding(accessToken, leagueId, week),
+  };
 }
