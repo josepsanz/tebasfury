@@ -15,11 +15,6 @@ export const auth = betterAuth({
       clientSecret: getEnv().GOOGLE_CLIENT_SECRET,
     },
   },
-  user: {
-    additionalFields: {
-      fantasyTeamId: { type: "string", required: false, input: false },
-    },
-  },
   plugins: [
     adminPlugin({ ac, roles, adminRoles: ["admin"], defaultRole: "user" }),
     // nextCookies must always be the last plugin in the list.

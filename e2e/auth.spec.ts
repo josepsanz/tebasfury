@@ -24,3 +24,33 @@ test("the sign-out control is hidden without a session", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
 });
+
+test("the sync endpoint refuses an unsigned request", async ({ request }) => {
+  const res = await request.post("/api/sync", { data: { trigger: "manual" } });
+  expect(res.status()).toBe(401);
+});
+
+// The standings and progress views need a session — any league manager's, not a
+// particular permission — exactly like `/admin/sync` needs one plus a permission.
+// This suite never signs in through Google (see the dummy env above), so these
+// routes are only reachable here as an unauthenticated visitor, which means the
+// one thing provable end-to-end is the same thing already proven for the admin
+// route: the guard redirects rather than 404ing or leaking content. The pages'
+// own markup — headings, the last-synced line, the four charts, the details/table
+// view — is exercised visually against real data in Step 14, with a real session.
+
+test("the standings page redirects anyone who has not signed in", async ({ page }) => {
+  await page.goto("/standings");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("the progress page redirects anyone who has not signed in", async ({ page }) => {
+  await page.goto("/progress");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("the standings and progress links are hidden without a session", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Standings" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Progress" })).toHaveCount(0);
+});

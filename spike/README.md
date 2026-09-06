@@ -155,11 +155,10 @@ confirmed first-hand. Browser DevTools is enough.
 
 ### Bootstrap procedure
 
-1. Open `https://miliga.laliga.com/` and sign in with Google.
-2. DevTools, Network tab, filter on `token`.
-3. Find the `POST` to
-   `login.laliga.es/laligadspprob2c.onmicrosoft.com/oauth2/v2.0/token?p=B2C_1A_5ULAIP_PARAMETRIZED_SIGNIN`.
-4. In its JSON response, take `refresh_token`.
+The four steps now live in **`docs/deployment.md`**, under "Recovering the LaLiga
+credential" — this file declares itself throwaway, and an operational procedure cannot
+be kept in one. They are, in short: sign in at `https://miliga.laliga.com/` with
+Google, and take `refresh_token` out of the token `POST` in DevTools' Network tab.
 
 Then refresh headlessly, with the same client id that issued it:
 
@@ -181,9 +180,9 @@ hold a **rotating** refresh token, written back on every sync, plus the client i
 issued it — refreshing with a different client fails. And the admin screen needs a
 field to paste the bootstrap token into, not a password field.
 
-If the refresh token is ever lost or expires past 90 days of disuse, recovery is the
-four steps above: a person, a browser, two minutes. Worth stating in the runbook so it
-is not rediscovered under pressure.
+If the refresh token is ever lost or expires past 90 days of disuse, recovery is a
+person, a browser and two minutes. It is stated in the runbook —
+`docs/deployment.md` — so it is not rediscovered under pressure.
 
 
 ## Reproducing this

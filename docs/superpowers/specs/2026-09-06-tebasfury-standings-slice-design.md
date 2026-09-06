@@ -161,9 +161,20 @@ cron — would make 144 calls a day to observe nothing.
 ### Transactions — the trap from the skeleton review
 
 `neon-http` **does not support transactions**; PGlite does. A run wrapped in
-`db.transaction()` would pass every test and throw in production. Writes are grouped
-with **`db.batch()`**, which `neon-http` does support and which is atomic in one
-round trip. This is a hard rule for this slice and everything after it.
+`db.transaction()` would pass every test and throw in production.
+
+The obvious replacement, `db.batch()`, has the mirror-image problem: it exists **only**
+on `NeonHttpDatabase`, not on PGlite and not on the `PgDatabase` type shared by both.
+It would compile and run in production and fail in every test.
+
+So the rule for this slice is neither: **plain sequential awaits.** The writes are
+idempotent upserts, so a run that dies halfway is corrected by the next one, and
+nothing reads a half-written gameweek and acts on it. Atomicity buys nothing here and
+would cost an abstraction that exists only to paper over the driver gap.
+
+Hard rule for this slice and everything after it: **no `db.transaction()`, no
+`db.batch()`.** If a future slice genuinely needs atomicity across statements, the
+driver question gets reopened then, deliberately.
 
 ## Views
 
@@ -205,3 +216,50 @@ does today.
 
 Players, market, fair play, scheduled operations and polls. This slice touches one
 endpoint and two views, and builds the machinery the rest will reuse.
+
+
+## Follow-ups this slice leaves behind
+
+Written at merge, from the whole-branch review and the execution ledger, so none of it
+has to be rediscovered.
+
+### Before the next deploy
+
+- **Migrations `0003` and `0004` have never been applied to production.** Checked
+  directly: `team_gameweek_stats` does not exist on the live database. Run
+  `DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate` before deploying, or the first
+  sync fails at runtime rather than at build. `0004` only drops three NOT NULL
+  constraints and is safe against a populated table.
+- The credential must be bootstrapped from `/admin/sync` before any sync can run.
+  `docs/deployment.md` carries the procedure.
+
+### Worth watching once
+
+- **The gameweek rollover is reasoned about, never observed.** The code is safe under
+  every reading of what `week/current` reports between rounds — a current week is only
+  written as settled once its closing date has passed and someone scored — but nobody
+  has watched a real boundary. Check `sync_runs` and `gameweeks` across the next one.
+  The `nextWeek` field is parsed and unused; it is the field that would settle the
+  question.
+- `/admin/sync`'s restyle is verified by build output and emitted CSS, not by eye. The
+  E2E suite has no authenticated fixture, so no test renders that page signed in.
+
+### Known soft spots
+
+- `StandingEntry` and `CurrentWeek` are documented as internal to
+  `lib/fantasy-client/`, but only by a doc comment. Nothing stops a future import from
+  reaching past the boundary — which is exactly how the live-versus-settled `points`
+  confusion crossed it once already. A lint boundary would make the rule real.
+- `buildTable`'s team-value pick was rewritten to be order-independent, and
+  `loadSnapshots` now orders explicitly. Neither half has a regression test.
+- Every new required environment variable forces an edit in three test stub blocks,
+  because `getEnv()` validates the whole schema at once. The players and market slice
+  will add several; a shared test stub is worth it then.
+- Four verbatim copies of the shared database type alias live in four modules. One
+  exported type in `lib/db/` would do.
+- `raw_sync_payloads` stores a full thirteen-team payload every ten minutes during a
+  live window — roughly 470 near-identical rows a week. Retention bounds it, but the
+  debugging value is in shape changes, not in 470 copies of one shape.
+- `/api/sync` has no `maxDuration`, and writes are one round trip per row. A first
+  backfill late in a 38-week season would be around 1,100 round trips and could hit the
+  function timeout.

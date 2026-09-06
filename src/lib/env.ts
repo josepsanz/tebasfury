@@ -16,6 +16,13 @@ const envSchema = z.object({
   BETTER_AUTH_URL: z.url(),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
+  CREDENTIALS_KEY: z.string().refine((v) => Buffer.from(v, "base64").length === 32, {
+    message: "must be 32 bytes, base64 encoded",
+  }),
+  LALIGA_LEAGUE_ID: z.string().min(1),
+  QSTASH_TOKEN: z.string().min(1),
+  QSTASH_CURRENT_SIGNING_KEY: z.string().min(1),
+  QSTASH_NEXT_SIGNING_KEY: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;
