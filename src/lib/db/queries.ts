@@ -23,7 +23,9 @@ export type PortalData = {
 /** Everything both views need, in one read. */
 export async function loadSnapshots(db: Db): Promise<PortalData> {
   const [stats, teamRows, weeks, runs] = await Promise.all([
-    db.select().from(teamGameweekStats),
+    // Postgres returns heap order without an ORDER BY, and heap order shifts as rows
+    // are updated and after a vacuum. The snapshot series is read as a series.
+    db.select().from(teamGameweekStats).orderBy(teamGameweekStats.gameweek),
     db.select().from(teams),
     db.select().from(gameweeks).orderBy(desc(gameweeks.number)).limit(1),
     db

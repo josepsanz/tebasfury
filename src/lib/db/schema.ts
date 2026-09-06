@@ -116,10 +116,17 @@ export const leagueCredentials = pgTable("league_credentials", {
   updatedBy: text("updated_by").notNull(),
 });
 
+/**
+ * `opensAt` and `closesAt` are nullable because only the CURRENT week's dates are
+ * ever reported: `week/current` gives them, and no other call does. A backfilled week
+ * leaves them null rather than stamping them with the time of the sync, which would
+ * be a fabricated date that later slices — fair play, scheduled operations — would
+ * read as real. A run that finds the week current fills them in.
+ */
 export const gameweeks = pgTable("gameweeks", {
   number: integer("number").primaryKey(),
-  opensAt: timestamp("opens_at", { withTimezone: true }).notNull(),
-  closesAt: timestamp("closes_at", { withTimezone: true }).notNull(),
+  opensAt: timestamp("opens_at", { withTimezone: true }),
+  closesAt: timestamp("closes_at", { withTimezone: true }),
   isLive: boolean("is_live").notNull().default(false),
 });
 
@@ -127,9 +134,12 @@ export const gameweeks = pgTable("gameweeks", {
  * One row per team per gameweek, holding only what the API states for that week.
  *
  * Cumulative points and table position are NOT stored: they are a pure function of
- * this series, and keeping both would let them drift. `roundPosition` is the rank
- * WITHIN the week, which is what the API's `position` means here — it is not the
- * table position after that week.
+ * this series, and keeping both would let them drift.
+ *
+ * `points` is the score of THAT WEEK. `roundPosition` is the rank WITHIN the week,
+ * and it is nullable: a live response reports the overall table position instead, so
+ * for a week observed live there is no round rank to record and null is the only
+ * truthful value.
  *
  * `teamValue` and `teamPoints` are nullable because a backfilled week cannot know
  * them: the API reports current state, not the state at that week.
@@ -140,7 +150,7 @@ export const teamGameweekStats = pgTable(
     teamId: text("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
     gameweek: integer("gameweek").notNull().references(() => gameweeks.number),
     points: integer("points").notNull(),
-    roundPosition: integer("round_position").notNull(),
+    roundPosition: integer("round_position"),
     livePoints: integer("live_points"),
     isProvisional: boolean("is_provisional").notNull().default(false),
     teamValue: bigint("team_value", { mode: "number" }),

@@ -1,7 +1,8 @@
-import type { CurrentWeek } from "@/lib/fantasy-client/schemas";
+import type { Gameweek } from "@/lib/fantasy-client";
 
 export const LIVE_INTERVAL_MS = 10 * 60 * 1000;
 export const MAX_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const FAILURE_INTERVAL_MS = 5 * 60 * 1000;
 
 /**
  * Decides when the next sync should run, from data the run already fetched.
@@ -15,12 +16,24 @@ export const MAX_INTERVAL_MS = 24 * 60 * 60 * 1000;
  * and only live `teamValue`/`teamPoints` reading for that week is not lost to a
  * silent skip straight to a settled backfill.
  */
-export function decideNextRun(week: CurrentWeek, now: Date): Date {
+export function decideNextRun(week: Gameweek, now: Date): Date {
   if (week.isLive) return new Date(now.getTime() + LIVE_INTERVAL_MS);
 
-  const opening = week.openingWeekDate.getTime();
+  const opening = week.opensAt.getTime();
   const delay = opening - now.getTime();
 
   if (delay <= 0) return new Date(now.getTime() + LIVE_INTERVAL_MS);
   return new Date(now.getTime() + Math.min(delay, MAX_INTERVAL_MS));
+}
+
+/**
+ * When to come back after a run that failed.
+ *
+ * A failed run learnt nothing about the calendar, so there is no gameweek to reason
+ * from — but the chain is the only scheduler there is, and a run that books no
+ * successor ends it. Sooner than an idle healthy run, because nothing is syncing
+ * until one of these works; not so soon that a persistent outage is hammered.
+ */
+export function nextRunAfterFailure(now: Date): Date {
+  return new Date(now.getTime() + FAILURE_INTERVAL_MS);
 }

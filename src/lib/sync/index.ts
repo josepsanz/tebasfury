@@ -2,8 +2,7 @@ import { eq, lt } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import { gameweeks, rawSyncPayloads, syncRuns, teamGameweekStats, teams } from "@/lib/db/schema";
-import type { FantasyClient } from "@/lib/fantasy-client";
-import type { StandingEntry } from "@/lib/fantasy-client/schemas";
+import type { FantasyClient, Gameweek, StandingRow } from "@/lib/fantasy-client";
 import { decideNextRun } from "./next-run";
 
 /**
@@ -25,6 +24,11 @@ const PAYLOAD_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
  * never sent as a single batch: transactions work in tests but fail in production,
  * batching does the reverse. The upserts are idempotent, so a run that dies halfway
  * is corrected by the next one.
+ *
+ * Everything this reads about LaLiga arrives already mapped by `lib/fantasy-client/`.
+ * No API-shaped type reaches here on purpose: the client is the only place that knows
+ * what a field means, and the one time a raw entry crossed that line, the difference
+ * between "the season so far" and "this week's score" crossed with it unexamined.
  */
 export async function runSync(deps: {
   db: Db;
@@ -47,31 +51,31 @@ export async function runSync(deps: {
 
     // Every week up to the current one that we do not already hold as settled.
     const wanted: number[] = [];
-    for (let w = 1; w <= week.weekNumber; w += 1) if (!settled.has(w)) wanted.push(w);
+    for (let w = 1; w <= week.number; w += 1) if (!settled.has(w)) wanted.push(w);
 
     const weeksSynced: number[] = [];
     for (const w of wanted) {
-      const isCurrent = w === week.weekNumber;
-      const provisional = isCurrent && week.isLive;
-      const entries = await client.getStanding(provisional ? undefined : w);
-      if (entries.length === 0) continue;
+      const isCurrent = w === week.number;
+      const live = isCurrent && week.isLive;
+      const { rows, raw } = await client.getStanding(live ? undefined : w);
+      if (rows.length === 0) continue;
+      if (isCurrent && !live && !hasBeenPlayed(week, rows, now)) continue;
 
+      // Only the current week's dates are reported, so a backfilled week leaves them
+      // null; a later run that finds it current fills them in. Overwriting a known
+      // pair with nulls is what the conditional spread avoids.
+      const dates = isCurrent ? { opensAt: week.opensAt, closesAt: week.closesAt } : {};
       await db
         .insert(gameweeks)
-        .values({
-          number: w,
-          opensAt: isCurrent ? week.openingWeekDate : now,
-          closesAt: isCurrent ? week.closingWeekDate : now,
-          isLive: provisional,
-        })
-        .onConflictDoUpdate({ target: gameweeks.number, set: { isLive: provisional } });
+        .values({ number: w, isLive: live, ...dates })
+        .onConflictDoUpdate({ target: gameweeks.number, set: { isLive: live, ...dates } });
 
-      for (const write of upsertTeams(db, entries)) await write;
-      for (const write of upsertStats(db, entries, w, provisional)) await write;
+      for (const write of upsertTeams(db, rows)) await write;
+      for (const write of upsertStats(db, rows, w, live)) await write;
       await db.insert(rawSyncPayloads).values({
         id: `${runId}-${w}`,
-        endpoint: `standing/${provisional ? "live" : w}`,
-        payload: entries,
+        endpoint: `standing/${live ? "live" : w}`,
+        payload: raw,
       });
 
       weeksSynced.push(w);
@@ -89,21 +93,46 @@ export async function runSync(deps: {
     await db.update(syncRuns).set({
       status: "failed",
       finishedAt: new Date(),
-      error: error instanceof Error ? error.message : String(error),
+      error: describeFailure(error),
     }).where(eq(syncRuns.id, runId));
     throw error;
   }
 }
 
-function upsertTeams(db: Db, entries: StandingEntry[]) {
-  return entries.map((e) =>
+/**
+ * Whether the week the API still calls "current" has actually been played, and may
+ * therefore be recorded as settled.
+ *
+ * Whether `week/current` waits for a round to open before naming it is not verified,
+ * and cannot be probed from here — so the code has to be safe under either reading. A
+ * round named early and written settled would land in the settled set for good: never
+ * fetched again when it does go live, its live table lost and its team value null for
+ * ever. That is the same permanent hole the provisional/settled split exists to
+ * prevent, reached by a different door.
+ *
+ * Both signals must agree before we believe the round happened: its closing time is
+ * behind us, and somebody scored something.
+ */
+function hasBeenPlayed(week: Gameweek, rows: StandingRow[], now: Date): boolean {
+  const closed = week.closesAt.getTime() <= now.getTime();
+  return closed && rows.some((row) => row.weekPoints !== 0);
+}
+
+/** The error's name is part of the record: the admin history reads it back. */
+function describeFailure(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  return error.name === "Error" ? error.message : `${error.name}: ${error.message}`;
+}
+
+function upsertTeams(db: Db, rows: StandingRow[]) {
+  return rows.map((row) =>
     db.insert(teams).values({
-      id: e.team.id,
-      managerId: e.team.managerId,
-      managerName: e.team.manager.managerName,
+      id: row.teamId,
+      managerId: row.managerId,
+      managerName: row.managerName,
     }).onConflictDoUpdate({
       target: teams.id,
-      set: { managerName: e.team.manager.managerName },
+      set: { managerName: row.managerName },
     }),
   );
 }
@@ -118,14 +147,14 @@ function upsertTeams(db: Db, entries: StandingEntry[]) {
  * ever have for it, and overwriting it with null would destroy the very history this
  * slice exists to build.
  */
-function upsertStats(db: Db, entries: StandingEntry[], gameweek: number, live: boolean) {
-  return entries.map((e) => {
+function upsertStats(db: Db, rows: StandingRow[], gameweek: number, live: boolean) {
+  return rows.map((row) => {
     const measured = {
-      teamId: e.team.id,
+      teamId: row.teamId,
       gameweek,
-      points: e.points,
-      roundPosition: e.position,
-      livePoints: e.livePoints ?? null,
+      points: row.weekPoints,
+      roundPosition: row.roundPosition,
+      livePoints: row.livePoints,
       isProvisional: live,
       syncedAt: new Date(),
     };
@@ -134,13 +163,13 @@ function upsertStats(db: Db, entries: StandingEntry[], gameweek: number, live: b
       .insert(teamGameweekStats)
       .values({
         ...measured,
-        teamValue: live ? e.team.teamValue : null,
-        teamPoints: live ? e.team.teamPoints : null,
+        teamValue: live ? row.teamValue : null,
+        teamPoints: live ? row.teamPoints : null,
       })
       .onConflictDoUpdate({
         target: [teamGameweekStats.teamId, teamGameweekStats.gameweek],
         set: live
-          ? { ...measured, teamValue: e.team.teamValue, teamPoints: e.team.teamPoints }
+          ? { ...measured, teamValue: row.teamValue, teamPoints: row.teamPoints }
           : measured,
       });
   });

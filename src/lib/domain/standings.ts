@@ -2,7 +2,8 @@ export type Snapshot = {
   teamId: string;
   gameweek: number;
   points: number;
-  roundPosition: number;
+  /** Null for a week observed live: that response reports no rank within the round. */
+  roundPosition: number | null;
   livePoints: number | null;
   isProvisional: boolean;
   teamValue: number | null;
@@ -65,7 +66,14 @@ export function buildTable(snapshots: Snapshot[], teams: TeamRef[]): TableRow[] 
     .map((team): TableRow => {
       const mine = snapshots.filter((s) => s.teamId === team.id);
       const latestSnapshot = mine.find((s) => s.gameweek === latest) ?? null;
-      const withValue = [...mine].reverse().find((s) => s.teamValue !== null) ?? null;
+      // The latest week that has a value, chosen by gameweek rather than by position
+      // in the array: this is a pure function and must not depend on the order its
+      // caller happened to read the rows in.
+      const withValue = mine.reduce<Snapshot | null>(
+        (best, s) =>
+          s.teamValue !== null && (best === null || s.gameweek > best.gameweek) ? s : best,
+        null,
+      );
       return {
         teamId: team.id,
         managerName: team.managerName,

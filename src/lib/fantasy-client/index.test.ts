@@ -9,6 +9,7 @@ import {
   getStanding,
 } from "./index";
 import live from "./__fixtures__/standing-live.json";
+import settled from "./__fixtures__/standing-settled.json";
 import weekFixture from "./__fixtures__/week-current.json";
 
 // `getEnv()` validates the whole application configuration as a single
@@ -105,8 +106,10 @@ describe("data calls", () => {
   it("parses the current week", async () => {
     stubFetch(weekFixture, 200);
     const week = await getCurrentWeek("at");
-    expect(week.weekNumber).toBe(4);
+    expect(week.number).toBe(4);
     expect(week.isLive).toBe(true);
+    expect(week.opensAt.toISOString()).toBe("2026-09-04T19:00:00.000Z");
+    expect(week.closesAt.toISOString()).toBe("2026-09-08T01:00:00.000Z");
   });
 
   it("sends the access token as a bearer credential", async () => {
@@ -136,6 +139,54 @@ describe("data calls", () => {
   it("throws when the response no longer matches the schema", async () => {
     stubFetch([{ unexpected: true }], 200);
     await expect(getStanding("at", "018012894")).rejects.toThrowError();
+  });
+
+  it("carries what the API objected to into the error, not only that it objected", async () => {
+    stubFetch({ code: 400, message: "leagueId is not a number" }, 400);
+    await expect(getStanding("at", "nope")).rejects.toThrowError(/leagueId is not a number/);
+  });
+});
+
+/**
+ * The two standing endpoints disagree about what `points` means, and this mapping is
+ * the only place that knows. Both cases are pinned against the real captures.
+ */
+describe("the standing mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reads a live week's own score from livePoints, not from the season total", async () => {
+    stubFetch(live, 200);
+    const { rows } = await getStanding("at", "018012894");
+
+    // The leader's entry: `points` 184 is the season including the round in play;
+    // `teamPoints` 141 is the season before it; the round is worth 43.
+    const leader = rows.find((r) => r.teamId === "9000019");
+    expect(leader?.weekPoints).toBe(43);
+    expect(leader?.livePoints).toBe(43);
+    expect(leader?.teamPoints).toBe(141);
+    expect(rows.map((r) => r.weekPoints)).toEqual(live.map((e) => e.livePoints));
+  });
+
+  it("records no round position for a live week, whose position is the table's", async () => {
+    stubFetch(live, 200);
+    const { rows } = await getStanding("at", "018012894");
+    expect(rows.every((r) => r.roundPosition === null)).toBe(true);
+  });
+
+  it("reads a settled week's own score and its rank within the round", async () => {
+    stubFetch(settled, 200);
+    const { rows } = await getStanding("at", "018012894", 3);
+    expect(rows.map((r) => r.weekPoints)).toEqual(settled.map((e) => e.points));
+    expect(rows.map((r) => r.roundPosition)).toEqual(settled.map((e) => e.position));
+    expect(rows.every((r) => r.livePoints === null)).toBe(true);
+  });
+
+  it("hands back the undecoded response, so the archive keeps what the parse drops", async () => {
+    stubFetch(live, 200);
+    const { raw } = await getStanding("at", "018012894");
+    expect(raw).toEqual(live);
   });
 });
 

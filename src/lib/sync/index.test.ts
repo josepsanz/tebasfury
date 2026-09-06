@@ -1,28 +1,61 @@
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
 import { gameweeks, rawSyncPayloads, syncRuns, teamGameweekStats, teams } from "@/lib/db/schema";
-import type { FantasyClient } from "@/lib/fantasy-client";
-import type { CurrentWeek, StandingEntry } from "@/lib/fantasy-client/schemas";
+import {
+  CredentialError,
+  CREDENTIAL_ERROR_NAME,
+  getCurrentWeek,
+  getStanding,
+  type FantasyClient,
+  type Gameweek,
+  type StandingRow,
+} from "@/lib/fantasy-client";
+import { buildTable } from "@/lib/domain/standings";
+import liveFixture from "@/lib/fantasy-client/__fixtures__/standing-live.json";
+import settledFixture from "@/lib/fantasy-client/__fixtures__/standing-settled.json";
+import weekFixture from "@/lib/fantasy-client/__fixtures__/week-current.json";
 import { runSync } from "./index";
 
-const entry = (teamId: string, managerName: string, points: number, position: number,
-               over: Partial<StandingEntry> = {}): StandingEntry => ({
-  position, points, team: {
-    id: teamId, managerId: Number(teamId), teamValue: 250_000_000, teamPoints: 100,
-    teamMoney: null, isAdmin: false, manager: { id: teamId, managerName },
-  }, ...over,
+const row = (
+  teamId: string,
+  managerName: string,
+  weekPoints: number,
+  roundPosition: number | null,
+  over: Partial<StandingRow> = {},
+): StandingRow => ({
+  teamId,
+  managerId: Number(teamId),
+  managerName,
+  weekPoints,
+  roundPosition,
+  livePoints: null,
+  teamValue: 250_000_000,
+  teamPoints: 100,
+  ...over,
 });
 
-function fakeClient(week: Partial<CurrentWeek>, byWeek: Record<string, StandingEntry[]>): FantasyClient {
+/**
+ * The default week has already closed by `now`. A week the API still calls current
+ * is only written settled once it has actually been played, so a fake whose week is
+ * still open is testing the "not yet played" path, not the ordinary one.
+ */
+function fakeClient(
+  week: Partial<Gameweek>,
+  byWeek: Record<string, StandingRow[]>,
+): FantasyClient {
   return {
     getCurrentWeek: async () => ({
-      weekNumber: 3, isLive: false,
-      openingWeekDate: new Date("2026-09-11T19:00:00Z"),
-      closingWeekDate: new Date("2026-09-15T01:00:00Z"),
+      number: 3,
+      isLive: false,
+      opensAt: new Date("2026-09-04T19:00:00Z"),
+      closesAt: new Date("2026-09-08T01:00:00Z"),
       ...week,
     }),
-    getStanding: async (w) => byWeek[w === undefined ? "live" : String(w)] ?? [],
+    getStanding: async (w) => {
+      const rows = byWeek[w === undefined ? "live" : String(w)] ?? [];
+      return { rows, raw: rows };
+    },
   };
 }
 
@@ -43,10 +76,10 @@ describe("runSync", () => {
   });
 
   it("backfills every gameweek from an empty database", async () => {
-    const client = fakeClient({ weekNumber: 3, isLive: false }, {
-      "1": [entry("1", "Manager A", 50, 1)],
-      "2": [entry("1", "Manager A", 10, 1)],
-      "3": [entry("1", "Manager A", 36, 1)],
+    const client = fakeClient({ number: 3, isLive: false }, {
+      "1": [row("1", "Manager A", 50, 1)],
+      "2": [row("1", "Manager A", 10, 1)],
+      "3": [row("1", "Manager A", 36, 1)],
     });
 
     const result = await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
@@ -58,7 +91,7 @@ describe("runSync", () => {
   });
 
   it("registers the team once, from the manager the API reports", async () => {
-    const client = fakeClient({ weekNumber: 1 }, { "1": [entry("7", "Manager G", 5, 1)] });
+    const client = fakeClient({ number: 1 }, { "1": [row("7", "Manager G", 5, 1)] });
     await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
     await runSync({ db: h.db, client, now, runId: "r2", trigger: "schedule" });
     const rows = await h.db.select().from(teams);
@@ -67,22 +100,31 @@ describe("runSync", () => {
   });
 
   it("stores a live gameweek as provisional, with its live points", async () => {
-    const client = fakeClient({ weekNumber: 1, isLive: true }, {
-      live: [entry("1", "Manager A", 43, 1, { livePoints: 43, previousPosition: 2 })],
+    const client = fakeClient({ number: 1, isLive: true }, {
+      live: [row("1", "Manager A", 43, null, { livePoints: 43 })],
     });
     await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
-    const [row] = await h.db.select().from(teamGameweekStats);
-    expect(row).toMatchObject({ gameweek: 1, isProvisional: true, livePoints: 43 });
+    const [stat] = await h.db.select().from(teamGameweekStats);
+    expect(stat).toMatchObject({ gameweek: 1, isProvisional: true, livePoints: 43, points: 43 });
+  });
+
+  it("records no round position for a live gameweek, which reports none", async () => {
+    const client = fakeClient({ number: 1, isLive: true }, {
+      live: [row("1", "Manager A", 43, null, { livePoints: 43 })],
+    });
+    await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+    const [stat] = await h.db.select().from(teamGameweekStats);
+    expect(stat.roundPosition).toBeNull();
   });
 
   it("overwrites a provisional gameweek once it settles", async () => {
-    const liveClient = fakeClient({ weekNumber: 1, isLive: true }, {
-      live: [entry("1", "Manager A", 43, 1, { livePoints: 43 })],
+    const liveClient = fakeClient({ number: 1, isLive: true }, {
+      live: [row("1", "Manager A", 43, null, { livePoints: 43 })],
     });
     await runSync({ db: h.db, client: liveClient, now, runId: "r1", trigger: "schedule" });
 
-    const settledClient = fakeClient({ weekNumber: 1, isLive: false }, {
-      "1": [entry("1", "Manager A", 61, 1)],
+    const settledClient = fakeClient({ number: 1, isLive: false }, {
+      "1": [row("1", "Manager A", 61, 1)],
     });
     await runSync({ db: h.db, client: settledClient, now, runId: "r2", trigger: "schedule" });
 
@@ -92,9 +134,9 @@ describe("runSync", () => {
   });
 
   it("leaves settled gameweeks alone on a later run", async () => {
-    const client = fakeClient({ weekNumber: 2 }, {
-      "1": [entry("1", "Manager A", 50, 1)],
-      "2": [entry("1", "Manager A", 10, 1)],
+    const client = fakeClient({ number: 2 }, {
+      "1": [row("1", "Manager A", 50, 1)],
+      "2": [row("1", "Manager A", 10, 1)],
     });
     await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
     const second = await runSync({ db: h.db, client, now, runId: "r2", trigger: "schedule" });
@@ -102,7 +144,7 @@ describe("runSync", () => {
   });
 
   it("records the run and what it did", async () => {
-    const client = fakeClient({ weekNumber: 1 }, { "1": [entry("1", "Manager A", 5, 1)] });
+    const client = fakeClient({ number: 1 }, { "1": [row("1", "Manager A", 5, 1)] });
     await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
     const [run] = await h.db.select().from(syncRuns);
     expect(run).toMatchObject({ id: "r1", status: "succeeded", weeksSynced: 1 });
@@ -110,19 +152,19 @@ describe("runSync", () => {
   });
 
   it("records the trigger a run was started with", async () => {
-    const client = fakeClient({ weekNumber: 1 }, { "1": [entry("1", "Manager A", 5, 1)] });
+    const client = fakeClient({ number: 1 }, { "1": [row("1", "Manager A", 5, 1)] });
     await runSync({ db: h.db, client, now, runId: "r1", trigger: "manual" });
     const [run] = await h.db.select().from(syncRuns);
     expect(run).toMatchObject({ id: "r1", trigger: "manual" });
   });
 
   it("records a failure and rethrows, leaving earlier snapshots in place", async () => {
-    const good = fakeClient({ weekNumber: 1 }, { "1": [entry("1", "Manager A", 5, 1)] });
+    const good = fakeClient({ number: 1 }, { "1": [row("1", "Manager A", 5, 1)] });
     await runSync({ db: h.db, client: good, now, runId: "r1", trigger: "schedule" });
 
     const broken: FantasyClient = {
       getCurrentWeek: async () => { throw new Error("upstream is down"); },
-      getStanding: async () => [],
+      getStanding: async () => ({ rows: [], raw: [] }),
     };
     await expect(
       runSync({ db: h.db, client: broken, now, runId: "r2", trigger: "schedule" }),
@@ -134,31 +176,213 @@ describe("runSync", () => {
     expect(await h.db.select().from(teamGameweekStats)).toHaveLength(1);
   });
 
+  it("names a credential failure in the record, so the admin history can recognise it", async () => {
+    const broken: FantasyClient = {
+      getCurrentWeek: async () => { throw new CredentialError("the credential is unreadable"); },
+      getStanding: async () => ({ rows: [], raw: [] }),
+    };
+    await expect(
+      runSync({ db: h.db, client: broken, now, runId: "r1", trigger: "schedule" }),
+    ).rejects.toBeInstanceOf(CredentialError);
+
+    const [run] = await h.db.select().from(syncRuns);
+    expect(run.error?.startsWith(`${CREDENTIAL_ERROR_NAME}:`)).toBe(true);
+  });
+
   it("keeps the team value recorded while live when the gameweek settles", async () => {
-    const liveClient = fakeClient({ weekNumber: 1, isLive: true }, {
-      live: [entry("1", "Manager A", 43, 1, { livePoints: 43 })],
+    const liveClient = fakeClient({ number: 1, isLive: true }, {
+      live: [row("1", "Manager A", 43, null, { livePoints: 43 })],
     });
     await runSync({ db: h.db, client: liveClient, now, runId: "r1", trigger: "schedule" });
 
-    const settledClient = fakeClient({ weekNumber: 1, isLive: false }, {
-      "1": [entry("1", "Manager A", 61, 1)],
+    const settledClient = fakeClient({ number: 1, isLive: false }, {
+      "1": [row("1", "Manager A", 61, 1)],
     });
     await runSync({ db: h.db, client: settledClient, now, runId: "r2", trigger: "schedule" });
 
-    const [row] = await h.db.select().from(teamGameweekStats);
-    expect(row.points).toBe(61);
-    expect(row.isProvisional).toBe(false);
+    const [stat] = await h.db.select().from(teamGameweekStats);
+    expect(stat.points).toBe(61);
+    expect(stat.isProvisional).toBe(false);
     // The only reading we will ever have for this week's value.
-    expect(row.teamValue).toBe(250_000_000);
+    expect(stat.teamValue).toBe(250_000_000);
   });
 
   it("leaves team value null for a week that was only ever backfilled", async () => {
-    const client = fakeClient({ weekNumber: 2 }, {
-      "1": [entry("1", "Manager A", 50, 1)],
-      "2": [entry("1", "Manager A", 10, 1)],
+    const client = fakeClient({ number: 2 }, {
+      "1": [row("1", "Manager A", 50, 1)],
+      "2": [row("1", "Manager A", 10, 1)],
     });
     await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
     const rows = await h.db.select().from(teamGameweekStats);
     expect(rows.every((r) => r.teamValue === null)).toBe(true);
+  });
+
+  it("dates only the gameweek the API reports dates for, leaving a backfill's null", async () => {
+    const client = fakeClient({ number: 2 }, {
+      "1": [row("1", "Manager A", 50, 1)],
+      "2": [row("1", "Manager A", 10, 1)],
+    });
+    await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+    const rows = await h.db.select().from(gameweeks);
+    expect(rows.find((r) => r.number === 1)?.opensAt).toBeNull();
+    expect(rows.find((r) => r.number === 2)?.opensAt?.toISOString())
+      .toBe("2026-09-04T19:00:00.000Z");
+  });
+
+  describe("a current gameweek that has not been played", () => {
+    // `week/current` is not known to wait until a round opens before naming it. If it
+    // does not, writing that round settled would drop it into the settled set for
+    // good — never fetched again once it goes live.
+    it("is not written as settled while its closing date is still ahead", async () => {
+      const client = fakeClient(
+        { number: 2, isLive: false, closesAt: new Date("2026-09-20T01:00:00Z") },
+        {
+          "1": [row("1", "Manager A", 50, 1)],
+          "2": [row("1", "Manager A", 0, 1)],
+        },
+      );
+
+      const result = await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+
+      expect(result.weeksSynced).toEqual([1]);
+      const rows = await h.db.select().from(teamGameweekStats);
+      expect(rows.map((r) => r.gameweek)).toEqual([1]);
+    });
+
+    it("is picked up on the run that finds it live", async () => {
+      const early = fakeClient(
+        { number: 2, isLive: false, closesAt: new Date("2026-09-20T01:00:00Z") },
+        { "1": [row("1", "Manager A", 50, 1)], "2": [row("1", "Manager A", 0, 1)] },
+      );
+      await runSync({ db: h.db, client: early, now, runId: "r1", trigger: "schedule" });
+
+      const inPlay = fakeClient(
+        { number: 2, isLive: true, closesAt: new Date("2026-09-20T01:00:00Z") },
+        { live: [row("1", "Manager A", 24, null, { livePoints: 24 })] },
+      );
+      const result = await runSync({ db: h.db, client: inPlay, now, runId: "r2", trigger: "schedule" });
+
+      expect(result.weeksSynced).toEqual([2]);
+      const week2 = (await h.db.select().from(teamGameweekStats)).find((r) => r.gameweek === 2);
+      expect(week2).toMatchObject({ points: 24, isProvisional: true, teamValue: 250_000_000 });
+    });
+
+    it("is not written as settled while every team is still on zero", async () => {
+      const client = fakeClient(
+        { number: 2, isLive: false, closesAt: new Date("2026-09-08T01:00:00Z") },
+        { "1": [row("1", "Manager A", 50, 1)], "2": [row("1", "Manager A", 0, 1)] },
+      );
+      const result = await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+      expect(result.weeksSynced).toEqual([1]);
+    });
+
+    it("is written as settled once it has closed and somebody scored", async () => {
+      const client = fakeClient(
+        { number: 2, isLive: false, closesAt: new Date("2026-09-08T01:00:00Z") },
+        { "1": [row("1", "Manager A", 50, 1)], "2": [row("1", "Manager A", 10, 1)] },
+      );
+      const result = await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+      expect(result.weeksSynced).toEqual([1, 2]);
+      const rows = await h.db.select().from(teamGameweekStats);
+      expect(rows.every((r) => !r.isProvisional)).toBe(true);
+    });
+  });
+});
+
+/**
+ * The fake above hands week-shaped rows to both paths, which is exactly why the two
+ * standing endpoints' disagreement about `points` stayed invisible. These tests put
+ * the real captured responses through the real client instead, and assert on what
+ * lands in the column.
+ */
+describe("runSync against the committed fixtures", () => {
+  let h: TestDatabase;
+  const fixtureNow = new Date("2026-09-06T12:00:00Z");
+
+  /** The real client, with `fetch` answering from the fixtures. */
+  function fixtureClient(): FantasyClient {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/week/current")) {
+          return new Response(JSON.stringify(weekFixture), { status: 200 });
+        }
+        const body = /\/standing$/.test(url) ? liveFixture : settledFixture;
+        return new Response(JSON.stringify(body), { status: 200 });
+      }),
+    );
+    return {
+      getCurrentWeek: () => getCurrentWeek("token"),
+      getStanding: (week) => getStanding("token", "018012894", week),
+    };
+  }
+
+  beforeAll(async () => { h = await createTestDatabase(); });
+  afterAll(async () => { await h.close(); });
+  beforeEach(async () => {
+    await h.db.delete(teamGameweekStats);
+    await h.db.delete(gameweeks);
+    await h.db.delete(teams);
+    await h.db.delete(syncRuns);
+    await h.db.delete(rawSyncPayloads);
+    await runSync({
+      db: h.db, client: fixtureClient(), now: fixtureNow, runId: "r1", trigger: "schedule",
+    });
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it("stores the live week's own score, not the season total the response carries", async () => {
+    const rows = await h.db.select().from(teamGameweekStats);
+    const week4 = rows.filter((r) => r.gameweek === 4);
+
+    expect(week4).toHaveLength(13);
+    // The leader's entry reads `points: 184` — the season total including the round —
+    // and `livePoints: 43`, which is what the round is actually worth.
+    expect(week4.find((r) => r.teamId === "9000019")?.points).toBe(43);
+    expect(week4.map((r) => r.points).sort((a, b) => a - b))
+      .toEqual(liveFixture.map((e) => e.livePoints).sort((a, b) => a - b));
+  });
+
+  it("stores a settled week's own score", async () => {
+    const rows = await h.db.select().from(teamGameweekStats);
+    const week3 = rows.filter((r) => r.gameweek === 3);
+
+    expect(week3).toHaveLength(13);
+    expect(week3.map((r) => r.points).sort((a, b) => a - b))
+      .toEqual(settledFixture.map((e) => e.points).sort((a, b) => a - b));
+  });
+
+  it("puts the right manager on top of the table it builds", async () => {
+    // Weeks 1 to 3 are all served from the settled fixture, so the expected total is
+    // three of that week's score plus the live round's.
+    const expected = new Map(settledFixture.map((e) => [e.team.id, e.points * 3]));
+    for (const e of liveFixture) {
+      expected.set(e.team.id, (expected.get(e.team.id) ?? 0) + e.livePoints);
+    }
+    const [leader] = [...expected.entries()].sort((a, b) => b[1] - a[1]);
+
+    const stats = await h.db.select().from(teamGameweekStats);
+    const teamRows = await h.db.select().from(teams);
+    const table = buildTable(
+      stats.map((r) => ({
+        teamId: r.teamId,
+        gameweek: r.gameweek,
+        points: r.points,
+        roundPosition: r.roundPosition,
+        livePoints: r.livePoints,
+        isProvisional: r.isProvisional,
+        teamValue: r.teamValue,
+      })),
+      teamRows.map((t) => ({ id: t.id, managerName: t.managerName })),
+    );
+
+    expect(table[0].teamId).toBe(leader[0]);
+    expect(table[0].cumulativePoints).toBe(leader[1]);
+  });
+
+  it("archives the response as it arrived, not as it was mapped", async () => {
+    const payloads = await h.db.select().from(rawSyncPayloads);
+    const livePayload = payloads.find((p) => p.endpoint === "standing/live");
+    expect(livePayload?.payload).toEqual(liveFixture);
   });
 });

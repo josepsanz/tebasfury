@@ -55,6 +55,13 @@ export const leaguesSchema = z.array(
   }),
 );
 
+/**
+ * These types describe the API's own shape, and they are internal to
+ * `lib/fantasy-client/`. Nothing outside this directory may import them: the mapped
+ * `StandingRow` and `Gameweek` in `./index.ts` are what crosses the boundary. That is
+ * the whole point of the anti-corruption layer — when the raw entry travels, so does
+ * every assumption about what its fields mean.
+ */
 export type StandingEntry = z.infer<typeof standingEntrySchema>;
 export type CurrentWeek = z.infer<typeof currentWeekSchema>;
 export type League = z.infer<typeof leaguesSchema>[number];
