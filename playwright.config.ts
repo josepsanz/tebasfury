@@ -17,6 +17,7 @@ export default defineConfig({
       BETTER_AUTH_URL: "http://localhost:3000",
       GOOGLE_CLIENT_ID: "e2e-dummy-google-client-id",
       GOOGLE_CLIENT_SECRET: "e2e-dummy-google-client-secret",
+      CREDENTIALS_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     },
   },
 });

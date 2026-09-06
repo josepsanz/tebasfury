@@ -100,6 +100,14 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+export const leagueCredentials = pgTable("league_credentials", {
+  id: text("id").primaryKey(),
+  refreshTokenSealed: text("refresh_token_sealed").notNull(),
+  clientId: text("client_id").notNull(),
+  rotatedAt: timestamp("rotated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: text("updated_by").notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),

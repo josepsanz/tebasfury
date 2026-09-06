@@ -15,6 +15,13 @@
       "when": 1788653385933,
       "tag": "0001_salty_madrox",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788700328104,
+      "tag": "0002_deep_sentinels",
+      "breakpoints": true
     }
   ]
 }

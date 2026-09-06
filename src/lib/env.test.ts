@@ -7,6 +7,7 @@ const valid = {
   BETTER_AUTH_URL: "http://localhost:3000",
   GOOGLE_CLIENT_ID: "google-client-id",
   GOOGLE_CLIENT_SECRET: "google-client-secret",
+  CREDENTIALS_KEY: Buffer.alloc(32).toString("base64"),
 };
 
 describe("parseEnv", () => {
@@ -44,5 +45,11 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...valid, DATABASE_URL: "not-a-url" })).toThrowError(
       /DATABASE_URL/,
     );
+  });
+
+  it("rejects a credentials key that is not 32 bytes", () => {
+    expect(() =>
+      parseEnv({ ...valid, CREDENTIALS_KEY: Buffer.alloc(16).toString("base64") }),
+    ).toThrowError(/CREDENTIALS_KEY/);
   });
 });
