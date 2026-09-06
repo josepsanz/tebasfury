@@ -18,8 +18,9 @@ describe("decideNextRun", () => {
   });
 
   it("waits for the next gameweek to open when nothing is live", () => {
-    const next = decideNextRun(week(), now);
-    expect(next.toISOString()).toBe("2026-09-11T19:00:00.000Z");
+    const soon = week({ openingWeekDate: new Date("2026-09-09T07:00:00Z") });
+    const next = decideNextRun(soon, now);
+    expect(next.toISOString()).toBe("2026-09-09T07:00:00.000Z");
   });
 
   it("never waits longer than the heartbeat, so a missed schedule cannot strand the chain", () => {
