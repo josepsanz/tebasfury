@@ -211,6 +211,36 @@ En acabar el Pas 2 s'ha de poder comprovar, en aquest ordre:
 6. Aturar la BD o falsejar un error de l'API i confirmar que el portal segueix servint
    l'última instantània amb l'avís d'antiguitat, sense petar
 
+## Prerequisits per al Pas 2, descoberts construint l'esquelet
+
+Aquestes quatre coses es van trobar revisant la branca de l'esquelet. No la bloquejaven,
+però totes afecten el slice de classificació i evolució i **s'han de decidir abans
+d'escriure el codi de sync**, no després.
+
+1. **`neon-http` no suporta transaccions; PGlite sí.** El driver de producció
+   (`drizzle-orm/neon-http`) llança `No transactions support in neon-http driver`, mentre
+   que el banc de proves amb PGlite implementa `transaction()` correctament. Un sync que
+   embolcalli `sync_runs` + `team_gameweek_stats` + `raw_sync_payloads` en un
+   `db.transaction()` — que és la manera natural d'escriure'l i el que implica
+   "instantànies idempotents" — **passaria tots els tests i petaria en producció**.
+   Cal escollir: `db.batch()` (que `neon-http` sí suporta, atòmic en un sol viatge) o
+   canviar a `neon-serverless` per WebSocket.
+
+2. **Cal una allowlist d'emails abans que hi hagi dades reals.** Avui qualsevol compte de
+   Google pot entrar i rep el rol `user`. Ara només arriba a una portada buida, però el
+   Pas 2 posa la classificació real de la lliga darrere d'aquest mateix rol. La
+   restricció va a un hook `user.create.before`.
+
+3. **La relació equip–usuari té dues direccions i cap restricció.** L'esquema té
+   `user.fantasy_team_id` sense clau forana, i l'spec preveia `teams.user_id`. El Pas 2
+   escriu `teams`: cal triar una direcció abans.
+
+4. **Hi ha dos motors d'autorització.** Les pàgines fan servir `decideAccess`; els
+   endpoints `/api/auth/admin/*` fan servir el `hasPermission` de better-auth, que accepta
+   rols múltiples separats per comes. Si algú assigna `"colaborator,user"`, better-auth
+   autoritza i totes les pàgines desvien: l'usuari queda tancat fora del portal sense cap
+   error. Falla tancat, o sigui que no és un forat, però convé unificar-ho.
+
 ## Estat d'aquest document
 
 Spec validada en sessió de brainstorming el 2026-09-06. El següent artefacte és el pla
