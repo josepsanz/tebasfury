@@ -15,6 +15,7 @@
   --board-gain: #4ade80;
   --board-form: #4a5040;
   --board-form-best: #86917a;
+  --board-alert: #ef8a76;
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
@@ -24,4 +25,54 @@ body {
   background: var(--board-bg);
   color: var(--board-ink);
   font-family: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * Tailwind v4 leaves an un-coloured `border` at `currentColor`, which on this ground
+ * draws the rule in the text colour — a bright white line. Every deliberate border in
+ * the app sets its own colour inline, so the default belongs to the board. In the
+ * `base` layer, so a `border-*` utility still wins where one is wanted.
+ */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--board-line);
+  }
+}
+
+/*
+ * The two button treatments, in the board's own tokens. `bg-black` and
+ * `text-neutral-600` came from the light-mode skeleton and all but vanish on
+ * #10120f — including on the "Sign in with Google" button, which is the entry point
+ * for every one of the thirteen managers.
+ */
+@layer components {
+  .board-button {
+    border: 1px solid var(--board-line);
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: var(--board-ink);
+    background: transparent;
+  }
+
+  .board-button:hover:not(:disabled) {
+    border-color: var(--board-ink-dim);
+  }
+
+  .board-button:disabled {
+    opacity: 0.4;
+  }
+
+  /* The one action a screen is about: filled, so it reads as the way forward. */
+  .board-button-primary {
+    border-color: var(--board-ink);
+    color: var(--board-bg);
+    background: var(--board-ink);
+  }
+
+  .board-button-primary:hover:not(:disabled) {
+    background: #ffffff;
+  }
 }

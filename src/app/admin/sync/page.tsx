@@ -22,14 +22,14 @@ export default async function SyncPage() {
   return (
     <section className="max-w-3xl">
       <h1 className="text-xl font-semibold">Sync</h1>
-      <p className="mt-2 text-neutral-600">
+      <p className="mt-2" style={{ color: "var(--board-ink-dim)" }}>
         {hasCredential
           ? "A LaLiga credential is stored. Syncs run on their own; trigger one here to check."
           : "No LaLiga credential is stored yet, so nothing can sync. Paste a bootstrap refresh token below."}
       </p>
 
       {credentialFailed && (
-        <p role="alert" className="mt-4 text-sm">
+        <p role="alert" className="mt-4 text-sm" style={{ color: "var(--board-alert)" }}>
           {CREDENTIAL_RECOVERY_MESSAGE}
         </p>
       )}
@@ -38,7 +38,7 @@ export default async function SyncPage() {
 
       <h2 className="mt-10 text-lg font-semibold">Recent runs</h2>
       {runs.length === 0 ? (
-        <p className="mt-2 text-neutral-600">No sync has run yet.</p>
+        <p className="mt-2" style={{ color: "var(--board-ink-dim)" }}>No sync has run yet.</p>
       ) : (
         <table className="mt-3 w-full text-sm">
           <thead>
@@ -54,10 +54,14 @@ export default async function SyncPage() {
                 <td>{run.trigger}</td>
                 <td>{run.status}</td>
                 <td>{run.weeksSynced ?? "—"}</td>
-                <td className="text-neutral-600">
-                  {isCredentialFailure(run.error)
-                    ? "The credential needs re-bootstrapping — see the note above"
-                    : (run.error ?? "")}
+                <td style={{ color: "var(--board-ink-dim)" }}>
+                  {isCredentialFailure(run.error) ? (
+                    <span style={{ color: "var(--board-alert)" }}>
+                      The credential needs re-bootstrapping — see the note above
+                    </span>
+                  ) : (
+                    (run.error ?? "")
+                  )}
                 </td>
               </tr>
             ))}
