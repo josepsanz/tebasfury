@@ -29,6 +29,10 @@ local.
 Un cop creat el client, es desen el **Client ID** i el **Client Secret**: calen al pas
 següent.
 
+Important: el domini de l'URI de redirecció de producció ha de coincidir exactament
+amb el domini que es configuri a `BETTER_AUTH_URL` al pas 3. Si no coincideixen,
+Google respon amb `redirect_uri_mismatch` i l'entrada falla.
+
 ## 3. Variables d'entorn a Vercel
 
 A la configuració del projecte a Vercel (**Settings → Environment Variables**), definir:
@@ -50,6 +54,10 @@ projecte, o a les variables d'entorn que Vercel n'ha generat):
 ```bash
 DATABASE_URL="<url-de-neon>" pnpm drizzle-kit migrate
 ```
+
+La `DATABASE_URL` que es passa inline té prioritat sobre la de `.env.local`: així
+s'apliquen les migracions contra la base de dades de **producció** encara que
+`.env.local` apunti a la de desenvolupament local.
 
 ## 5. Desplegar i verificar
 
@@ -82,7 +90,8 @@ psql "<url-de-neon>" \
 Nota: `user` és una paraula reservada de Postgres, per això va entre cometes dobles a
 la sentència SQL.
 
-Després de promoure'l, cal que aquest usuari torni a entrar (o recarregui la sessió)
-perquè el canvi de rol es reflecteixi. Comprovar tot seguit que l'entrada
-"Sincronització" apareix a la navegació i que `/admin/sincronitzacio` s'obre
+No hi ha cap cau (`cookieCache`) configurat a `src/lib/auth/auth.ts`, així que
+`getSession()` torna a llegir la fila de l'usuari a cada petició: el canvi de rol té
+efecte immediatament, sense que calgui tornar a entrar. Comprovar tot seguit que
+l'entrada "Sincronització" apareix a la navegació i que `/admin/sincronitzacio` s'obre
 correctament.

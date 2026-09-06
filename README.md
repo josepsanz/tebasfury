@@ -52,11 +52,20 @@ així que tampoc necessita `.env.local`.
 
 ## Estat actual
 
-Aquest repositori és l'**esquelet** del projecte: Next.js, la capa de base de dades amb
-Drizzle, l'autenticació amb Google i els tres rols (`user`, `colaborator`, `admin`) amb
-els seus guards de servidor, i el desplegament a Vercel, ja funcionen. Encara **no hi ha
-cap funcionalitat de producte** — ni classificació, ni fair play, ni operacions
-programades, ni enquestes.
+Aquest repositori és l'**esquelet** del projecte. Construït i verificat amb tests:
+Next.js, la capa de base de dades amb Drizzle, la configuració d'autenticació amb
+Google i els tres rols (`user`, `colaborator`, `admin`) amb els seus guards de servidor,
+i la interfície bàsica (entrada, sortida, navegació condicionada pel rol). `pnpm test`
+(38 tests) i `pnpm test:e2e` (5 tests) passen.
+
+Dos aspectes estan **escrits però encara no executats**: el flux real d'entrada amb
+Google (els tests eviten deliberadament OAuth real i fan servir credencials fictícies) i
+el desplegament a Vercel (els passos són a `docs/desplegament.md` com a checklist per al
+propietari del projecte, encara no aplicada). El cablejat és correcte per inspecció, però
+ningú l'ha executat en un entorn real.
+
+Encara **no hi ha cap funcionalitat de producte** — ni classificació, ni fair play, ni
+operacions programades, ni enquestes.
 
 El següent pas és el *Pas 2: slice vertical de classificació i evolució*, descrit a
 l'spec. Vegeu el seu roadmap ("Pla d'execució") per a l'ordre dels passos posteriors.
