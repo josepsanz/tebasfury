@@ -7,6 +7,8 @@ historical depth, an internal fair-play log (the rule against selling a player w
 polls like the weekly Necroporra, where every manager votes for the two rival teams
 most likely to finish last in the round.
 
+Live at **https://tebasfury.vercel.app**
+
 ## Stack
 
 - **Next.js** 16.3.4 (App Router) + **React** 19.2.8 + **TypeScript** 5.9.3
@@ -58,11 +60,15 @@ database layer with Drizzle, Google authentication configuration and the three r
 (sign-in, sign-out, role-conditioned navigation). `pnpm test` (38 tests) and
 `pnpm test:e2e` (5 tests) pass.
 
-Two things are **written but not yet run**: the real Google sign-in flow (the tests
-deliberately avoid real OAuth and use dummy credentials instead) and the deployment to
-Vercel (the steps are in `docs/deployment.md` as a checklist for the project owner,
-not yet carried out). The wiring is correct by inspection, but no one has run it in a
-real environment yet.
+It is **deployed and running** at https://tebasfury.vercel.app, against a Neon
+database shared by production and local development. Signing in with Google has been
+exercised for real, and role separation was confirmed against the live deployment: an
+`admin` sees the Sync entry, and an unauthenticated visitor to `/admin/sync` is
+redirected to `/login`.
+
+The automated tests still avoid real OAuth on purpose — Playwright brings the app up
+with dummy credentials — so the Google flow is covered by having been run by hand, not
+by CI.
 
 There is **no product functionality at all yet** — no standings, no fair play, no
 scheduled operations, no polls.
