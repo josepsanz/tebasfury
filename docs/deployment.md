@@ -70,6 +70,19 @@ In the project's settings on Vercel (**Settings → Environment Variables**), de
 | `GOOGLE_CLIENT_ID` | The Client ID created in step 2 |
 | `GOOGLE_CLIENT_SECRET` | The Client Secret created in step 2 |
 | `DATABASE_URL` | The Neon connection string from step 1 |
+| `CREDENTIALS_KEY` | Generated with `openssl rand -base64 32`. Seals the stored LaLiga refresh token. **Different per environment**, and if it is ever changed the credential has to be bootstrapped again |
+| `LALIGA_LEAGUE_ID` | The private league's id as the LaLiga Fantasy API reports it. Read it from `GET /v1/competition/1/leagues` with any valid access token |
+| `QSTASH_TOKEN` | Upstash console → **QStash** → the token, which publishes each next sync |
+| `QSTASH_CURRENT_SIGNING_KEY` | Upstash console → **QStash** → the current signing key. `/api/sync` verifies every incoming call against it |
+| `QSTASH_NEXT_SIGNING_KEY` | Upstash console → **QStash** → the next signing key, used while Upstash rotates the pair |
+
+**All ten are required.** `getEnv()` validates the whole schema when the module
+loads, so a missing one is not a degraded feature: every route answers 500 until it
+is set. The error names what is missing.
+
+A first deploy also needs the LaLiga credential bootstrapped by hand before anything
+can sync — see step 7. No environment variable holds it: the refresh token rotates on
+every use, and Vercel's variables cannot be rewritten at runtime.
 
 ## 4. Apply migrations
 
@@ -124,3 +137,32 @@ There's no cache (`cookieCache`) configured in `src/lib/auth/auth.ts`, so
 `getSession()` reads the user's row again on every request: the role change takes
 effect immediately, with no need to sign in again. Then check that the "Sync" entry
 appears in the navigation and that `/admin/sync` opens correctly.
+
+## 7. Bootstrap the LaLiga credential
+
+Nothing syncs until this is done, and it cannot be done from a deploy: the LaLiga
+account is a Google login, so there is no password to store, and the refresh token it
+issues rotates on every use.
+
+Sign in to the portal as an admin, open **/admin/sync**, and paste a bootstrap refresh
+token into the field. Capture it with the four steps below. Then press **Sync now**:
+the first run backfills the season and books the next run on QStash, and from then on
+the chain schedules itself.
+
+### Recovering the LaLiga credential
+
+The same four steps recover the credential later. They are needed if `CREDENTIALS_KEY`
+is changed (the stored token can no longer be decrypted), if the refresh token is
+unused for more than 90 days, or if LaLiga invalidates it. The admin page names this
+state explicitly — "the credential needs re-bootstrapping" — both for a manual run and
+in the history of scheduled ones.
+
+1. Open <https://miliga.laliga.com/> and sign in with Google.
+2. Open DevTools, go to the **Network** tab, and filter on `token`.
+3. Find the `POST` to
+   `login.laliga.es/laligadspprob2c.onmicrosoft.com/oauth2/v2.0/token?p=B2C_1A_5ULAIP_PARAMETRIZED_SIGNIN`.
+4. Copy `refresh_token` out of its JSON response, and paste it into the field on
+   **/admin/sync**.
+
+It is a person, a browser and two minutes. Refreshes are headless from then on, using
+the same client id that issued the token — refreshing with a different one fails.

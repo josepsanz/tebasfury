@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
+import { leagueCredentials } from "@/lib/db/schema";
 import { loadRefreshToken, saveRefreshToken } from "./credentials";
 import {
   CredentialError,
@@ -83,6 +85,20 @@ describe("getAccessToken", () => {
       vi.fn(async () => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 })),
     );
 
+    await expect(getAccessToken(h.db)).rejects.toBeInstanceOf(CredentialError);
+  });
+
+  // Last in this block: it leaves the stored credential unreadable on purpose.
+  it("throws a CredentialError when the stored credential cannot be decrypted", async () => {
+    await saveRefreshToken(h.db, { refreshToken: "sealed", clientId: "cid", updatedBy: "u" });
+    await h.db
+      .update(leagueCredentials)
+      .set({ refreshTokenSealed: "AAAA.BBBB.CCCC" })
+      .where(eq(leagueCredentials.id, "league"));
+
+    // A rotated CREDENTIALS_KEY used to escape as a plain Error, so the admin page's
+    // "the credential needs re-bootstrapping" branch never fired for it and the
+    // screen showed `Unsupported state or unable to authenticate data` instead.
     await expect(getAccessToken(h.db)).rejects.toBeInstanceOf(CredentialError);
   });
 });

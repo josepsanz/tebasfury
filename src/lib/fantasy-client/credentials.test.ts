@@ -1,7 +1,9 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
 import { leagueCredentials } from "@/lib/db/schema";
-import { loadRefreshToken, saveRefreshToken } from "./credentials";
+import { CredentialError } from "./errors";
+import { hasStoredCredential, loadRefreshToken, saveRefreshToken } from "./credentials";
 
 // `getEnv()` validates the whole application configuration as a single
 // object, so exercising CREDENTIALS_KEY here still requires stubbing the
@@ -48,5 +50,24 @@ describe("credential storage", () => {
     await saveRefreshToken(h.db, { refreshToken: "tok-3", clientId: "cid", updatedBy: "u1" });
     expect(await h.db.select().from(leagueCredentials)).toHaveLength(1);
     expect((await loadRefreshToken(h.db))?.refreshToken).toBe("tok-3");
+  });
+
+  it("reports whether a credential is stored without decrypting it", async () => {
+    await saveRefreshToken(h.db, { refreshToken: "tok-4", clientId: "cid", updatedBy: "u1" });
+    // Unreadable ciphertext: a rotated CREDENTIALS_KEY looks like this from here.
+    await h.db
+      .update(leagueCredentials)
+      .set({ refreshTokenSealed: "AAAA.BBBB.CCCC" })
+      .where(eq(leagueCredentials.id, "league"));
+
+    // The admin page asks this question, and must still get an answer — it is the
+    // only screen that can replace a credential nobody can read.
+    expect(await hasStoredCredential(h.db)).toBe(true);
+    await expect(loadRefreshToken(h.db)).rejects.toBeInstanceOf(CredentialError);
+  });
+
+  it("reports no credential when the table is empty", async () => {
+    await h.db.delete(leagueCredentials);
+    expect(await hasStoredCredential(h.db)).toBe(false);
   });
 });

@@ -1,28 +1,40 @@
 import { desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { syncRuns } from "@/lib/db/schema";
-import { loadRefreshToken } from "@/lib/fantasy-client/credentials";
+import { hasStoredCredential } from "@/lib/fantasy-client/credentials";
 import { requirePermission } from "@/lib/auth/guards";
 import { SyncControls } from "./sync-controls";
+import { CREDENTIAL_RECOVERY_MESSAGE, isCredentialFailure } from "./credential-state";
 
 export default async function SyncPage() {
   await requirePermission({ sync: ["trigger"] });
 
-  const [credential, runs] = await Promise.all([
-    loadRefreshToken(db),
+  // Presence, not readability. This is the one screen that can re-bootstrap a
+  // credential, so it must not decrypt one: a rotated `CREDENTIALS_KEY` would take
+  // down the page that fixes a rotated `CREDENTIALS_KEY`.
+  const [hasCredential, runs] = await Promise.all([
+    hasStoredCredential(db),
     db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(10),
   ]);
+
+  const credentialFailed = runs.some((run) => isCredentialFailure(run.error));
 
   return (
     <section className="max-w-3xl">
       <h1 className="text-xl font-semibold">Sync</h1>
       <p className="mt-2 text-neutral-600">
-        {credential
+        {hasCredential
           ? "A LaLiga credential is stored. Syncs run on their own; trigger one here to check."
           : "No LaLiga credential is stored yet, so nothing can sync. Paste a bootstrap refresh token below."}
       </p>
 
-      <SyncControls hasCredential={credential !== null} />
+      {credentialFailed && (
+        <p role="alert" className="mt-4 text-sm">
+          {CREDENTIAL_RECOVERY_MESSAGE}
+        </p>
+      )}
+
+      <SyncControls hasCredential={hasCredential} />
 
       <h2 className="mt-10 text-lg font-semibold">Recent runs</h2>
       {runs.length === 0 ? (
@@ -42,7 +54,11 @@ export default async function SyncPage() {
                 <td>{run.trigger}</td>
                 <td>{run.status}</td>
                 <td>{run.weeksSynced ?? "—"}</td>
-                <td className="text-neutral-600">{run.error ?? ""}</td>
+                <td className="text-neutral-600">
+                  {isCredentialFailure(run.error)
+                    ? "The credential needs re-bootstrapping — see the note above"
+                    : (run.error ?? "")}
+                </td>
               </tr>
             ))}
           </tbody>
