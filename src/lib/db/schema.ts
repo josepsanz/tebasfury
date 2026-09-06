@@ -6,13 +6,22 @@ import {
   boolean,
   index,
   uniqueIndex,
+  integer,
+  bigint,
+  jsonb,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
+/**
+ * A team as LaLiga Fantasy models it. The API gives teams no name — they are
+ * identified by their manager — so the display identity is `managerName`.
+ */
 export const teams = pgTable("teams", {
   id: text("id").primaryKey(),
-  name: text("name").notNull(),
+  managerId: integer("manager_id").notNull(),
   managerName: text("manager_name").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const user = pgTable("user", {
@@ -30,7 +39,6 @@ export const user = pgTable("user", {
   banned: boolean("banned").default(false),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
-  fantasyTeamId: text("fantasy_team_id"),
 });
 
 export const session = pgTable(
@@ -106,6 +114,57 @@ export const leagueCredentials = pgTable("league_credentials", {
   clientId: text("client_id").notNull(),
   rotatedAt: timestamp("rotated_at", { withTimezone: true }).notNull().defaultNow(),
   updatedBy: text("updated_by").notNull(),
+});
+
+export const gameweeks = pgTable("gameweeks", {
+  number: integer("number").primaryKey(),
+  opensAt: timestamp("opens_at", { withTimezone: true }).notNull(),
+  closesAt: timestamp("closes_at", { withTimezone: true }).notNull(),
+  isLive: boolean("is_live").notNull().default(false),
+});
+
+/**
+ * One row per team per gameweek, holding only what the API states for that week.
+ *
+ * Cumulative points and table position are NOT stored: they are a pure function of
+ * this series, and keeping both would let them drift. `roundPosition` is the rank
+ * WITHIN the week, which is what the API's `position` means here — it is not the
+ * table position after that week.
+ *
+ * `teamValue` and `teamPoints` are nullable because a backfilled week cannot know
+ * them: the API reports current state, not the state at that week.
+ */
+export const teamGameweekStats = pgTable(
+  "team_gameweek_stats",
+  {
+    teamId: text("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+    gameweek: integer("gameweek").notNull().references(() => gameweeks.number),
+    points: integer("points").notNull(),
+    roundPosition: integer("round_position").notNull(),
+    livePoints: integer("live_points"),
+    isProvisional: boolean("is_provisional").notNull().default(false),
+    teamValue: bigint("team_value", { mode: "number" }),
+    teamPoints: integer("team_points"),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.teamId, table.gameweek] })],
+);
+
+export const syncRuns = pgTable("sync_runs", {
+  id: text("id").primaryKey(),
+  trigger: text("trigger").notNull(),
+  status: text("status").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  weeksSynced: integer("weeks_synced"),
+  error: text("error"),
+});
+
+export const rawSyncPayloads = pgTable("raw_sync_payloads", {
+  id: text("id").primaryKey(),
+  endpoint: text("endpoint").notNull(),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  payload: jsonb("payload").notNull(),
 });
 
 export const userRelations = relations(user, ({ many }) => ({

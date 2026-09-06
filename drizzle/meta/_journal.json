@@ -22,6 +22,13 @@
       "when": 1788700328104,
       "tag": "0002_deep_sentinels",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788701994761,
+      "tag": "0003_robust_human_torch",
+      "breakpoints": true
     }
   ]
 }
