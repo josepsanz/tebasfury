@@ -20,13 +20,13 @@ describe("createTestDatabase", () => {
   it("stores and reads back a team", async () => {
     await harness.db.insert(teams).values({
       id: "team-1",
-      name: "Els Necrofílics",
+      name: "The Grave Diggers",
       managerName: "Alex",
     });
 
     const rows = await harness.db.select().from(teams);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: "team-1", name: "Els Necrofílics" });
+    expect(rows[0]).toMatchObject({ id: "team-1", name: "The Grave Diggers" });
     expect(rows[0].createdAt).toBeInstanceOf(Date);
   });
 });
