@@ -12,8 +12,9 @@ export type AccessDecision = { kind: "allow" } | { kind: "redirect"; to: string 
 export function decideAccess(session: SessionLike, permissions: Permissions): AccessDecision {
   if (!session) return { kind: "redirect", to: "/login" };
 
-  const role = roles[session.user.role as RoleName];
-  if (!role) return { kind: "redirect", to: "/" };
+  const roleName = session.user.role as RoleName;
+  if (!Object.hasOwn(roles, roleName)) return { kind: "redirect", to: "/" };
+  const role = roles[roleName];
 
   return role.authorize(permissions).success ? { kind: "allow" } : { kind: "redirect", to: "/" };
 }

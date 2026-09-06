@@ -36,4 +36,18 @@ describe("decideAccess", () => {
       to: "/",
     });
   });
+
+  it("envia a l'arrel quan el rol és 'constructor' i no es cola per prototip", () => {
+    expect(decideAccess(sessioDe("constructor"), { fairplay: ["read"] })).toEqual({
+      kind: "redirect",
+      to: "/",
+    });
+  });
+
+  it("envia a l'arrel quan el rol és 'toString' i no es cola per prototip", () => {
+    expect(decideAccess(sessioDe("toString"), { fairplay: ["read"] })).toEqual({
+      kind: "redirect",
+      to: "/",
+    });
+  });
 });
