@@ -9,8 +9,8 @@ import { getEnv } from "@/lib/env";
 import { requirePermission } from "@/lib/auth/guards";
 import { scheduleNextRun } from "@/lib/scheduler";
 import { runSync } from "@/lib/sync";
-import { CREDENTIAL_RECOVERY_MESSAGE } from "./credential-state";
 import { failureMessage, runAndSchedule } from "@/lib/sync/scheduled-run";
+import { CREDENTIAL_RECOVERY_MESSAGE } from "./credential-state";
 
 /** The public client id of the LaLiga web app, which is what issues the token. */
 const CLIENT_ID = "6457fa17-1224-416a-b21a-ee6ce76e9bc0";

@@ -17,7 +17,13 @@ export default async function SyncPage() {
     db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(10),
   ]);
 
-  const credentialFailed = runs.some((run) => isCredentialFailure(run.error));
+  // The banner stands only while nothing has synced since the credential broke.
+  // `runs` is newest first, so the first run that either succeeded or failed on the
+  // credential settles it: a success in between means someone has already fixed this.
+  const decisive = runs.find(
+    (run) => run.status === "succeeded" || isCredentialFailure(run.error),
+  );
+  const credentialFailed = decisive !== undefined && isCredentialFailure(decisive.error);
 
   return (
     <section className="max-w-3xl">
