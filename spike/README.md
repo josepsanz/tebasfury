@@ -130,8 +130,45 @@ This vindicates the anti-corruption layer: when it moves again, one directory ch
 4. **Backfill is possible**, so the standings slice can start with real history rather
    than an empty table that fills up one gameweek a week.
 
-## Open question for the owner
+## Decided: the account is a Google login
 
-Does the LaLiga Fantasy account sign in with **email and password**, or with
-**Google / Apple / Facebook**? That decides which of the two auth routes the central
-token uses, and whether a one-time browser bootstrap is required.
+So the password grant is out, and the central token takes the bootstrap route:
+`B2C_1A_5ULAIP_PARAMETRIZED_SIGNIN`, one interactive sign-in to obtain the first
+refresh token, headless from then on.
+
+No proxy and no rooted phone are needed. `https://miliga.laliga.com/` is a live web
+app that signs in with Google, and its page source carries the same client id
+(`6457fa17-1224-416a-b21a-ee6ce76e9bc0`) and policy as the token endpoint — both
+confirmed first-hand. Browser DevTools is enough.
+
+### Bootstrap procedure
+
+1. Open `https://miliga.laliga.com/` and sign in with Google.
+2. DevTools, Network tab, filter on `token`.
+3. Find the `POST` to
+   `login.laliga.es/laligadspprob2c.onmicrosoft.com/oauth2/v2.0/token?p=B2C_1A_5ULAIP_PARAMETRIZED_SIGNIN`.
+4. In its JSON response, take `refresh_token`.
+
+Then refresh headlessly, with the same client id that issued it:
+
+```
+POST https://login.laliga.es/laligadspprob2c.onmicrosoft.com/oauth2/v2.0/token
+     ?p=B2C_1A_5ULAIP_PARAMETRIZED_SIGNIN
+  grant_type=refresh_token
+  client_id=6457fa17-1224-416a-b21a-ee6ce76e9bc0
+  scope=openid offline_access
+  refresh_token=<stored>
+```
+
+Persist the rotated `refresh_token` from every response.
+
+### What this means for the design
+
+The spec's `league_credentials` table was drafted around storing a token. It needs to
+hold a **rotating** refresh token, written back on every sync, plus the client id that
+issued it — refreshing with a different client fails. And the admin screen needs a
+field to paste the bootstrap token into, not a password field.
+
+If the refresh token is ever lost or expires past 90 days of disuse, recovery is the
+four steps above: a person, a browser, two minutes. Worth stating in the runbook so it
+is not rediscovered under pressure.
