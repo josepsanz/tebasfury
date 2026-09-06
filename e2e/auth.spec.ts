@@ -19,3 +19,8 @@ test("el títol del portal és TebasFury", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveTitle(/TebasFury/);
 });
+
+test("el control de sortida no es mostra sense sessió", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Surt" })).toHaveCount(0);
+});
