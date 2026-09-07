@@ -59,3 +59,13 @@ test("the standings and progress links are hidden without a session", async ({ p
   await expect(page.getByRole("link", { name: "Standings" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Progress" })).toHaveCount(0);
 });
+
+test("the players page redirects anyone who has not signed in", async ({ page }) => {
+  await page.goto("/players");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("the players link is hidden without a session", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Players" })).toHaveCount(0);
+});

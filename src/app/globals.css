@@ -16,6 +16,9 @@
   --board-form: #4a5040;
   --board-form-best: #86917a;
   --board-alert: #ef8a76;
+  /* Ownership. Green is live points and the red is a broken credential, so an
+     unowned player — the one thing a catalogue is scanned for — needs its own. */
+  --board-free: #cbb26a;
   --series-1: #3987e5;
   --series-2: #d95926;
   --series-3: #199e70;
