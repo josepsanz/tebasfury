@@ -252,3 +252,66 @@ the execution ledger, so none of it has to be rediscovered.
   none of the existing assertions would notice if `<BarChart>` or `<LineChart>` were
   deleted outright. The fallback table is real coverage of the data; the chart
   rendering itself is not covered by anything but eyes on a real device.
+
+### Parked at the final review, with the reasoning
+
+Both were raised by the scoped re-review of the fix wave, judged non-blocking, and
+deliberately not fixed — there is no second fix wave by design, so they are recorded
+here instead of being silently dropped.
+
+- **A demoted low-sample average is not visually distinguishable from a genuine one.**
+  Fixing "Best average" used a minimum of three recorded gameweeks, so a one-appearance
+  player sinks rather than topping the sort. But the row still prints its average
+  unconditionally, so once a demoted row and a null-average row both sit at the bottom,
+  a reader cannot tell a 1-gameweek `12.0 avg` from a lower-scoring steady player
+  without switching sorts. Nothing became less honest than before — the row text is
+  unchanged and the finding explicitly allowed either mitigation — but the demotion is
+  silent. The threshold of three is reasoned, not measured against a live catalogue.
+- **One squad scenario is untested as a distinct case:** a team that *had* recorded
+  members, whose current response carries ids that are *all* filtered out by the
+  catalogue-membership check. Both guards funnel through the same
+  `validIds.length === 0` gate, so inspection says it lands on the skip-the-prune
+  branch and cannot wedge the sweep — but "empty from the API" and "some ids valid" are
+  covered separately and their combination is not.
+
+### The visual checks nobody has performed
+
+Both new views sit behind `requireSession()` and the E2E suite has no authenticated
+fixture, so no agent could load either page in a browser. Everything below was reasoned
+about in writing and never seen. Run `pnpm dev`, sign in, and work through it at 375px.
+
+On `/players`:
+
+1. Do the twelve filter/sort pills push the first player row below the fold, and is that
+   acceptable?
+2. Is `--board-free` ("Free agent") legible on `#10120f`, and does it read as neutral
+   rather than as a warning beside `--board-alert`?
+3. Does a real long nickname collide with, or crowd, the value numeral?
+4. Does the page scroll horizontally anywhere between 320px and 768px?
+5. Does the search feel instant against the full ~836-row catalogue on a real phone?
+6. Does "Showing 60 of X" read naturally once a filter has already narrowed the list?
+
+On `/players/{id}`:
+
+7. Is the bar chart's gameweek axis legible for a player with 20+ gameweeks? (Only ever
+   checked at 2-4.)
+8. Does the value chart's single-dot case render for a player with exactly one snapshot?
+9. Does the header wrap badly for a long nickname plus a non-`ok` status?
+10. Do either `<details>` table cause page-level horizontal scroll on a real device?
+11. Do the two big numerals keep their labels un-wrapped under a longer owner line?
+12. Does the status read identically on the catalogue and the detail view?
+13. The value chart's line axis at 200+ daily ticks — the series has never been seen
+    past a handful of days, so tick density at season length is unverified.
+
+Elsewhere:
+
+14. `/players/<a bogus id>` while signed in: the new `not-found.tsx` on the board's dark
+    tokens, with no white flash.
+15. `/admin/sync`: press "Sweep players" and watch the "Sync now" button — it must stay
+    "Sync now". Also check the new "last successful sweep" line does not crowd the
+    buttons at narrow widths, and that it does not visually compete with the run table.
+16. The nav at 375px now that "Players" is a fifth link — does it wrap, scroll, or crowd
+    the sign-out control?
+17. The search input on real iOS Safari: `type="search"` gets platform chrome and a
+    clear button, and nothing sets `::placeholder`, so its contrast on the dark ground
+    is unverified.
