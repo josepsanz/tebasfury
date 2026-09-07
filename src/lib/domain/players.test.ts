@@ -208,7 +208,7 @@ describe("sortCatalogue", () => {
     // Important 7: a player with one recorded gameweek and a big score used to
     // outrank a player with several steady weeks, because averagePoints alone
     // cannot tell "10 over 6 games" from "10 over 1". Below
-    // MIN_GAMEWEEKS_FOR_AVERAGE_SORT the row sinks like a null average does — still
+    // MIN_GAMEWEEKS_FOR_RANKING the row sinks like a null average does — still
     // visible under every other sort, just not able to top this one on a single game.
     const oneGame: CatalogueRow = {
       id: "p4", nickname: "Kiri", position: "Forward", status: "ok",
@@ -229,6 +229,43 @@ describe("sortCatalogue", () => {
     const before = rows.map((r) => r.id);
     sortCatalogue(rows, "value");
     expect(rows.map((r) => r.id)).toEqual(before);
+  });
+});
+
+describe("the value-for-money sort", () => {
+  const row = (over: Partial<CatalogueRow> = {}): CatalogueRow => ({
+    id: "p1",
+    nickname: "Ada",
+    position: "Midfielder",
+    status: "ok",
+    currentValue: 1_000_000,
+    seasonPoints: 10,
+    averagePoints: 5,
+    gameweeksRecorded: 4,
+    ownerTeamId: null,
+    ownerName: null,
+    clubName: null,
+    ...over,
+  });
+
+  it("ranks by points per million, and demotes a single-gameweek player", () => {
+    // The same trap "Best average" already had to fix: 12 points in one appearance at
+    // €1.0M is 12.0 pts/M€, which would outrank 30 points across three weeks at €3.0M.
+    const lucky = row({ id: "lucky", nickname: "Kiri", currentValue: 1_000_000, seasonPoints: 12, gameweeksRecorded: 1 });
+    const steady = row({ id: "steady", nickname: "Léo", currentValue: 3_000_000, seasonPoints: 30, gameweeksRecorded: 3 });
+    expect(sortCatalogue([lucky, steady], "perMillion").map((r) => r.id)).toEqual(["steady", "lucky"]);
+  });
+
+  it("sinks a player with no value snapshot rather than treating them as free", () => {
+    const priced = row({ id: "priced", currentValue: 2_000_000, seasonPoints: 20 });
+    const unpriced = row({ id: "unpriced", currentValue: null, seasonPoints: 20 });
+    expect(sortCatalogue([unpriced, priced], "perMillion").map((r) => r.id)).toEqual(["priced", "unpriced"]);
+  });
+
+  it("breaks a tie by name, like every other sort", () => {
+    const zoe = row({ id: "zoe", nickname: "Zoe", currentValue: 2_000_000, seasonPoints: 20 });
+    const ada = row({ id: "ada", nickname: "Ada", currentValue: 2_000_000, seasonPoints: 20 });
+    expect(sortCatalogue([zoe, ada], "perMillion").map((r) => r.id)).toEqual(["ada", "zoe"]);
   });
 });
 

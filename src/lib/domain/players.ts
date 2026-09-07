@@ -121,7 +121,7 @@ export function clubOrPosition(row: Pick<CatalogueRow, "clubName" | "position">)
   return row.clubName ?? row.position;
 }
 
-export type SortKey = "value" | "points" | "average" | "name";
+export type SortKey = "value" | "points" | "average" | "perMillion" | "name";
 
 /**
  * A single recorded gameweek is not an average — it is one score wearing an average's
@@ -131,8 +131,13 @@ export type SortKey = "value" | "points" | "average" | "name";
  * (and still show their real average) under every other sort and in their own row.
  * Three is the smallest sample that resists a single outlier while staying reachable
  * in the season's first month, which is when this sort gets used the most.
+ *
+ * It governs two rankings now, which is why it is no longer named after one of them:
+ * points per million has exactly the same weakness for exactly the same reason — a
+ * cheap player with one lucky appearance — and answering it with a second, different
+ * number would be two claims about one question, on data nobody has.
  */
-export const MIN_GAMEWEEKS_FOR_AVERAGE_SORT = 3;
+export const MIN_GAMEWEEKS_FOR_RANKING = 3;
 
 /**
  * Sorts a copy, never the caller's array.
@@ -157,7 +162,12 @@ export function sortCatalogue(rows: CatalogueRow[], key: SortKey): CatalogueRow[
     value: descending((row) => row.currentValue),
     points: descending((row) => row.seasonPoints),
     average: descending((row) =>
-      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_AVERAGE_SORT ? row.averagePoints : null,
+      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_RANKING ? row.averagePoints : null,
+    ),
+    perMillion: descending((row) =>
+      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_RANKING
+        ? pointsPerMillion(row.seasonPoints, row.currentValue)
+        : null,
     ),
     name: byName,
   };
