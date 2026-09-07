@@ -349,3 +349,32 @@ made rather than discoveries waiting to happen:
   inherits them at no fetch cost.
 - **A club filter is the obvious next ask** once names are on screen, and it will land in
   a pill row that already has a fold problem. That is a layout decision, not a data one.
+
+## After the deploy — 2026-09-07
+
+Migration `0007` was applied by the owner, `main` pushed, and a manual "Sweep players"
+run from `/admin/sync`. It reported:
+
+```
+Swept 840 players and 13 squads, 20 clubs known. Next sweep at 2026-09-08T16:03:11.338Z.
+```
+
+**Twenty of twenty, on the first sweep.** The premise the whole slice rests on holds in
+production: thirteen squads of roughly fifteen players do name every club in the
+competition, at no additional API cost. The follow-up recorded just above — that
+coverage may never reach twenty — is answered by evidence rather than argument, and the seed-list
+question Ruling 1 left open needs no reopening. `realTeamsKnown` stays in the trigger
+message as the instrument, because coverage is a per-sweep fact and not a settled one.
+
+**840 players, not the 836 of Step 3.** Four have joined the competition since that
+slice shipped. Nothing to do: a player who arrives between sweeps gets a catalogue row
+and null everywhere else, which is the behaviour Step 3 built for and this slice
+inherits.
+
+The visual checks added to Step 3's list (items 18, 19 and 20) were worked through by
+the owner against this deployed build and **found nothing wrong**. Item 19 asked for a
+row with a known club beside one without, and with coverage complete there is most
+likely no such row to look at — every player's `real_team_id` resolves. Ruling 5's
+fallback is therefore correct, tested, and dormant in production. If a club ever leaves
+the observed set the fallback wakes up, unverified by eye; the tests are what hold it.
+

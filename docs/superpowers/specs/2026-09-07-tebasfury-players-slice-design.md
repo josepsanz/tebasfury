@@ -285,8 +285,12 @@ nature, not by omission — see the note after the list.
 The list is kept rather than deleted because it is the checklist to re-run whenever these
 two views change, and because it records what was verified by eye rather than by test.
 
-Items 18, 19 and 20 were added later by the club affiliation slice and **have not been
-performed** — the 2026-09-07 pass could not have covered a view that did not exist yet.
+Items 18, 19 and 20 were added later by the club affiliation slice and were worked
+through separately, on 2026-09-07 against the deployed build with 20 of 20 clubs
+observed: **nothing wrong**. Item 19 asked for a row whose club is unknown beside one
+whose club is known, and complete coverage means there is most likely no such row in
+production — see "After the deploy" in
+`docs/superpowers/specs/2026-09-07-tebasfury-club-affiliation-design.md`.
 
 On `/players`:
 
