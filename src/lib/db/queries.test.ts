@@ -161,6 +161,11 @@ describe("loadPlayer", () => {
       { playerId: "p1", gameweek: 2, points: 28 },
     ]);
     await h.db.insert(squadMembers).values({ teamId: "t1", playerId: "p1" });
+    await h.db.insert(syncRuns).values({
+      id: "s1", trigger: "players-schedule", status: "succeeded",
+      startedAt: new Date("2026-09-07T04:00:00Z"),
+      finishedAt: new Date("2026-09-07T04:00:20Z"),
+    });
   });
   afterAll(async () => { await h.close(); });
 
@@ -170,6 +175,11 @@ describe("loadPlayer", () => {
     expect(detail?.values).toHaveLength(2);
     expect(detail?.points).toHaveLength(2);
     expect(detail?.owner?.managerName).toBe("Manager A");
+  });
+
+  it("reports when this player was last swept", async () => {
+    const detail = await loadPlayer(h.db, "p1");
+    expect(detail?.lastSweep?.toISOString()).toBe("2026-09-07T04:00:20.000Z");
   });
 
   it("returns null for a player nobody has ever swept", async () => {

@@ -99,9 +99,24 @@ const toRecord = (row: typeof playersTable.$inferSelect): PlayerRecord => ({
   imageUrl: row.imageUrl,
 });
 
+/**
+ * When the player cadence last succeeded — shared by the catalogue and the player-detail
+ * read so the query is written once. A daily sweep writes no gameweek snapshot, so this
+ * is deliberately separate from `loadSnapshots`'s own last-sync read.
+ */
+async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
+  const [sweep] = await db
+    .select()
+    .from(syncRuns)
+    .where(and(eq(syncRuns.status, "succeeded"), like(syncRuns.trigger, "players-%")))
+    .orderBy(desc(syncRuns.finishedAt))
+    .limit(1);
+  return sweep?.finishedAt ?? null;
+}
+
 /** Everything the catalogue needs, aggregated in the database. */
 export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
-  const [playerRows, totalRows, valueRows, ownershipRows, sweeps] = await Promise.all([
+  const [playerRows, totalRows, valueRows, ownershipRows, lastSweep] = await Promise.all([
     db.select().from(playersTable).orderBy(playersTable.nickname),
 
     // Six hundred players times thirty-eight weeks by May. Summed here, not shipped.
@@ -135,12 +150,7 @@ export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
       .from(squadMembers)
       .innerJoin(teams, eq(teams.id, squadMembers.teamId)),
 
-    db
-      .select()
-      .from(syncRuns)
-      .where(and(eq(syncRuns.status, "succeeded"), like(syncRuns.trigger, "players-%")))
-      .orderBy(desc(syncRuns.finishedAt))
-      .limit(1),
+    loadLastPlayerSweep(db),
   ]);
 
   return {
@@ -154,7 +164,7 @@ export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
     values: valueRows,
     ownership: ownershipRows,
     ownershipKnown: ownershipRows.length > 0,
-    lastSweep: sweeps[0]?.finishedAt ?? null,
+    lastSweep,
   };
 }
 
@@ -170,7 +180,7 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
   const [row] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
   if (!row) return null;
 
-  const [values, points, owners, sweeps] = await Promise.all([
+  const [values, points, owners, lastSweep] = await Promise.all([
     db
       .select({ takenOn: playerValueSnapshots.takenOn, value: playerValueSnapshots.value })
       .from(playerValueSnapshots)
@@ -190,12 +200,7 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
       .from(squadMembers)
       .innerJoin(teams, eq(teams.id, squadMembers.teamId))
       .where(eq(squadMembers.playerId, playerId)),
-    db
-      .select()
-      .from(syncRuns)
-      .where(and(eq(syncRuns.status, "succeeded"), like(syncRuns.trigger, "players-%")))
-      .orderBy(desc(syncRuns.finishedAt))
-      .limit(1),
+    loadLastPlayerSweep(db),
   ]);
 
   return {
@@ -203,6 +208,6 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
     values,
     points,
     owner: owners[0] ?? null,
-    lastSweep: sweeps[0]?.finishedAt ?? null,
+    lastSweep,
   };
 }
