@@ -6,9 +6,9 @@ import { PlayerCatalogue } from "@/components/player-catalogue";
 
 export default async function PlayersPage() {
   await requireSession();
-  const { players, totals, values, ownership, ownershipKnown, lastSweep } =
+  const { players, totals, values, ownership, clubs, ownershipKnown, lastSweep } =
     await loadPlayerCatalogue(db);
-  const rows = buildCatalogue({ players, totals, values, ownership });
+  const rows = buildCatalogue({ players, totals, values, ownership, clubs });
 
   return (
     <section className="mx-auto max-w-2xl">

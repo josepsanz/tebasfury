@@ -387,7 +387,7 @@ describe("runPlayerSweep", () => {
       getPlayers: async () => {
         throw new CredentialError("nope");
       },
-      getSquad: async (teamId) => ({ teamId, playerIds: [] }),
+      getSquad: async (teamId) => ({ teamId, playerIds: [], realTeams: [] }),
     };
     await expect(
       runPlayerSweep({

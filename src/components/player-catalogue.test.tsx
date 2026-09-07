@@ -14,6 +14,7 @@ const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   gameweeksRecorded: 4,
   ownerTeamId: "t1",
   ownerName: "Manager A",
+  clubName: null,
   ...over,
 });
 

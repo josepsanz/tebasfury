@@ -8,6 +8,7 @@ import type {
   Ownership,
   PlayerRecord,
   PlayerTotals,
+  RealTeamRecord,
   ValuePoint,
 } from "@/lib/domain/players";
 import {
@@ -15,6 +16,7 @@ import {
   playerGameweekPoints,
   playerValueSnapshots,
   players as playersTable,
+  realTeams,
   squadMembers,
   syncRuns,
   teamGameweekStats,
@@ -83,6 +85,13 @@ export type CatalogueData = {
   values: CurrentValue[];
   ownership: Ownership[];
   /**
+   * Every club observed so far — about twenty rows. Read whole and merged in
+   * `buildCatalogue` rather than LEFT JOINed: `toRecord` is shared by both reads, and
+   * a join would change Drizzle's row shape in both of them for the sake of a table
+   * this small. `buildCatalogue` already merges three maps; this is the fourth.
+   */
+  clubs: RealTeamRecord[];
+  /**
    * Whether any squad has been read at all. Before the first sweep reads them every
    * player would look free, which is a different statement from "nobody owns them".
    */
@@ -116,7 +125,7 @@ export async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
 
 /** Everything the catalogue needs, aggregated in the database. */
 export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
-  const [playerRows, totalRows, valueRows, ownershipRows, lastSweep] = await Promise.all([
+  const [playerRows, totalRows, valueRows, ownershipRows, clubRows, lastSweep] = await Promise.all([
     db.select().from(playersTable).orderBy(playersTable.nickname),
 
     // Six hundred players times thirty-eight weeks by May. Summed here, not shipped.
@@ -150,6 +159,8 @@ export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
       .from(squadMembers)
       .innerJoin(teams, eq(teams.id, squadMembers.teamId)),
 
+    db.select({ id: realTeams.id, name: realTeams.name }).from(realTeams),
+
     loadLastPlayerSweep(db),
   ]);
 
@@ -163,6 +174,7 @@ export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
     })),
     values: valueRows,
     ownership: ownershipRows,
+    clubs: clubRows,
     ownershipKnown: ownershipRows.length > 0,
     lastSweep,
   };
@@ -173,6 +185,8 @@ export type PlayerDetail = {
   values: ValuePoint[];
   points: GameweekPoints[];
   owner: Ownership | null;
+  /** This player's club, or null when no squad response has named it yet. */
+  club: RealTeamRecord | null;
   /**
    * Whether any squad has been read at all, globally — not whether THIS player has an
    * owner. Mirrors `CatalogueData.ownershipKnown`: before the first sweep reads the
@@ -187,7 +201,7 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
   const [row] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
   if (!row) return null;
 
-  const [values, points, owners, anyOwnership, lastSweep] = await Promise.all([
+  const [values, points, owners, clubRows, anyOwnership, lastSweep] = await Promise.all([
     db
       .select({ takenOn: playerValueSnapshots.takenOn, value: playerValueSnapshots.value })
       .from(playerValueSnapshots)
@@ -207,6 +221,12 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
       .from(squadMembers)
       .innerJoin(teams, eq(teams.id, squadMembers.teamId))
       .where(eq(squadMembers.playerId, playerId)),
+    // One player needs one club, not twenty: keyed, unlike the catalogue's whole-table read.
+    db
+      .select({ id: realTeams.id, name: realTeams.name })
+      .from(realTeams)
+      .where(eq(realTeams.id, row.realTeamId))
+      .limit(1),
     // Global, not scoped to this player: a squad table with rows for OTHER teams but
     // none for this player's is exactly "ownership is known and this player is free",
     // which is a `limit(1)` on the whole table, not a lookup keyed by playerId.
@@ -219,6 +239,7 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
     values,
     points,
     owner: owners[0] ?? null,
+    club: clubRows[0] ?? null,
     ownershipKnown: anyOwnership.length > 0,
     lastSweep,
   };
