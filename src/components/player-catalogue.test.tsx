@@ -11,6 +11,7 @@ const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   currentValue: 12_400_000,
   seasonPoints: 40,
   averagePoints: 10,
+  gameweeksRecorded: 4,
   ownerTeamId: "t1",
   ownerName: "Manager A",
   ...over,

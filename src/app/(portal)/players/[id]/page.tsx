@@ -1,7 +1,13 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadPlayer } from "@/lib/db/queries";
-import { formatMoney, pointsSeries, statusLabel, valueSeries } from "@/lib/domain/players";
+import {
+  formatMoney,
+  ownerDisplay,
+  pointsSeries,
+  statusLabel,
+  valueSeries,
+} from "@/lib/domain/players";
 import { requireSession } from "@/lib/auth/guards";
 import { PlayerCharts } from "@/components/player-charts";
 
@@ -13,22 +19,28 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   const detail = await loadPlayer(db, id);
   if (detail === null) notFound();
 
-  const { player, owner, lastSweep } = detail;
+  const { player, owner, ownershipKnown, lastSweep } = detail;
   const values = valueSeries(detail.values);
   const points = pointsSeries(detail.points);
   const seasonPoints = detail.points.reduce((sum, p) => sum + p.points, 0);
   const currentValue = values.at(-1)?.value ?? null;
   const label = statusLabel(player.status);
+  // Same three-state logic as the catalogue row, via the shared helper: "Free agent"
+  // is a claim the page can only make once at least one squad has been read, not
+  // merely from the absence of an owner row.
+  const owned = ownerDisplay(owner?.managerName ?? null, ownershipKnown);
 
   return (
     <section className="mx-auto max-w-2xl">
       <h1 className="text-xl font-medium">{player.nickname}</h1>
       <p className="mt-1 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
         {player.position} ·{" "}
-        {owner === null ? (
+        {owned.kind === "owned" && owned.name}
+        {owned.kind === "free" && (
           <span style={{ color: "var(--board-free)" }}>Free agent</span>
-        ) : (
-          owner.managerName
+        )}
+        {owned.kind === "unknown" && (
+          <span style={{ color: "var(--board-ink-dim)" }}>Owners not swept yet</span>
         )}
         {label === null ? null : <span style={{ color: "var(--board-alert)" }}> · {label}</span>}
       </p>

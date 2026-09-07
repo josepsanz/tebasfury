@@ -25,6 +25,8 @@ export type CatalogueRow = {
   seasonPoints: number;
   /** Points per gameweek recorded for this player; null when none are. */
   averagePoints: number | null;
+  /** The denominator behind `averagePoints`. See `sortCatalogue`'s "average" key. */
+  gameweeksRecorded: number;
   ownerTeamId: string | null;
   ownerName: string | null;
 };
@@ -60,6 +62,7 @@ export function buildCatalogue(input: {
         total && total.gameweeksRecorded > 0
           ? total.seasonPoints / total.gameweeksRecorded
           : null,
+      gameweeksRecorded: total?.gameweeksRecorded ?? 0,
       ownerTeamId: owner?.teamId ?? null,
       ownerName: owner?.managerName ?? null,
     };
@@ -90,6 +93,17 @@ export function filterCatalogue(rows: CatalogueRow[], filter: CatalogueFilter): 
 export type SortKey = "value" | "points" | "average" | "name";
 
 /**
+ * A single recorded gameweek is not an average — it is one score wearing an average's
+ * clothes, and it was outranking six-gameweek seasons under "Best average" by October.
+ * Below this many recorded gameweeks a player sinks in that one sort exactly like an
+ * unknown value does, rather than being hidden or relabelled: they are still visible
+ * (and still show their real average) under every other sort and in their own row.
+ * Three is the smallest sample that resists a single outlier while staying reachable
+ * in the season's first month, which is when this sort gets used the most.
+ */
+export const MIN_GAMEWEEKS_FOR_AVERAGE_SORT = 3;
+
+/**
  * Sorts a copy, never the caller's array.
  *
  * An unknown value sinks rather than sorting as zero: a player whose first snapshot
@@ -111,7 +125,9 @@ export function sortCatalogue(rows: CatalogueRow[], key: SortKey): CatalogueRow[
   const comparators: Record<SortKey, (a: CatalogueRow, b: CatalogueRow) => number> = {
     value: descending((row) => row.currentValue),
     points: descending((row) => row.seasonPoints),
-    average: descending((row) => row.averagePoints),
+    average: descending((row) =>
+      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_AVERAGE_SORT ? row.averagePoints : null,
+    ),
     name: byName,
   };
 
@@ -152,10 +168,20 @@ export function pointsPerMillion(seasonPoints: number, currentValue: number | nu
   return seasonPoints / (currentValue / 1_000_000);
 }
 
-/** Money, at the length a phone can read. Shared by both views, so it lives here. */
+/**
+ * Money, at the length a phone can read. Shared by both views, so it lives here.
+ *
+ * The million threshold is checked against the ROUNDED thousands figure, not the raw
+ * value: `Math.round(999_999 / 1000)` is `1000`, so a value just under a million was
+ * rendering as "1000K" — three hundred and fourteen of the 836 real players sit under
+ * €1M, and three of those currently fall in the last €50K below the boundary.
+ */
 export function formatMoney(value: number): string {
-  if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  return `${Math.round(value / 1000)}K`;
+  const roundedThousands = Math.round(value / 1000);
+  if (Math.abs(value) >= 1_000_000 || Math.abs(roundedThousands) >= 1000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+  return `${roundedThousands}K`;
 }
 
 /**
@@ -176,4 +202,22 @@ const STATUS_LABELS: Record<string, string> = {
 export function statusLabel(status: string): string | null {
   if (status === "ok") return null;
   return STATUS_LABELS[status] ?? status;
+}
+
+/**
+ * Three states, not two. "Free agent" is a claim about the world — nobody owns this
+ * player — and the database can only support that claim once at least one squad has
+ * been read. Before that, an absent owner row means "we have not looked", not "nobody
+ * owns them", and the two must never render the same way. Shared by the catalogue and
+ * the player detail page so the two cannot drift into saying it differently.
+ */
+export type OwnerDisplay =
+  | { kind: "owned"; name: string }
+  | { kind: "free" }
+  | { kind: "unknown" };
+
+export function ownerDisplay(ownerName: string | null, ownershipKnown: boolean): OwnerDisplay {
+  if (ownerName !== null) return { kind: "owned", name: ownerName };
+  if (!ownershipKnown) return { kind: "unknown" };
+  return { kind: "free" };
 }

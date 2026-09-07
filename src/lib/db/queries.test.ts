@@ -182,7 +182,35 @@ describe("loadPlayer", () => {
     expect(detail?.lastSweep?.toISOString()).toBe("2026-09-07T04:00:20.000Z");
   });
 
+  it("reports ownership as known once any squad has been read", async () => {
+    const detail = await loadPlayer(h.db, "p1");
+    expect(detail?.ownershipKnown).toBe(true);
+  });
+
   it("returns null for a player nobody has ever swept", async () => {
     expect(await loadPlayer(h.db, "nope")).toBeNull();
+  });
+});
+
+describe("loadPlayer, before any squad has been read", () => {
+  // Regression guard for Important 2: `replaceSquads` finding an empty `teams` table
+  // (pressed "Sweep players" before any standings sync) or a `getSquad` call failing
+  // mid-loop both leave every squad row absent while the player catalogue is full.
+  // The page must not read that absence as "nobody owns this player" — that is a
+  // fact the database cannot support until at least one squad has been recorded.
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(players).values({
+      id: "p1", nickname: "Ada", position: "Midfielder",
+      realTeamId: "rt1", status: "ok",
+    });
+  });
+  afterAll(async () => { await h.close(); });
+
+  it("does not report ownership as known when no squad has ever been read", async () => {
+    const detail = await loadPlayer(h.db, "p1");
+    expect(detail?.owner).toBeNull();
+    expect(detail?.ownershipKnown).toBe(false);
   });
 });

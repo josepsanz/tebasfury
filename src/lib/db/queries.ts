@@ -104,7 +104,7 @@ const toRecord = (row: typeof playersTable.$inferSelect): PlayerRecord => ({
  * read so the query is written once. A daily sweep writes no gameweek snapshot, so this
  * is deliberately separate from `loadSnapshots`'s own last-sync read.
  */
-async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
+export async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
   const [sweep] = await db
     .select()
     .from(syncRuns)
@@ -173,6 +173,13 @@ export type PlayerDetail = {
   values: ValuePoint[];
   points: GameweekPoints[];
   owner: Ownership | null;
+  /**
+   * Whether any squad has been read at all, globally — not whether THIS player has an
+   * owner. Mirrors `CatalogueData.ownershipKnown`: before the first sweep reads the
+   * squads, this player having no owner row is a gap in what we know, not the fact
+   * that they are unowned.
+   */
+  ownershipKnown: boolean;
   lastSweep: Date | null;
 };
 
@@ -180,7 +187,7 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
   const [row] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
   if (!row) return null;
 
-  const [values, points, owners, lastSweep] = await Promise.all([
+  const [values, points, owners, anyOwnership, lastSweep] = await Promise.all([
     db
       .select({ takenOn: playerValueSnapshots.takenOn, value: playerValueSnapshots.value })
       .from(playerValueSnapshots)
@@ -200,6 +207,10 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
       .from(squadMembers)
       .innerJoin(teams, eq(teams.id, squadMembers.teamId))
       .where(eq(squadMembers.playerId, playerId)),
+    // Global, not scoped to this player: a squad table with rows for OTHER teams but
+    // none for this player's is exactly "ownership is known and this player is free",
+    // which is a `limit(1)` on the whole table, not a lookup keyed by playerId.
+    db.select({ teamId: squadMembers.teamId }).from(squadMembers).limit(1),
     loadLastPlayerSweep(db),
   ]);
 
@@ -208,6 +219,7 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
     values,
     points,
     owner: owners[0] ?? null,
+    ownershipKnown: anyOwnership.length > 0,
     lastSweep,
   };
 }

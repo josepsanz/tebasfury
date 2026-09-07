@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   filterCatalogue,
   formatMoney,
+  ownerDisplay,
   sortCatalogue,
   statusLabel,
   type CatalogueFilter,
@@ -77,10 +78,11 @@ function Pill({
 }
 
 function Owner({ row, ownershipKnown }: { row: CatalogueRow; ownershipKnown: boolean }) {
-  if (row.ownerName !== null) return <>{row.ownerName}</>;
+  const display = ownerDisplay(row.ownerName, ownershipKnown);
+  if (display.kind === "owned") return <>{display.name}</>;
   // Nobody has read the squads yet, so "unowned" is a gap in what we know, not a fact
   // about the player.
-  if (!ownershipKnown) {
+  if (display.kind === "unknown") {
     return <span style={{ color: "var(--board-ink-dim)" }}>Owners not swept yet</span>;
   }
   return <span style={{ color: "var(--board-free)" }}>Free agent</span>;

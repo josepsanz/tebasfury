@@ -3,6 +3,7 @@ import {
   buildCatalogue,
   filterCatalogue,
   formatMoney,
+  ownerDisplay,
   pointsPerMillion,
   pointsSeries,
   sortCatalogue,
@@ -82,12 +83,12 @@ describe("filterCatalogue", () => {
     {
       id: "p1", nickname: "Ada", position: "Midfielder",
       status: "ok", currentValue: 12_000_000, seasonPoints: 40, averagePoints: 10,
-      ownerTeamId: "t1", ownerName: "Manager A",
+      gameweeksRecorded: 4, ownerTeamId: "t1", ownerName: "Manager A",
     },
     {
       id: "p2", nickname: "Bruno", position: "Forward",
       status: "ok", currentValue: 4_000_000, seasonPoints: 9, averagePoints: 3,
-      ownerTeamId: null, ownerName: null,
+      gameweeksRecorded: 3, ownerTeamId: null, ownerName: null,
     },
   ];
 
@@ -113,15 +114,18 @@ describe("sortCatalogue", () => {
   const rows: CatalogueRow[] = [
     {
       id: "p1", nickname: "Zoe", position: "Midfielder", status: "ok",
-      currentValue: 1_000_000, seasonPoints: 40, averagePoints: 10, ownerTeamId: null, ownerName: null,
+      currentValue: 1_000_000, seasonPoints: 40, averagePoints: 10, gameweeksRecorded: 4,
+      ownerTeamId: null, ownerName: null,
     },
     {
       id: "p2", nickname: "Ada", position: "Forward", status: "ok",
-      currentValue: 9_000_000, seasonPoints: 9, averagePoints: 3, ownerTeamId: null, ownerName: null,
+      currentValue: 9_000_000, seasonPoints: 9, averagePoints: 3, gameweeksRecorded: 3,
+      ownerTeamId: null, ownerName: null,
     },
     {
       id: "p3", nickname: "Bruno", position: "Forward", status: "ok",
-      currentValue: null, seasonPoints: 0, averagePoints: null, ownerTeamId: null, ownerName: null,
+      currentValue: null, seasonPoints: 0, averagePoints: null, gameweeksRecorded: 0,
+      ownerTeamId: null, ownerName: null,
     },
   ];
 
@@ -140,6 +144,25 @@ describe("sortCatalogue", () => {
   it("sinks the unknowns rather than treating them as zero", () => {
     // A player with no snapshot yet is not the cheapest player in the league.
     expect(sortCatalogue(rows, "average").at(-1)?.id).toBe("p3");
+  });
+
+  it("does not let a single-gameweek average dominate 'Best average'", () => {
+    // Important 7: a player with one recorded gameweek and a big score used to
+    // outrank a player with several steady weeks, because averagePoints alone
+    // cannot tell "10 over 6 games" from "10 over 1". Below
+    // MIN_GAMEWEEKS_FOR_AVERAGE_SORT the row sinks like a null average does — still
+    // visible under every other sort, just not able to top this one on a single game.
+    const oneGame: CatalogueRow = {
+      id: "p4", nickname: "Kiri", position: "Forward", status: "ok",
+      currentValue: 1_000_000, seasonPoints: 12, averagePoints: 12, gameweeksRecorded: 1,
+      ownerTeamId: null, ownerName: null,
+    };
+    const steady: CatalogueRow = {
+      id: "p5", nickname: "Léo", position: "Forward", status: "ok",
+      currentValue: 1_000_000, seasonPoints: 30, averagePoints: 10, gameweeksRecorded: 3,
+      ownerTeamId: null, ownerName: null,
+    };
+    expect(sortCatalogue([oneGame, steady], "average").map((r) => r.id)).toEqual(["p5", "p4"]);
   });
 
   it("does not mutate its input", () => {
@@ -199,6 +222,14 @@ describe("formatMoney", () => {
   it("reads in thousands below one", () => {
     expect(formatMoney(840_000)).toBe("840K");
   });
+
+  it("does not round the thousands band up into a false extra million", () => {
+    // Minor 14: Math.round(999_999 / 1000) is 1000, so this used to print "1000K".
+    // 314 of the 836 real players sit under €1M, and three of those currently fall
+    // in exactly this band.
+    expect(formatMoney(999_999)).toBe("1.0M");
+    expect(formatMoney(999_499)).toBe("999K");
+  });
 });
 
 describe("statusLabel", () => {
@@ -218,5 +249,22 @@ describe("statusLabel", () => {
     // them to proper English. A sixth value that shows up later must still be visible
     // rather than silently vanish.
     expect(statusLabel("benched")).toBe("benched");
+  });
+});
+
+describe("ownerDisplay", () => {
+  it("names the owner when there is one", () => {
+    expect(ownerDisplay("Manager A", true)).toEqual({ kind: "owned", name: "Manager A" });
+  });
+
+  it("calls a player free once ownership is known and no owner row exists", () => {
+    expect(ownerDisplay(null, true)).toEqual({ kind: "free" });
+  });
+
+  it("does not call anyone free before any squad has been read", () => {
+    // Important 2: the player detail page was making this claim from the mere
+    // absence of an owner row, in the same "Free agent" colour the catalogue
+    // reserves for a fact it has actually checked.
+    expect(ownerDisplay(null, false)).toEqual({ kind: "unknown" });
   });
 });
