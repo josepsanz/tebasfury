@@ -181,3 +181,74 @@ Things Step 2 cost time to discover that are not obvious from reading the code.
   player names are public, unlike the manager nicknames the standing fixtures required
   scrubbing. Six hundred players is a large fixture; consider committing a trimmed slice
   of it with the shape intact.
+
+## Follow-ups this slice leaves behind
+
+Written at the fix wave that came after the whole-branch review, from that review and
+the execution ledger, so none of it has to be rediscovered.
+
+### Before the next deploy
+
+- **Migrations `0003`, `0004`, `0005` and `0006` have never been applied to
+  production.** Checked directly, the same way the standings slice checked `0003` and
+  `0004`: `team_gameweek_stats` does not exist on the live database. Run
+  `DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate` before the next deploy, or the
+  first sweep 500s at runtime with `relation "players" does not exist` instead of
+  failing at build. `0005` (the four player tables) and `0006` (an index on
+  `player_value_snapshots`) are both additive and safe against a populated database.
+
+### Worth watching once
+
+- **The four-entry `weekPoints` ceiling.** In the one live capture, no player's
+  `weekPoints` array ever carried more than four entries, while week numbers observed
+  in it reached six. One capture cannot tell a rolling window (the API only ever
+  returning the last four gameweeks) from "the season has not reached five yet" — both
+  look identical this early. Watch whether it grows past four over the next few
+  gameweeks. If it does not, `queries.ts`'s and this doc's claim that the endpoint
+  carries the points history "for everyone in a single request" needs correcting, the
+  points backfill (`src/lib/sync/players.ts`) needs a strategy for the weeks that fall
+  out of the window, and the player page needs a line explaining why early gameweeks
+  go sparse for everyone at once. This was mandated at Task 1 and never recorded here
+  until now.
+- **Pressing "Sweep players" while the chain is alive forks a second, permanent
+  chain.** Nothing checks for a QStash message already in flight before scheduling
+  another, so a second press doubles the cadence rather than merely restarting it.
+  Harmless for correctness — every write in a sweep is idempotent — but it doubles
+  load on an API the design is trying to be polite to. `docs/deployment.md` step 8 now
+  says not to do this; nothing in the code prevents it.
+
+### Known soft spots
+
+- **Club name is recoverable for free, and the premise Ruling 1 dropped it on was
+  false.** The squad response the sweep already fetches and parses carries
+  `playerMaster.team = {id, name}`, keyed by the same id space as the catalogue's
+  `teamId` — verified against the committed fixtures: `F. Garcés` has `teamId: "21"`
+  in `players.json`, and `21` is `Deportivo Alavés` in `squad.json`. Thirteen squads
+  times roughly fifteen players covers most or all twenty clubs at zero additional API
+  cost. This is a cheap win for the next slice to pick up, not a defect in this one:
+  restoring it would touch the schema, the client, the sweep, the domain module and
+  both views, and a cross-call join belongs behind its own review rather than folded
+  into an unrelated fix wave. Until then the catalogue cannot say which club a player
+  plays for.
+- `lastSeenAt` is written by every sweep and read by nothing. A player who leaves the
+  competition keeps their last snapshot shown as a current value for ever, with no
+  visible sign they are gone.
+- `loanedPlayers` in the squad response is unread (`0` in the one capture, so never
+  exercised); a loaned player would read as "Free agent" today. `playersNumber` is
+  also unread and unverified against `players.length`, so a squad response truncated
+  by the API would shrink a team silently rather than being noticed.
+- `sync_runs` records no per-sweep row counts. `weeksSynced` is the standings chain's
+  column, reused by nothing here (a players row always has it `null`), so the run
+  history cannot distinguish a sweep that read 836 players from one that read 120. A
+  generic column (or a `details` jsonb) needs a migration; this fix wave added
+  `squadsSkipped` and `droppedSquadPlayers` to the in-memory result and the trigger
+  message, but neither is persisted.
+- The whole ~836-row catalogue crosses to the client on every `/players` load so
+  search is instant — defensible for a phone during a matchday, but an unnamed
+  decision that grows with the catalogue and was never weighed against, say, a
+  server-side search endpoint.
+- The charts are only covered through their `<details>` fallback table:
+  `renderToStaticMarkup` of a Recharts `ResponsiveContainer` emits no chart markup, so
+  none of the existing assertions would notice if `<BarChart>` or `<LineChart>` were
+  deleted outright. The fallback table is real coverage of the data; the chart
+  rendering itself is not covered by anything but eyes on a real device.
