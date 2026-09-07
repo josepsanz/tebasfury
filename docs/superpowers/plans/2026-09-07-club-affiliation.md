@@ -926,7 +926,7 @@ git commit -m "feat: show the club on the catalogue and the player page"
 - Consumes: `PlayerSweepResult.realTeamsKnown` (Task 3).
 - Produces: nothing.
 
-- [ ] **Step 1: Report the count from the manual trigger**
+- [x] **Step 1: Report the count from the manual trigger**
 
 In `src/app/admin/sync/actions.ts`, add `realTeamsKnown` to the destructuring of `outcome.result`, and change the message so it reads `Swept 836 players and 13 squads, 20 clubs known. Next sweep at …`:
 
@@ -940,7 +940,7 @@ In `src/app/admin/sync/actions.ts`, add `realTeamsKnown` to the destructuring of
 
 It is not one of the `notes`, which appear only when non-zero: club coverage is worth seeing on every sweep precisely because Ruling 1 accepts it may be incomplete, and a number that only appears when something is wrong cannot show a gap closing.
 
-- [ ] **Step 2: Report it from the scheduled route**
+- [x] **Step 2: Report it from the scheduled route**
 
 In `src/app/api/sync/players/route.ts`, add to the success response body:
 
@@ -948,7 +948,7 @@ In `src/app/api/sync/players/route.ts`, add to the success response body:
     realTeamsKnown: outcome.result.realTeamsKnown,
 ```
 
-- [ ] **Step 3: Correct the deployment runbook**
+- [x] **Step 3: Correct the deployment runbook**
 
 `docs/deployment.md:90-105` states that `0003`, `0004`, `0005` and `0006` have never been applied to production. That was true when written and is not any more — the players slice is in production, swept and verified, which cannot have happened without them.
 
@@ -960,7 +960,7 @@ DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
 
 Keep the reassurance that it is safe against a populated database, updated for `0007`: it only creates a table, adds no constraint to any existing one, and no foreign key.
 
-- [ ] **Step 4: Correct the players spec**
+- [x] **Step 4: Correct the players spec**
 
 In `docs/superpowers/specs/2026-09-07-tebasfury-players-slice-design.md`, replace the body of the "Before the next deploy" bullet with a note that those four migrations were applied when the slice shipped and that the item is closed, so the next reader is not sent chasing it.
 
@@ -981,12 +981,12 @@ and under `/players/{id}`:
 20. Does the header meta line wrap acceptably with four facts instead of three?
 ```
 
-- [ ] **Step 5: Run the whole suite and lint**
+- [x] **Step 5: Run the whole suite and lint**
 
 Run: `pnpm test && pnpm lint && pnpm build`
 Expected: all clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/app/admin/sync/actions.ts src/app/api/sync/players/route.ts docs/
