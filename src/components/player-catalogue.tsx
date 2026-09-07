@@ -43,6 +43,7 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "value", label: "Most valuable" },
   { key: "points", label: "Highest scoring" },
   { key: "average", label: "Best average" },
+  { key: "perMillion", label: "Best value for money" },
   { key: "name", label: "By name" },
 ];
 
@@ -92,14 +93,18 @@ function Owner({ row, ownershipKnown }: { row: CatalogueRow; ownershipKnown: boo
 export function PlayerCatalogue({
   rows,
   ownershipKnown,
+  initialSort = "value",
+  initialOwnership = "all",
 }: {
   rows: CatalogueRow[];
   ownershipKnown: boolean;
+  initialSort?: SortKey;
+  initialOwnership?: CatalogueFilter["ownership"];
 }) {
   const [query, setQuery] = useState("");
   const [position, setPosition] = useState<string | null>(null);
-  const [ownership, setOwnership] = useState<"all" | "owned" | "free">("all");
-  const [sort, setSort] = useState<SortKey>("value");
+  const [ownership, setOwnership] = useState<CatalogueFilter["ownership"]>(initialOwnership);
+  const [sort, setSort] = useState<SortKey>(initialSort);
   const [shown, setShown] = useState(PAGE);
 
   const { page, total } = useMemo(

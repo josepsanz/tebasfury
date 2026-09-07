@@ -7,6 +7,7 @@ import {
   formatMoney,
   freeAndScoring,
   ownerDisplay,
+  parseCatalogueEntry,
   pointsPerMillion,
   pointsSeries,
   sortCatalogue,
@@ -269,6 +270,19 @@ describe("the value-for-money sort", () => {
     const ada = row({ id: "ada", nickname: "Ada", currentValue: 2_000_000, seasonPoints: 20 });
     expect(sortCatalogue([zoe, ada], "perMillion").map((r) => r.id)).toEqual(["ada", "zoe"]);
   });
+
+  it("ranks by the ratio itself, not by raw points", () => {
+    // Both rows qualify (three-plus gameweeks each), and the cheaper, lower-scoring
+    // player has the better ratio: 20 points at €2.0M is 10.0 pts/M€, against 30 points
+    // at €6.0M, which is only 5.0 pts/M€. A comparator that sorted by seasonPoints
+    // instead of by points-per-million would put "bigSpender" first and fail here.
+    const cheaper = row({ id: "cheaper", nickname: "Cass", currentValue: 2_000_000, seasonPoints: 20, gameweeksRecorded: 3 });
+    const bigSpender = row({ id: "bigSpender", nickname: "Boaz", currentValue: 6_000_000, seasonPoints: 30, gameweeksRecorded: 3 });
+    expect(sortCatalogue([bigSpender, cheaper], "perMillion").map((r) => r.id)).toEqual([
+      "cheaper",
+      "bigSpender",
+    ]);
+  });
 });
 
 describe("valueSeries", () => {
@@ -430,5 +444,32 @@ describe("the opportunity boards", () => {
     // snapshot still belongs here, unlike on the value-for-money board.
     const unpriced = row({ id: "unpriced", currentValue: null, seasonPoints: 7 });
     expect(freeAndScoring([unpriced]).map((r) => r.id)).toEqual(["unpriced"]);
+  });
+});
+
+describe("parseCatalogueEntry", () => {
+  it("reads a sort and an ownership filter it recognises", () => {
+    expect(parseCatalogueEntry({ sort: "perMillion", ownership: "free" })).toEqual({
+      sort: "perMillion",
+      ownership: "free",
+    });
+  });
+
+  it("falls back to the catalogue's own defaults for anything else", () => {
+    // A URL is typed by hand, shared, and outlives the code that made it. Every
+    // unrecognised value lands on the view the catalogue opens with anyway, so a stale
+    // or mangled link degrades to the normal page rather than to an error.
+    expect(parseCatalogueEntry({ sort: "bogus", ownership: "nobody" })).toEqual({
+      sort: "value",
+      ownership: "all",
+    });
+    expect(parseCatalogueEntry({})).toEqual({ sort: "value", ownership: "all" });
+  });
+
+  it("refuses a repeated parameter rather than guessing which one was meant", () => {
+    expect(parseCatalogueEntry({ sort: ["perMillion", "points"] })).toEqual({
+      sort: "value",
+      ownership: "all",
+    });
   });
 });

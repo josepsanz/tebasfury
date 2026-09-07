@@ -1,11 +1,16 @@
 import { db } from "@/lib/db";
 import { loadPlayerCatalogue } from "@/lib/db/queries";
-import { buildCatalogue } from "@/lib/domain/players";
+import { buildCatalogue, parseCatalogueEntry } from "@/lib/domain/players";
 import { requireSession } from "@/lib/auth/guards";
 import { PlayerCatalogue } from "@/components/player-catalogue";
 
-export default async function PlayersPage() {
+export default async function PlayersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   await requireSession();
+  const entry = parseCatalogueEntry(await searchParams);
   const { players, totals, values, ownership, clubs, ownershipKnown, lastSweep } =
     await loadPlayerCatalogue(db);
   const rows = buildCatalogue({ players, totals, values, ownership, clubs });
@@ -17,7 +22,12 @@ export default async function PlayersPage() {
         Every eligible player, what they cost and what they score.
       </p>
 
-      <PlayerCatalogue rows={rows} ownershipKnown={ownershipKnown} />
+      <PlayerCatalogue
+        rows={rows}
+        ownershipKnown={ownershipKnown}
+        initialSort={entry.sort}
+        initialOwnership={entry.ownership}
+      />
 
       <p className="mt-6 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
         {lastSweep ? `Last swept ${lastSweep.toISOString()}` : "Never swept"}

@@ -310,3 +310,28 @@ export function ownerDisplay(ownerName: string | null, ownershipKnown: boolean):
   if (!ownershipKnown) return { kind: "unknown" };
   return { kind: "free" };
 }
+
+const SORT_KEYS: SortKey[] = ["value", "points", "average", "perMillion", "name"];
+const OWNERSHIP_KEYS: CatalogueFilter["ownership"][] = ["all", "owned", "free"];
+
+/**
+ * The catalogue view a URL asks for.
+ *
+ * The address is an entry point, not a mirror: this reads the opening state and nothing
+ * writes it back, so pressing pills afterwards does not rewrite the URL. Making it a
+ * mirror means keeping router and component state in step inside a component that has
+ * no such coupling today, which is more than the affordance is worth. See Ruling 8.
+ *
+ * Anything unrecognised — a typo, a stale link, a repeated parameter — falls back to the
+ * view the catalogue opens with anyway. A bad link should degrade to the normal page.
+ */
+export function parseCatalogueEntry(params: Record<string, string | string[] | undefined>): {
+  sort: SortKey;
+  ownership: CatalogueFilter["ownership"];
+} {
+  const one = (value: string | string[] | undefined) => (typeof value === "string" ? value : null);
+  return {
+    sort: SORT_KEYS.find((key) => key === one(params.sort)) ?? "value",
+    ownership: OWNERSHIP_KEYS.find((key) => key === one(params.ownership)) ?? "all",
+  };
+}
