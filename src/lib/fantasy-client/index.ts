@@ -5,9 +5,12 @@ import { CredentialError } from "./errors";
 import {
   currentWeekSchema,
   leaguesSchema,
+  playersSchema,
+  squadSchema,
   standingSchema,
   type CurrentWeek,
   type League,
+  type PlayerEntry,
   type StandingEntry,
 } from "./schemas";
 
@@ -233,10 +236,122 @@ export async function getStanding(
   return { rows: value.map(live ? fromLiveEntry : fromSettledEntry), raw: body };
 }
 
+/**
+ * The API numbers positions; a catalogue prints words. An unrecognised id falls back
+ * to the number as a string rather than to "unknown", because the number is a fact
+ * and "unknown" is not. The capture used every one of these five.
+ */
+const POSITIONS: Record<number, string> = {
+  1: "Goalkeeper",
+  2: "Defender",
+  3: "Midfielder",
+  4: "Forward",
+  5: "Coach",
+};
+
+/**
+ * One gameweek's score for a player, carrying the gameweek it belongs to.
+ *
+ * The gameweek is part of the value because the API's array cannot be trusted to be
+ * one: its entries arrive out of order, and a club that has played its sixth fixture
+ * and not its fourth reports gameweeks 1, 2, 3, 6. Handing on a bare `number[]` would
+ * hand on the invitation to read the fourth element as gameweek 4.
+ */
+export type PlayerWeekPoints = { week: number; points: number };
+
+/**
+ * A player, as the portal models it.
+ *
+ * `marketValue` is the value AT THE MOMENT OF THE CALL — there is no history in the
+ * API, so the sync stamps it with a date and appends. `weekPoints` is every gameweek
+ * the player has actually played, ascending; it is the reason this slice needs no
+ * per-player call at all. A gameweek the player sat out is ABSENT, not zero, because
+ * the catalogue does not distinguish "scored nothing" from "did not feature" and
+ * inventing a zero would put a lie in the history.
+ *
+ * `status` is the API's own word. The capture carried five — `ok`, `out_of_league`,
+ * `injured`, `doubtful`, `suspended` — and pinning them into a union would only mean
+ * the next one the game invents breaks a sync, so it stays a string into the column.
+ *
+ * There is no club name here: the catalogue names a `teamId` and nothing more.
+ */
+export type PlayerRow = {
+  id: string;
+  nickname: string;
+  position: string;
+  realTeamId: string;
+  status: string;
+  imageUrl: string | null;
+  marketValue: number;
+  weekPoints: PlayerWeekPoints[];
+};
+
+/** One league team's squad, as ids the portal can join on. */
+export type SquadRow = { teamId: string; playerIds: string[] };
+
+function toPlayerRow(entry: PlayerEntry): PlayerRow {
+  return {
+    id: entry.id,
+    nickname: entry.nickname,
+    position: POSITIONS[entry.positionId] ?? String(entry.positionId),
+    realTeamId: entry.teamId,
+    status: entry.playerStatus,
+    imageUrl: entry.image ?? null,
+    marketValue: entry.marketValue,
+    weekPoints: entry.weekPoints
+      .map((week) => ({ week: week.weekNumber, points: week.points }))
+      .sort((a, b) => a.week - b.week),
+  };
+}
+
+/**
+ * The whole eligible catalogue, in one call.
+ *
+ * Unlike `getStanding` this does not hand back the undecoded body: the sweep does not
+ * archive it. One catalogue response is around 280 kilobytes, a daily cadence would
+ * put thirty of them in `raw_sync_payloads`, and the shape is already pinned by the
+ * committed fixture. A shape change surfaces as a Zod error naming the field.
+ */
+export async function getPlayers(accessToken: string): Promise<PlayerRow[]> {
+  const entries = await apiGet(
+    accessToken,
+    `/v1/competition/${COMPETITION}/players`,
+    playersSchema,
+  );
+  return entries.map(toPlayerRow);
+}
+
+/**
+ * The players one league team owns, as ids.
+ *
+ * The response carries far more — a buyout clause, a sale listing, the owning
+ * manager, a season of per-match event counts — and none of it crosses this boundary
+ * yet. The ids are what the portal joins on; the rest waits until something needs it.
+ */
+export async function getSquad(
+  accessToken: string,
+  leagueId: string,
+  teamId: string,
+): Promise<SquadRow> {
+  const squad = await apiGet(
+    accessToken,
+    `/v1/competition/${COMPETITION}/leagues/${leagueId}/teams/${teamId}`,
+    squadSchema,
+  );
+  return {
+    teamId,
+    playerIds: squad.players
+      .map((entry) => entry.playerMaster?.id ?? entry.id)
+      .filter((id): id is string => id !== undefined),
+  };
+}
+
 /** The narrow surface a sync run needs, in mapped rows rather than API entries. */
 export type FantasyClient = {
   getCurrentWeek(): Promise<Gameweek>;
   getStanding(week?: number): Promise<Standing>;
+  getPlayers(): Promise<PlayerRow[]>;
+  getSquad(teamId: string): Promise<SquadRow>;
 };
 
 /** Exchanges the credential once and binds it, so one run means one token exchange. */
@@ -245,5 +360,7 @@ export async function createClient(db: Db, leagueId: string): Promise<FantasyCli
   return {
     getCurrentWeek: () => getCurrentWeek(accessToken),
     getStanding: (week) => getStanding(accessToken, leagueId, week),
+    getPlayers: () => getPlayers(accessToken),
+    getSquad: (teamId) => getSquad(accessToken, leagueId, teamId),
   };
 }

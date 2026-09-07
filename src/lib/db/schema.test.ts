@@ -1,7 +1,16 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./testing";
-import { gameweeks, syncRuns, teamGameweekStats, teams } from "./schema";
+import {
+  gameweeks,
+  syncRuns,
+  teamGameweekStats,
+  teams,
+  players,
+  playerGameweekPoints,
+  playerValueSnapshots,
+  squadMembers,
+} from "./schema";
 
 describe("the standings schema", () => {
   let h: TestDatabase;
@@ -76,5 +85,73 @@ describe("the standings schema", () => {
     const [row] = await h.db.select().from(syncRuns);
     expect(row).toMatchObject({ trigger: "manual", status: "running" });
     expect(row.finishedAt).toBeNull();
+  });
+});
+
+describe("the players schema", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Manager A" });
+    await h.db.insert(players).values({
+      id: "p1",
+      nickname: "A Player",
+      position: "Midfielder",
+      realTeamId: "rt1",
+      status: "ok",
+      imageUrl: "https://example.test/p1.png",
+    });
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("stores a player keyed by the id the API gives it", async () => {
+    const [row] = await h.db.select().from(players);
+    expect(row).toMatchObject({ id: "p1", nickname: "A Player", status: "ok" });
+    expect(row.firstSeenAt).toBeInstanceOf(Date);
+  });
+
+  it("keeps one points row per player per gameweek", async () => {
+    await h.db.insert(playerGameweekPoints).values({ playerId: "p1", gameweek: 1, points: 7 });
+    await h.db
+      .insert(playerGameweekPoints)
+      .values({ playerId: "p1", gameweek: 1, points: 9 })
+      .onConflictDoUpdate({
+        target: [playerGameweekPoints.playerId, playerGameweekPoints.gameweek],
+        set: { points: 9 },
+      });
+
+    const rows = await h.db.select().from(playerGameweekPoints);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].points).toBe(9);
+  });
+
+  it("records a value snapshot per day, not per sweep", async () => {
+    // The date primary key is what makes a second sweep on the same day idempotent.
+    await h.db
+      .insert(playerValueSnapshots)
+      .values({ playerId: "p1", takenOn: "2026-09-07", value: 12_400_000 });
+    await h.db
+      .insert(playerValueSnapshots)
+      .values({ playerId: "p1", takenOn: "2026-09-07", value: 12_500_000 })
+      .onConflictDoUpdate({
+        target: [playerValueSnapshots.playerId, playerValueSnapshots.takenOn],
+        set: { value: 12_500_000 },
+      });
+    await h.db
+      .insert(playerValueSnapshots)
+      .values({ playerId: "p1", takenOn: "2026-09-08", value: 12_600_000 });
+
+    const rows = await h.db.select().from(playerValueSnapshots);
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.takenOn === "2026-09-07")?.value).toBe(12_500_000);
+  });
+
+  it("stores squad membership as current state, keyed by team and player", async () => {
+    await h.db.insert(squadMembers).values({ teamId: "t1", playerId: "p1" });
+    const [row] = await h.db.select().from(squadMembers);
+    expect(row).toMatchObject({ teamId: "t1", playerId: "p1" });
+    expect(row.firstSeenAt).toBeInstanceOf(Date);
   });
 });

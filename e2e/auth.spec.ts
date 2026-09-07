@@ -30,6 +30,11 @@ test("the sync endpoint refuses an unsigned request", async ({ request }) => {
   expect(res.status()).toBe(401);
 });
 
+test("the player sweep endpoint refuses an unsigned request", async ({ request }) => {
+  const res = await request.post("/api/sync/players", { data: { trigger: "players-schedule" } });
+  expect(res.status()).toBe(401);
+});
+
 // The standings and progress views need a session — any league manager's, not a
 // particular permission — exactly like `/admin/sync` needs one plus a permission.
 // This suite never signs in through Google (see the dummy env above), so these
@@ -53,4 +58,21 @@ test("the standings and progress links are hidden without a session", async ({ p
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Standings" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Progress" })).toHaveCount(0);
+});
+
+test("the players page redirects anyone who has not signed in", async ({ page }) => {
+  await page.goto("/players");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("the players link is hidden without a session", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Players" })).toHaveCount(0);
+});
+
+test("a player page redirects anyone who has not signed in", async ({ page }) => {
+  // The guard has to run before the lookup, or an anonymous visitor learns which ids
+  // exist from the difference between a redirect and a 404.
+  await page.goto("/players/9999");
+  await expect(page).toHaveURL(/\/login$/);
 });

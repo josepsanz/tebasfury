@@ -1,0 +1,256 @@
+[
+  {
+    "id": "68",
+    "positionId": "1",
+    "nickname": "Unai Simón",
+    "lastSeasonPoints": "211",
+    "playerStatus": "ok",
+    "marketValue": "46122750",
+    "points": 34,
+    "averagePoints": 8.5,
+    "weekPoints": [
+      {
+        "weekNumber": 2,
+        "points": 1
+      },
+      {
+        "weekNumber": 1,
+        "points": 10
+      },
+      {
+        "weekNumber": 3,
+        "points": 10
+      },
+      {
+        "weekNumber": 4,
+        "points": 13
+      }
+    ],
+    "image": "https://assets-fantasy.llt-services.com/players/t174/p68/256x256/p68_t174_1_001_000 (1).png",
+    "teamId": "3"
+  },
+  {
+    "id": "67",
+    "positionId": "2",
+    "nickname": "Marcos Llorente",
+    "lastSeasonPoints": "154",
+    "playerStatus": "ok",
+    "marketValue": "43609673",
+    "points": 20,
+    "averagePoints": 5,
+    "weekPoints": [
+      {
+        "weekNumber": 1,
+        "points": 3
+      },
+      {
+        "weekNumber": 2,
+        "points": 2
+      },
+      {
+        "weekNumber": 3,
+        "points": 12
+      },
+      {
+        "weekNumber": 4,
+        "points": 3
+      }
+    ],
+    "image": "https://assets-fantasy.llt-services.com/players/t175/p67/256x256/p67_t175_1_001_000 (2).png",
+    "teamId": "2"
+  },
+  {
+    "id": "92",
+    "positionId": "3",
+    "nickname": "Vesga",
+    "lastSeasonPoints": "45",
+    "playerStatus": "out_of_league",
+    "marketValue": "1566041",
+    "points": 0,
+    "averagePoints": 0,
+    "weekPoints": [],
+    "image": "https://assets-fantasy.llt-services.com/players/t174/p92/256x256/p92_t174_1_001_000.png",
+    "teamId": "3"
+  },
+  {
+    "id": "91",
+    "positionId": "4",
+    "nickname": "Iñaki Williams",
+    "lastSeasonPoints": "132",
+    "playerStatus": "ok",
+    "marketValue": "27247196",
+    "points": 26,
+    "averagePoints": 6.5,
+    "weekPoints": [
+      {
+        "weekNumber": 2,
+        "points": 4
+      },
+      {
+        "weekNumber": 1,
+        "points": 2
+      },
+      {
+        "weekNumber": 3,
+        "points": 10
+      },
+      {
+        "weekNumber": 4,
+        "points": 10
+      }
+    ],
+    "image": "https://assets-fantasy.llt-services.com/players/t174/p91/256x256/p91_t174_1_001_000 (1).png",
+    "teamId": "3"
+  },
+  {
+    "id": "1356",
+    "positionId": "5",
+    "nickname": "Marcelino",
+    "lastSeasonPoints": "122",
+    "playerStatus": "out_of_league",
+    "marketValue": "8030121",
+    "points": 0,
+    "averagePoints": 0,
+    "weekPoints": [],
+    "image": "https://assets-fantasy.llt-services.com/players/t449/man1356/256x256/man1356_t449_1_001_000.png",
+    "teamId": "20"
+  },
+  {
+    "id": "2351",
+    "positionId": "1",
+    "nickname": "Iñaki Peña",
+    "lastSeasonPoints": "102",
+    "playerStatus": "out_of_league",
+    "marketValue": "4015501",
+    "points": 0,
+    "averagePoints": 0,
+    "weekPoints": [],
+    "image": "https://assets-fantasy.llt-services.com/players/t954/p2351/256x256/p2351_t954_1_001_000.png",
+    "teamId": "7"
+  },
+  {
+    "id": "2468",
+    "positionId": "1",
+    "nickname": "Diego Conde",
+    "lastSeasonPoints": "0",
+    "playerStatus": "injured",
+    "marketValue": "1702123",
+    "points": 0,
+    "averagePoints": 0,
+    "weekPoints": [],
+    "image": "https://assets-fantasy.llt-services.com/players/t185/p2468/256x256/p2468_t185_1_001_000.png",
+    "teamId": "5"
+  },
+  {
+    "id": "77",
+    "positionId": "2",
+    "nickname": "Yeray",
+    "lastSeasonPoints": "28",
+    "playerStatus": "doubtful",
+    "marketValue": "6931556",
+    "points": 15,
+    "averagePoints": 3.75,
+    "weekPoints": [
+      {
+        "weekNumber": 2,
+        "points": 10
+      },
+      {
+        "weekNumber": 1,
+        "points": 2
+      },
+      {
+        "weekNumber": 3,
+        "points": 0
+      },
+      {
+        "weekNumber": 4,
+        "points": 3
+      }
+    ],
+    "image": "https://assets-fantasy.llt-services.com/players/t174/p77/256x256/p77_t174_1_001_000 (1).png",
+    "teamId": "3"
+  },
+  {
+    "id": "2178",
+    "positionId": "2",
+    "nickname": "F. Garcés",
+    "lastSeasonPoints": "43",
+    "playerStatus": "suspended",
+    "marketValue": "486545",
+    "points": 0,
+    "averagePoints": 0,
+    "weekPoints": [],
+    "image": "https://assets-fantasy.llt-services.com/players/t173/p2178/256x256/p2178_t173_1_001_000.png",
+    "teamId": "21"
+  },
+  {
+    "id": "140",
+    "positionId": "1",
+    "nickname": "Iván Villar",
+    "lastSeasonPoints": "0",
+    "playerStatus": "ok",
+    "marketValue": "636849",
+    "points": 0,
+    "averagePoints": 0,
+    "weekPoints": [],
+    "image": "https://assets-fantasy.llt-services.com/players/t176/p140/256x256/p140_t176_1_001_000.png",
+    "teamId": "6"
+  },
+  {
+    "id": "184",
+    "positionId": "1",
+    "nickname": "David Soria",
+    "lastSeasonPoints": "249",
+    "playerStatus": "ok",
+    "marketValue": "34402875",
+    "points": 23,
+    "averagePoints": 7.666666666666667,
+    "weekPoints": [
+      {
+        "weekNumber": 1,
+        "points": 4
+      },
+      {
+        "weekNumber": 2,
+        "points": 15
+      },
+      {
+        "weekNumber": 3,
+        "points": 4
+      }
+    ],
+    "image": "https://assets-fantasy.llt-services.com/players/t1450/p184/256x256/p184_t1450_1_001_000.png",
+    "teamId": "9"
+  },
+  {
+    "id": "274",
+    "positionId": "1",
+    "nickname": "Remiro",
+    "lastSeasonPoints": "188",
+    "playerStatus": "ok",
+    "marketValue": "39310304",
+    "points": 26,
+    "averagePoints": 6.5,
+    "weekPoints": [
+      {
+        "weekNumber": 2,
+        "points": 8
+      },
+      {
+        "weekNumber": 1,
+        "points": 4
+      },
+      {
+        "weekNumber": 3,
+        "points": 4
+      },
+      {
+        "weekNumber": 6,
+        "points": 10
+      }
+    ],
+    "image": "https://assets-fantasy.llt-services.com/players/t188/p274/256x256/p274_t188_1_001_000.png",
+    "teamId": "16"
+  }
+]

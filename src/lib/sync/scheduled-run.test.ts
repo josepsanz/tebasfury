@@ -50,4 +50,21 @@ describe("runAndSchedule", () => {
 
     expect(outcome.status).toBe("failed");
   });
+
+  it("books the successor with the caller's own failure interval", async () => {
+    const booked: Date[] = [];
+    const outcome = await runAndSchedule({
+      now: new Date("2026-09-07T04:00:00Z"),
+      run: async () => {
+        throw new Error("the sweep failed");
+      },
+      schedule: async (at) => {
+        booked.push(at);
+      },
+      nextAfterFailure: (now) => new Date(now.getTime() + 60 * 60 * 1000),
+    });
+
+    expect(outcome.status).toBe("failed");
+    expect(booked[0].toISOString()).toBe("2026-09-07T05:00:00.000Z");
+  });
 });

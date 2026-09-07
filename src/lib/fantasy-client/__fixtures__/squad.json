@@ -1,0 +1,609 @@
+{
+  "players": [
+    {
+      "buyoutClause": 1254564,
+      "managerId": 9000020,
+      "playerTeamId": "62963609",
+      "buyoutClauseLockedEndTime": "2026-09-18T23:27:45+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2378",
+        "name": "Dani Cárdenas",
+        "nickname": "D. Cárdenas",
+        "slug": "cardenas",
+        "positionId": 1,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 35,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t184/p2378/256x256/p2378_t184_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "14",
+          "name": "Rayo Vallecano",
+          "slug": "rayo-vallecano",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t184/gray/t184_rayo-vallecano.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t184/white/t184_rayo-vallecano.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t184/white/t184_rayo-vallecano.png"
+        },
+        "averagePoints": 0.75,
+        "points": 3,
+        "marketValue": 1254564
+      }
+    },
+    {
+      "buyoutClause": 13000000,
+      "managerId": 9000020,
+      "playerTeamId": "62511165",
+      "buyoutClauseLockedEndTime": "2026-09-18T19:02:11+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "3174",
+        "name": "Aïssa Mandi",
+        "nickname": "Mandi",
+        "slug": "mandi-1",
+        "positionId": 2,
+        "playerStatus": "ok",
+        "lastSeasonPoints": null,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/no-player/no-player-sq_256.png"
+          }
+        },
+        "team": {
+          "id": "11",
+          "name": "Levante UD",
+          "slug": "levante-ud",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t855/color/t855_levante-ud.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t855/gray/t855_levante-ud.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t855/white/t855_levante-ud.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t855/color/t855_levante-ud.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t855/white/t855_levante-ud.png"
+        },
+        "averagePoints": 7.333333333333333,
+        "points": 22,
+        "marketValue": 10638212
+      }
+    },
+    {
+      "buyoutClause": 10839733,
+      "managerId": 9000020,
+      "playerTeamId": "48732458",
+      "buyoutClauseLockedEndTime": "2026-09-09T19:59:39+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2552",
+        "name": "Jonathan Castro Otto",
+        "nickname": "Jonny Otto",
+        "slug": "jonny",
+        "positionId": 2,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 95,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t173/p2552/256x256/p2552_t173_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "21",
+          "name": "Deportivo Alavés",
+          "slug": "d-alaves",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t173/color/t173_d-alaves.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t173/gray/t173_d-alaves.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t173/white/t173_d-alaves.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t173/color/t173_d-alaves.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t173/white/t173_d-alaves.png"
+        },
+        "averagePoints": 5.75,
+        "points": 23,
+        "marketValue": 10839733
+      }
+    },
+    {
+      "playerMarket": {
+        "id": "28618560",
+        "salePrice": 8463345,
+        "expirationDate": "2026-09-07T23:35:00+02:00",
+        "numberOfOffers": 0,
+        "directOffer": false
+      },
+      "buyoutClause": 10000000,
+      "managerId": 9000020,
+      "playerTeamId": "62511167",
+      "buyoutClauseLockedEndTime": "2026-09-18T19:02:11+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2479",
+        "name": "Kike Salas",
+        "nickname": "Kike Salas",
+        "slug": "kike-salas",
+        "positionId": 2,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 130,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t179/p2479/256x256/p2479_t179_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "17",
+          "name": "Sevilla FC",
+          "slug": "sevilla-fc",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t179/color/t179_sevilla-fc.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t179/gray/t179_sevilla-fc.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t179/white/t179_sevilla-fc.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t179/color/t179_sevilla-fc.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t179/white/t179_sevilla-fc.png"
+        },
+        "averagePoints": 2,
+        "points": 6,
+        "marketValue": 8088635
+      }
+    },
+    {
+      "buyoutClause": 6000000,
+      "managerId": 9000020,
+      "playerTeamId": "25043689",
+      "buyoutClauseLockedEndTime": "2026-08-25T19:20:28+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2568",
+        "name": "Youssef Lekhedim",
+        "nickname": "Youssef",
+        "slug": "youssef-lekhedim",
+        "positionId": 2,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 72,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t173/p2568/256x256/p2568_t173_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "21",
+          "name": "Deportivo Alavés",
+          "slug": "d-alaves",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t173/color/t173_d-alaves.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t173/gray/t173_d-alaves.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t173/white/t173_d-alaves.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t173/color/t173_d-alaves.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t173/white/t173_d-alaves.png"
+        },
+        "averagePoints": 3.25,
+        "points": 13,
+        "marketValue": 839669
+      }
+    },
+    {
+      "buyoutClause": 80652051,
+      "managerId": 9000020,
+      "playerTeamId": "38323971",
+      "buyoutClauseLockedEndTime": "2026-09-02T19:01:38+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2757",
+        "name": "Gerard Martín",
+        "nickname": "Gerard Martín",
+        "slug": "gerard-2",
+        "positionId": 2,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 161,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t178/p2757/256x256/p2757_t178_1_001_000 (1).png"
+          }
+        },
+        "team": {
+          "id": "4",
+          "name": "FC Barcelona",
+          "slug": "fc-barcelona",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t178/color/t178_fc-barcelona.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t178/gray/t178_fc-barcelona.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t178/white/t178_fc-barcelona.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t178/color/t178_fc-barcelona.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t178/white/t178_fc-barcelona.png"
+        },
+        "averagePoints": 7.25,
+        "points": 29,
+        "marketValue": 48567292
+      }
+    },
+    {
+      "playerMarket": {
+        "id": "28567031",
+        "salePrice": 42633294,
+        "expirationDate": "2026-09-07T22:52:08+02:00",
+        "numberOfOffers": 1,
+        "directOffer": false
+      },
+      "buyoutClause": 46236112,
+      "managerId": 9000020,
+      "playerTeamId": "54489731",
+      "buyoutClauseLockedEndTime": "2026-09-13T19:00:07+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "3090",
+        "name": "Francisco Román Alarcón Suárez",
+        "nickname": "Isco",
+        "slug": "isco",
+        "positionId": 3,
+        "playerStatus": "ok",
+        "lastSeasonPoints": null,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t185/p3090/256x256/p3090_t185_1_001_000 (1).png"
+          }
+        },
+        "team": {
+          "id": "5",
+          "name": "Real Betis",
+          "slug": "real-betis",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t185/color/t185_real-betis.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t185/gray/t185_real-betis.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t185/white/t185_real-betis.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t185/color/t185_real-betis.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t185/white/t185_real-betis.png"
+        },
+        "averagePoints": 3.75,
+        "points": 15,
+        "marketValue": 40940100
+      }
+    },
+    {
+      "buyoutClause": 70000000,
+      "managerId": 9000020,
+      "playerTeamId": "63766833",
+      "buyoutClauseLockedEndTime": "2026-09-19T19:01:08+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2534",
+        "name": "Álex Baena",
+        "nickname": "Álex Baena",
+        "slug": "alex-b",
+        "positionId": 3,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 133,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t175/p2534/256x256/p2534_t175_1_001_000 (1).png"
+          }
+        },
+        "team": {
+          "id": "2",
+          "name": "Atlético de Madrid",
+          "slug": "atletico-de-madrid",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t175/color/t175_atletico-de-madrid.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t175/gray/t175_atletico-de-madrid.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t175/white/t175_atletico-de-madrid.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t175/color/t175_atletico-de-madrid.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t175/white/t175_atletico-de-madrid.png"
+        },
+        "averagePoints": 8.25,
+        "points": 33,
+        "marketValue": 66918852
+      }
+    },
+    {
+      "buyoutClause": 10307322,
+      "managerId": 9000020,
+      "playerTeamId": "47124821",
+      "buyoutClauseLockedEndTime": "2026-09-08T19:29:03+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2384",
+        "name": "Unai López",
+        "nickname": "Unai Lopez",
+        "slug": "unai-lopez",
+        "positionId": 3,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 135,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t184/p2384/256x256/p2384_t184_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "14",
+          "name": "Rayo Vallecano",
+          "slug": "rayo-vallecano",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t184/gray/t184_rayo-vallecano.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t184/white/t184_rayo-vallecano.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t184/white/t184_rayo-vallecano.png"
+        },
+        "averagePoints": 7.5,
+        "points": 30,
+        "marketValue": 10307322
+      }
+    },
+    {
+      "playerMarket": {
+        "id": "29182435",
+        "salePrice": 20951262,
+        "expirationDate": "2026-09-08T19:23:14+02:00",
+        "numberOfOffers": 0,
+        "directOffer": false
+      },
+      "buyoutClause": 21672676,
+      "managerId": 9000020,
+      "playerTeamId": "47128170",
+      "buyoutClauseLockedEndTime": "2026-09-08T19:30:44+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2383",
+        "name": "Pathé Ciss",
+        "nickname": "Pathé I. Ciss",
+        "slug": "pathe-ciss",
+        "positionId": 3,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 137,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t184/p2383/256x256/p2383_t184_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "14",
+          "name": "Rayo Vallecano",
+          "slug": "rayo-vallecano",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t184/gray/t184_rayo-vallecano.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t184/white/t184_rayo-vallecano.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t184/white/t184_rayo-vallecano.png"
+        },
+        "averagePoints": 5.25,
+        "points": 21,
+        "marketValue": 21672676
+      }
+    },
+    {
+      "buyoutClause": 5230723,
+      "managerId": 9000020,
+      "playerTeamId": "47239721",
+      "buyoutClauseLockedEndTime": "2026-09-08T20:30:58+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2372",
+        "name": "Yangel Herrera",
+        "nickname": "Herrera",
+        "slug": "herrera-1",
+        "positionId": 3,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 18,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t188/p2372/256x256/p2372_t188_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "16",
+          "name": "Real Sociedad",
+          "slug": "real-sociedad",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t188/color/t188_real-sociedad.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t188/gray/t188_real-sociedad.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t188/white/t188_real-sociedad.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t188/color/t188_real-sociedad.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t188/white/t188_real-sociedad.png"
+        },
+        "averagePoints": 2.75,
+        "points": 11,
+        "marketValue": 3592035
+      }
+    },
+    {
+      "playerMarket": {
+        "id": "30119370",
+        "salePrice": 1224647,
+        "expirationDate": "2026-09-09T19:23:18+02:00",
+        "numberOfOffers": 0,
+        "directOffer": false
+      },
+      "buyoutClause": 3000000,
+      "managerId": 9000020,
+      "playerTeamId": "50351655",
+      "buyoutClauseLockedEndTime": "2026-09-10T19:00:49+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2386",
+        "name": "Randy Nteka",
+        "nickname": "Nteka",
+        "slug": "nteka",
+        "positionId": 4,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 41,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t184/p2386/256x256/p2386_t184_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "14",
+          "name": "Rayo Vallecano",
+          "slug": "rayo-vallecano",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t184/gray/t184_rayo-vallecano.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t184/white/t184_rayo-vallecano.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t184/white/t184_rayo-vallecano.png"
+        },
+        "averagePoints": 1.75,
+        "points": 7,
+        "marketValue": 1199825
+      }
+    },
+    {
+      "buyoutClause": 21763759,
+      "managerId": 9000020,
+      "playerTeamId": "26487025",
+      "buyoutClauseLockedEndTime": "2026-08-26T19:01:17+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "2623",
+        "name": "Tyrhys Dolan",
+        "nickname": "Dolan",
+        "slug": "tyrhys-dolan",
+        "positionId": 4,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 152,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t177/p2623/256x256/p2623_t177_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "8",
+          "name": "RCD Espanyol",
+          "slug": "rcd-espanyol",
+          "assets": "{\"color\":\"https://assets-fantasy.llt-services.com/teambadge/t177/color/t177_rcd-espanyol.png\",\"white\":\"https://assets-fantasy.llt-services.com/teambadge/t177/white/t177_rcd-espanyol.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t177/color/t177_rcd-espanyol.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t177/white/t177_rcd-espanyol.png"
+        },
+        "averagePoints": 5.5,
+        "points": 22,
+        "marketValue": 14141999
+      }
+    },
+    {
+      "buyoutClause": 11000000,
+      "managerId": 9000020,
+      "playerTeamId": "59489852",
+      "buyoutClauseLockedEndTime": "2026-09-16T19:00:47+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "927",
+        "name": "Alejandro Berenguer Remiro",
+        "nickname": "Berenguer",
+        "slug": "alex-berenguer",
+        "positionId": 4,
+        "playerStatus": "ok",
+        "lastSeasonPoints": 148,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t174/p927/256x256/p927_t174_1_001_000 (1).png"
+          }
+        },
+        "team": {
+          "id": "3",
+          "name": "Athletic Club",
+          "slug": "athletic-club",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t174/color/t174_athletic-club.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t174/gray/t174_athletic-club.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t174/white/t174_athletic-club.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t174/color/t174_athletic-club.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t174/white/t174_athletic-club.png"
+        },
+        "averagePoints": 4.5,
+        "points": 18,
+        "marketValue": 9722543
+      }
+    },
+    {
+      "playerMarket": {
+        "id": "30119658",
+        "salePrice": 3573990,
+        "expirationDate": "2026-09-09T19:23:31+02:00",
+        "numberOfOffers": 0,
+        "directOffer": false
+      },
+      "buyoutClause": 7000000,
+      "managerId": 9000020,
+      "playerTeamId": "50351651",
+      "buyoutClauseLockedEndTime": "2026-09-10T19:00:49+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      },
+      "playerMaster": {
+        "id": "3225",
+        "name": "Hamza Mohamed Abdelkarim Elsayed Selim",
+        "nickname": "Abdelkarim",
+        "slug": "hamza-abdelkarim",
+        "positionId": 4,
+        "playerStatus": "ok",
+        "lastSeasonPoints": null,
+        "images": {
+          "transparent": {
+            "256x256": "https://assets-fantasy.llt-services.com/players/t178/p3225/256x256/p3225_t178_1_001_000.png"
+          }
+        },
+        "team": {
+          "id": "4",
+          "name": "FC Barcelona",
+          "slug": "fc-barcelona",
+          "assets": "{\"color\": \"https://assets-fantasy.llt-services.com/teambadge/t178/color/t178_fc-barcelona.png\",\"gray\": \"https://assets-fantasy.llt-services.com/teambadge/t178/gray/t178_fc-barcelona.png\",\"white\": \"https://assets-fantasy.llt-services.com/teambadge/t178/white/t178_fc-barcelona.png\"}",
+          "badgeColor": "https://assets-fantasy.llt-services.com/teambadge/t178/color/t178_fc-barcelona.png",
+          "badgeWhite": "https://assets-fantasy.llt-services.com/teambadge/t178/white/t178_fc-barcelona.png"
+        },
+        "averagePoints": 0.6666666666666666,
+        "points": 2,
+        "marketValue": 3519985
+      }
+    }
+  ],
+  "loanedPlayers": [],
+  "teamMoney": null,
+  "playersNumber": 15,
+  "id": "9000019",
+  "managerId": 9000020,
+  "startingWeek": "1",
+  "banned": false,
+  "teamValue": 252243442,
+  "teamPoints": 141,
+  "position": 3,
+  "manager": {
+    "id": "9000020",
+    "managerName": "Manager I",
+    "avatar": ""
+  }
+}

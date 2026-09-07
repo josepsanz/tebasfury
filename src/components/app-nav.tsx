@@ -14,6 +14,7 @@ export async function AppNav() {
       </Link>
       {session && <Link href="/standings">Standings</Link>}
       {session && <Link href="/progress">Progress</Link>}
+      {session && <Link href="/players">Players</Link>}
       {canTriggerSync && <Link href="/admin/sync">Sync</Link>}
       <span className="ml-auto flex items-center gap-3 text-sm">
         {session ? (

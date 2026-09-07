@@ -28,10 +28,10 @@ that would provision a second, empty Neon project and leave you with two databas
 Instead, copy the connection string from the Neon dashboard (**Connect**) and set it
 as `DATABASE_URL` by hand in step 3, alongside the other variables.
 
-Two things follow from sharing one branch, both of them deliberate:
+Two things follow from sharing one branch, both of them deliberate — but see step 4
+before assuming the first one means nothing to do there:
 
-- The migrations are already applied and the first admin is already promoted, so
-  step 4 has nothing to do and step 6 can be skipped.
+- The first admin is already promoted from local, so step 6 can be skipped.
 - Local development writes to the same data the league sees. While there is no league
   data this costs nothing; once there is history worth keeping, create a `dev` branch
   in Neon (one button) and point `.env.local` at it instead.
@@ -86,9 +86,12 @@ every use, and Vercel's variables cannot be rewritten at runtime.
 
 ## 4. Apply migrations
 
-Nothing to do while production and local share one Neon branch: the migrations were
-already applied from local. Run this only after a later migration is added, or if you
-ever split production onto a branch of its own:
+**This step is not optional, and sharing a Neon branch with local development does not
+make it so.** `pnpm drizzle-kit generate` writes SQL locally; it applies nothing to any
+database. Checked directly against production: `0003`, `0004`, `0005` and `0006` have
+never run there — `team_gameweek_stats` does not exist on the live database. Run this
+before the first deploy that needs any of them, or the first sync 500s at runtime with
+`relation "players" does not exist` instead of failing at build:
 
 ```bash
 DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
@@ -96,6 +99,10 @@ DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
 
 The inline `DATABASE_URL` takes priority over the one in `.env.local`, so the
 migrations land on the database you name here rather than the development one.
+
+`0005` (the four player tables) and `0006` (an index on `player_value_snapshots`) are
+both safe to run against a populated database: neither touches a row that is already
+there — `0005` only creates tables and `0006` only creates an index.
 
 ## 5. Redeploy and verify
 
@@ -166,3 +173,33 @@ in the history of scheduled ones.
 
 It is a person, a browser and two minutes. Refreshes are headless from then on, using
 the same client id that issued the token — refreshing with a different one fails.
+
+## 8. Start the daily player sweep
+
+The sweep runs on its own self-scheduling chain, separate from the standings sync, and
+like that one it has no cron behind it: each sweep books the next. Nothing books the
+first, so it has to be started by hand, once, per environment.
+
+On `/admin/sync`, press **Sweep players**. A successful sweep reports how many players
+and squads it read and when the next one is due; from then on the chain runs itself.
+
+Do not press it again just to check the chain is alive: nothing detects a QStash
+message already in flight, so a second press starts a second, permanent chain running
+alongside the first — harmless for correctness (the sweep is idempotent) but it doubles
+load on an API the design is trying to be polite to.
+
+If sweeps stop, `/admin/sync` names the moment: the **last successful sweep** line next
+to the buttons is the whole diagnostic (the run history table is not — the standings
+chain can log ten rows in under one busy weekend hour, pushing a daily sweep's own row
+off the bottom of its `limit(10)` almost immediately). If that line is more than a day
+old, press the button again — that is the whole recovery, the chain restarts from it.
+
+The Vercel Hobby plan clamps a function's `maxDuration` to 60s regardless of what the
+route requests (see `src/app/api/sync/players/route.ts`); if a sweep starts timing out
+late in the season on Hobby, that ceiling — not a bug — is why, and Pro's 300s ceiling
+is the fix.
+
+The first sweep also backfills every player's points for every gameweek played so far,
+so it does more work than the ones after it. Market value is different: it has no
+history anywhere in LaLiga's API, so the value chart starts on the day of the first
+sweep and fills in one day at a time. There is no way to recover the days before it.

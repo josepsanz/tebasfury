@@ -1,18 +1,34 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { bootstrapCredential, triggerSyncNow, type ActionResult } from "./actions";
+import {
+  bootstrapCredential,
+  triggerPlayerSweepNow,
+  triggerSyncNow,
+  type ActionResult,
+} from "./actions";
+import { buttonLabel, type Busy } from "./button-label";
 
-export function SyncControls({ hasCredential }: { hasCredential: boolean }) {
+export function SyncControls({
+  hasCredential,
+  lastPlayerSweep,
+}: {
+  hasCredential: boolean;
+  lastPlayerSweep: Date | null;
+}) {
   const [result, setResult] = useState<ActionResult | null>(null);
+  const [busy, setBusy] = useState<Busy>(null);
   const [pending, startTransition] = useTransition();
+
+  const run = (which: Exclude<Busy, null>, action: () => Promise<ActionResult>) => {
+    setBusy(which);
+    startTransition(async () => setResult(await action()));
+  };
 
   return (
     <div className="mt-6 space-y-6">
       <form
-        action={(formData) =>
-          startTransition(async () => setResult(await bootstrapCredential(formData)))
-        }
+        action={(formData) => run("credential", () => bootstrapCredential(formData))}
         className="space-y-2"
       >
         <label htmlFor="refreshToken" className="block text-sm font-medium">
@@ -31,14 +47,31 @@ export function SyncControls({ hasCredential }: { hasCredential: boolean }) {
         </button>
       </form>
 
-      <button
-        type="button"
-        disabled={pending || !hasCredential}
-        onClick={() => startTransition(async () => setResult(await triggerSyncNow()))}
-        className="board-button board-button-primary"
-      >
-        {pending ? "Syncing…" : "Sync now"}
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          disabled={pending || !hasCredential}
+          onClick={() => run("sync", triggerSyncNow)}
+          className="board-button board-button-primary"
+        >
+          {buttonLabel("sync", pending, busy)}
+        </button>
+
+        <button
+          type="button"
+          disabled={pending || !hasCredential}
+          onClick={() => run("sweep", triggerPlayerSweepNow)}
+          className="board-button"
+        >
+          {buttonLabel("sweep", pending, busy)}
+        </button>
+      </div>
+
+      <p className="text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
+        {lastPlayerSweep
+          ? `Last successful sweep: ${lastPlayerSweep.toISOString()}`
+          : "Players have never been swept."}
+      </p>
 
       {result && (
         <p

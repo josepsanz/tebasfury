@@ -3,6 +3,7 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import { gameweeks, rawSyncPayloads, syncRuns, teamGameweekStats, teams } from "@/lib/db/schema";
 import type { FantasyClient, Gameweek, StandingRow } from "@/lib/fantasy-client";
+import { describeFailure } from "./failure";
 import { decideNextRun } from "./next-run";
 
 /**
@@ -116,12 +117,6 @@ export async function runSync(deps: {
 function hasBeenPlayed(week: Gameweek, rows: StandingRow[], now: Date): boolean {
   const closed = week.closesAt.getTime() <= now.getTime();
   return closed && rows.some((row) => row.weekPoints !== 0);
-}
-
-/** The error's name is part of the record: the admin history reads it back. */
-function describeFailure(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-  return error.name === "Error" ? error.message : `${error.name}: ${error.message}`;
 }
 
 function upsertTeams(db: Db, rows: StandingRow[]) {

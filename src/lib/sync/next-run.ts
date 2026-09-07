@@ -37,3 +37,30 @@ export function decideNextRun(week: Gameweek, now: Date): Date {
 export function nextRunAfterFailure(now: Date): Date {
   return new Date(now.getTime() + FAILURE_INTERVAL_MS);
 }
+
+export const PLAYER_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const PLAYER_FAILURE_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * When the next player sweep should run.
+ *
+ * A flat day. Nothing in the response says when values move, the API is unofficial and
+ * undocumented, and the consensus among the projects using it is one full sweep a day.
+ * There is no live window to chase: this is the slow half of the design, and the
+ * ten-minute standings chain is unaffected by it.
+ */
+export function nextPlayerSweep(now: Date): Date {
+  return new Date(now.getTime() + PLAYER_SWEEP_INTERVAL_MS);
+}
+
+/**
+ * When to come back after a sweep that failed.
+ *
+ * An hour, not the standings chain's five minutes: a failed sweep costs the portal a
+ * day of value resolution at worst, and hammering an undocumented API is exactly what
+ * the daily cadence exists to avoid. Still far sooner than a day, because a sweep that
+ * books no successor ends the chain.
+ */
+export function nextPlayerSweepAfterFailure(now: Date): Date {
+  return new Date(now.getTime() + PLAYER_FAILURE_INTERVAL_MS);
+}
