@@ -76,4 +76,26 @@ describe("OpportunityBoard", () => {
     expect(html).toContain('href="/players?sort=perMillion"');
     expect(html).toContain("All players by value for money");
   });
+
+  it("omits the link entirely when the page passes none", () => {
+    // The page omits `link` before the first sweep, when the catalogue itself is
+    // empty — a "see all" pointing at a catalogue that says nothing has been swept is
+    // worse than no link at all.
+    const html = board([row("p1")], { link: undefined });
+    expect(html).not.toContain("href=\"/players?sort=perMillion\"");
+    expect(html).not.toContain("All players by value for money");
+  });
+
+  it("says owners are not swept yet on a board that is not blocked", () => {
+    // The value board gets no `unknownOwnershipNote` — Ruling 6 is a claim about
+    // ownership, which this board makes none of. So it renders rows, and each row
+    // must say the owner is unknown rather than calling anyone free.
+    const html = board([row("p1", { ownerTeamId: null, ownerName: null })], { ownershipKnown: false });
+    expect(html).toContain("Owners not swept yet");
+    expect(html).not.toContain("Free agent");
+  });
+
+  it("calls an unowned player free once a squad has been read", () => {
+    expect(board([row("p1", { ownerTeamId: null, ownerName: null })])).toContain("Free agent");
+  });
 });

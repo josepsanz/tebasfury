@@ -417,6 +417,14 @@ describe("the opportunity boards", () => {
     expect(bestValueForMoney([nobody])).toEqual([]);
   });
 
+  it("excludes a scoreless player even with enough recorded gameweeks and a value", () => {
+    // Season points can be negative in this game, so a nought-point player would
+    // otherwise pass the floor and render as "0.0 pts/M€" under a heading that says
+    // "best". The board filters this the same way it filters a low sample.
+    const scoreless = row({ id: "scoreless", seasonPoints: 0, gameweeksRecorded: 3 });
+    expect(bestValueForMoney([scoreless])).toEqual([]);
+  });
+
   it("caps the board at five rows", () => {
     const many = Array.from({ length: 9 }, (_, i) =>
       row({ id: `p${i}`, nickname: `Player ${i}`, seasonPoints: 30 - i }),

@@ -293,7 +293,7 @@ catalogue gives value and points.
 |---|---|
 | No player has three recorded gameweeks | The first block's heading, then one line: no player has three recorded gameweeks yet, and this fills in as the season goes |
 | `ownershipKnown` is false | The second block's heading, then one line: no squad has been read yet, so nobody can be called free |
-| Signed out | Neither block. Title and tagline, exactly as today |
+| Signed out | Neither block. Title and tagline, now centred in the portal's standard `mx-auto max-w-2xl` column instead of running flush left |
 
 The first state is **reachable today, not hypothetical**: how many gameweeks a player has
 recorded depends on what Step 3's `weekPoints` backfill reached, and that window is itself
@@ -381,6 +381,7 @@ Written before implementation, because they follow from decisions already made:
   whether it actually identifies good signings in this league is a question only a season
   of use can answer. If it turns out to rank thin-sample cheap players all year, the floor
   is the dial to turn, and it has a name.
+
 ## The visual checks — not yet performed
 
 On `/`:
@@ -391,8 +392,10 @@ On `/`:
 22. Are the two boards distinguishable at a glance, given they share a row shape and
     differ only in heading and unit? A reader must never think the second board is
     more of the first.
-23. The signed-out page: unchanged from before this slice, with no flash of the boards
-    during hydration.
+23. The signed-out page: keeps its title and tagline and now sits inside the portal's
+    standard `mx-auto max-w-2xl` column, centred like every other page instead of
+    running flush left — that centred column is the baseline to compare against, not
+    the pre-slice flush-left layout. No flash of the boards during hydration.
 24. A board rendering its empty note beside a board rendering rows — do the two read as
     one page, or does the empty one look broken?
 

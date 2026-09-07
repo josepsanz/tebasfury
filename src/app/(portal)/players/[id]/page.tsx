@@ -1,15 +1,10 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadPlayer } from "@/lib/db/queries";
-import {
-  formatMoney,
-  ownerDisplay,
-  pointsSeries,
-  statusLabel,
-  valueSeries,
-} from "@/lib/domain/players";
+import { formatMoney, pointsSeries, statusLabel, valueSeries } from "@/lib/domain/players";
 import { requireSession } from "@/lib/auth/guards";
 import { PlayerCharts } from "@/components/player-charts";
+import { OwnerLabel } from "@/components/owner-label";
 
 export default async function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   // The guard runs before the lookup: an anonymous visitor must not be able to tell an
@@ -25,10 +20,6 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   const seasonPoints = detail.points.reduce((sum, p) => sum + p.points, 0);
   const currentValue = values.at(-1)?.value ?? null;
   const label = statusLabel(player.status);
-  // Same three-state logic as the catalogue row, via the shared helper: "Free agent"
-  // is a claim the page can only make once at least one squad has been read, not
-  // merely from the absence of an owner row.
-  const owned = ownerDisplay(owner?.managerName ?? null, ownershipKnown);
 
   return (
     <section className="mx-auto max-w-2xl">
@@ -36,13 +27,10 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
       <p className="mt-1 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
         {player.position}
         {detail.club === null ? "" : ` · ${detail.club.name}`} ·{" "}
-        {owned.kind === "owned" && owned.name}
-        {owned.kind === "free" && (
-          <span style={{ color: "var(--board-free)" }}>Free agent</span>
-        )}
-        {owned.kind === "unknown" && (
-          <span style={{ color: "var(--board-ink-dim)" }}>Owners not swept yet</span>
-        )}
+        {/* Same three-state logic as the catalogue row, via the shared component:
+            "Free agent" is a claim the page can only make once at least one squad has
+            been read, not merely from the absence of an owner row. */}
+        <OwnerLabel ownerName={owner?.managerName ?? null} ownershipKnown={ownershipKnown} />
         {label === null ? null : <span style={{ color: "var(--board-alert)" }}> · {label}</span>}
       </p>
 

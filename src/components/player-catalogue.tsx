@@ -169,7 +169,7 @@ export function PlayerCatalogue({
               <span className="min-w-0">
                 <span className="block truncate text-[14.5px]">{row.nickname}</span>
                 <span className="block truncate text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-                  {clubOrPosition(row)} · <OwnerLabel row={row} ownershipKnown={ownershipKnown} />
+                  {clubOrPosition(row)} · <OwnerLabel ownerName={row.ownerName} ownershipKnown={ownershipKnown} />
                   {statusLabel(row.status) === null ? null : (
                     <span style={{ color: "var(--board-alert)" }}>
                       {" "}

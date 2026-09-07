@@ -38,7 +38,13 @@ export function OpportunityBoard({
   rows: CatalogueRow[];
   emptyNote: string;
   figure: (row: CatalogueRow) => { value: string; unit: string };
-  link: { href: string; label: string };
+  /**
+   * Omitted when the catalogue itself is empty (before the first sweep): pointing "see
+   * all" at a catalogue that says nothing has been swept is worse than no link. A board
+   * that is empty while the catalogue has players still gets its link — that link is
+   * exactly where a reader goes to see the players who did not qualify.
+   */
+  link?: { href: string; label: string };
   ownershipKnown: boolean;
   /**
    * When present and `ownershipKnown` is false, this replaces the whole board. Only the
@@ -81,7 +87,7 @@ export function OpportunityBoard({
                         <span style={{ color: "var(--board-alert)" }}> · {statusLabel(row.status)}</span>
                       )}
                       {" · "}
-                      <OwnerLabel row={row} ownershipKnown={ownershipKnown} />
+                      <OwnerLabel ownerName={row.ownerName} ownershipKnown={ownershipKnown} />
                     </span>
                   </span>
                   <span className="text-right">
@@ -105,7 +111,7 @@ export function OpportunityBoard({
         </ol>
       )}
 
-      {blocked ? null : (
+      {blocked || link === undefined ? null : (
         <Link
           href={link.href}
           className="mt-3 inline-block border-b pb-0.5 text-[11.5px]"

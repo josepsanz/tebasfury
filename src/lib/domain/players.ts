@@ -179,8 +179,11 @@ export function sortCatalogue(rows: CatalogueRow[], key: SortKey): CatalogueRow[
  * How many rows a home-page board shows.
  *
  * Five is a landing page's worth of rows rather than a measured figure, which is
- * exactly why it has a name: disagreeing with it later should cost one line, not a
- * search for the number 5 across two components.
+ * exactly why it has a name. Neither `OpportunityBoard` nor the home page imports it —
+ * `bestValueForMoney` and `freeAndScoring` receive it as their default parameter, which
+ * is better than a component reaching for the constant itself: disagreeing with it
+ * later costs one changed number, here, rather than a search for every place `5` might
+ * be sitting.
  */
 export const BOARD_ROWS = 5;
 
@@ -192,16 +195,23 @@ export const BOARD_ROWS = 5;
  * the best; a board padded to five with rows that cannot be ranked, showing a dash
  * where the figure goes, makes that claim falsely. See Ruling 4.
  *
- * Two things disqualify a player: fewer than `MIN_GAMEWEEKS_FOR_RANKING` recorded
- * gameweeks, and no value snapshot yet (which is what `pointsPerMillion` returns null
- * for, alongside a value of zero).
+ * Three things disqualify a player: fewer than `MIN_GAMEWEEKS_FOR_RANKING` recorded
+ * gameweeks, no value snapshot yet (which is what `pointsPerMillion` returns null for,
+ * alongside a value of zero), and a points-per-million figure that is not positive.
+ * That last one is the same argument as the first, aimed at a different way a row can
+ * fail to earn its place: season points can be negative in this game, so a player with
+ * three recorded gameweeks and nought (or fewer) points would still pass the floor and
+ * render as "0.0" or a negative figure under a heading that says "best" — one row
+ * making the padded board's false claim instead of five. A board that runs three rows
+ * long because the fourth and fifth would lie is the honest outcome its own empty
+ * state already blesses.
  */
 export function bestValueForMoney(rows: CatalogueRow[], limit = BOARD_ROWS): CatalogueRow[] {
-  const qualified = rows.filter(
-    (row) =>
-      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_RANKING &&
-      pointsPerMillion(row.seasonPoints, row.currentValue) !== null,
-  );
+  const qualified = rows.filter((row) => {
+    if (row.gameweeksRecorded < MIN_GAMEWEEKS_FOR_RANKING) return false;
+    const perMillion = pointsPerMillion(row.seasonPoints, row.currentValue);
+    return perMillion !== null && perMillion > 0;
+  });
   return sortCatalogue(qualified, "perMillion").slice(0, limit);
 }
 

@@ -49,13 +49,21 @@ export default async function HomePage() {
         figure={(row) => ({
           // `pointsPerMillion`, never the division written out again: the rule lives in
           // one place, which is the whole reason Ruling 7 refused a SQL ranking. The
-          // fallback is unreachable — a non-null result is one of the two things
+          // fallback is unreachable — a positive, non-null result is what
           // `bestValueForMoney` filters on — and is here to satisfy the type, not to
           // paper over a case.
           value: (pointsPerMillion(row.seasonPoints, row.currentValue) ?? 0).toFixed(1),
           unit: `pts/M€ · ${row.currentValue === null ? "—" : formatMoney(row.currentValue)}`,
         })}
-        link={{ href: "/players?sort=perMillion", label: `All ${rows.length} by value for money` }}
+        // Omitted, not pointed at an empty catalogue: before the first sweep `rows` is
+        // empty and "All 0 by value for money" would send a reader to a catalogue that
+        // says nothing has been swept yet. A board that is empty while the catalogue
+        // has players keeps its link — that is the case this guard leaves alone.
+        link={
+          rows.length === 0
+            ? undefined
+            : { href: "/players?sort=perMillion", label: `All ${rows.length} by value for money` }
+        }
         ownershipKnown={ownershipKnown}
       />
 
@@ -68,7 +76,11 @@ export default async function HomePage() {
           value: String(row.seasonPoints),
           unit: `pts · ${row.currentValue === null ? "—" : formatMoney(row.currentValue)}`,
         })}
-        link={{ href: "/players?ownership=free&sort=points", label: "All free agents" }}
+        link={
+          rows.length === 0
+            ? undefined
+            : { href: "/players?ownership=free&sort=points", label: "All free agents" }
+        }
         ownershipKnown={ownershipKnown}
         unknownOwnershipNote="No squad has been read yet, so nobody can be called free. The next sweep settles it."
       />
