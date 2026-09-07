@@ -124,6 +124,16 @@ describe("PlayerCatalogue", () => {
     expect(html).toContain("Goalkeeper · Manager A");
   });
 
+  it("opens on the sort and ownership it was given, not on the defaults", () => {
+    // This is what makes the home page's links land somewhere: the catalogue's opening
+    // view comes from the URL, read on the server and handed down as props.
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue rows={[row("p1")]} ownershipKnown initialSort="perMillion" initialOwnership="free" />,
+    );
+    expect(html).toContain('aria-pressed="true" class="rounded-full border px-3 py-1 text-[12px]" style="border-color:var(--board-ink-dim);color:var(--board-ink)">Best value for money');
+    expect(html).toContain('aria-pressed="true" class="rounded-full border px-3 py-1 text-[12px]" style="border-color:var(--board-ink-dim);color:var(--board-ink)">Free');
+  });
+
 });
 
 describe("paginateCatalogue", () => {

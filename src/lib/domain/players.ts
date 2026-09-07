@@ -121,7 +121,7 @@ export function clubOrPosition(row: Pick<CatalogueRow, "clubName" | "position">)
   return row.clubName ?? row.position;
 }
 
-export type SortKey = "value" | "points" | "average" | "name";
+export type SortKey = "value" | "points" | "average" | "perMillion" | "name";
 
 /**
  * A single recorded gameweek is not an average — it is one score wearing an average's
@@ -131,8 +131,13 @@ export type SortKey = "value" | "points" | "average" | "name";
  * (and still show their real average) under every other sort and in their own row.
  * Three is the smallest sample that resists a single outlier while staying reachable
  * in the season's first month, which is when this sort gets used the most.
+ *
+ * It governs two rankings now, which is why it is no longer named after one of them:
+ * points per million has exactly the same weakness for exactly the same reason — a
+ * cheap player with one lucky appearance — and answering it with a second, different
+ * number would be two claims about one question, on data nobody has.
  */
-export const MIN_GAMEWEEKS_FOR_AVERAGE_SORT = 3;
+export const MIN_GAMEWEEKS_FOR_RANKING = 3;
 
 /**
  * Sorts a copy, never the caller's array.
@@ -157,12 +162,75 @@ export function sortCatalogue(rows: CatalogueRow[], key: SortKey): CatalogueRow[
     value: descending((row) => row.currentValue),
     points: descending((row) => row.seasonPoints),
     average: descending((row) =>
-      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_AVERAGE_SORT ? row.averagePoints : null,
+      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_RANKING ? row.averagePoints : null,
+    ),
+    perMillion: descending((row) =>
+      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_RANKING
+        ? pointsPerMillion(row.seasonPoints, row.currentValue)
+        : null,
     ),
     name: byName,
   };
 
   return [...rows].sort(comparators[key]);
+}
+
+/**
+ * How many rows a home-page board shows.
+ *
+ * Five is a landing page's worth of rows rather than a measured figure, which is
+ * exactly why it has a name. Neither `OpportunityBoard` nor the home page imports it —
+ * `bestValueForMoney` and `freeAndScoring` receive it as their default parameter, which
+ * is better than a component reaching for the constant itself: disagreeing with it
+ * later costs one changed number, here, rather than a search for every place `5` might
+ * be sitting.
+ */
+export const BOARD_ROWS = 5;
+
+/**
+ * The best points per million of market value.
+ *
+ * Unqualified rows are FILTERED, not sunk — the difference from `sortCatalogue`'s own
+ * treatment, and the reason is the board's size. Five rows are a claim that these are
+ * the best; a board padded to five with rows that cannot be ranked, showing a dash
+ * where the figure goes, makes that claim falsely. See Ruling 4.
+ *
+ * Three things disqualify a player: fewer than `MIN_GAMEWEEKS_FOR_RANKING` recorded
+ * gameweeks, no value snapshot yet (which is what `pointsPerMillion` returns null for,
+ * alongside a value of zero), and a points-per-million figure that is not positive.
+ * That last one is the same argument as the first, aimed at a different way a row can
+ * fail to earn its place: season points can be negative in this game, so a player with
+ * three recorded gameweeks and nought (or fewer) points would still pass the floor and
+ * render as "0.0" or a negative figure under a heading that says "best" — one row
+ * making the padded board's false claim instead of five. A board that runs three rows
+ * long because the fourth and fifth would lie is the honest outcome its own empty
+ * state already blesses.
+ */
+export function bestValueForMoney(rows: CatalogueRow[], limit = BOARD_ROWS): CatalogueRow[] {
+  const qualified = rows.filter((row) => {
+    if (row.gameweeksRecorded < MIN_GAMEWEEKS_FOR_RANKING) return false;
+    const perMillion = pointsPerMillion(row.seasonPoints, row.currentValue);
+    return perMillion !== null && perMillion > 0;
+  });
+  return sortCatalogue(qualified, "perMillion").slice(0, limit);
+}
+
+/**
+ * Unowned players who are actually scoring, best first.
+ *
+ * Deliberately takes no `ownershipKnown`: this function cannot tell "nobody owns them"
+ * from "no squad has been read", and it should not try. The caller renders Ruling 6's
+ * line instead of calling this at all when ownership is unknown.
+ *
+ * A free player on nought points is excluded rather than padding the list. The block
+ * is called "Free and scoring", and a scoreless row would make its own heading false.
+ * No value is required — ownership and points are the whole claim here.
+ */
+export function freeAndScoring(rows: CatalogueRow[], limit = BOARD_ROWS): CatalogueRow[] {
+  const free = filterCatalogue(rows, { query: "", position: null, ownership: "free" }).filter(
+    (row) => row.seasonPoints > 0,
+  );
+  return sortCatalogue(free, "points").slice(0, limit);
 }
 
 /** Oldest first: the chart reads left to right, and the caller's order is not a series. */
@@ -251,4 +319,29 @@ export function ownerDisplay(ownerName: string | null, ownershipKnown: boolean):
   if (ownerName !== null) return { kind: "owned", name: ownerName };
   if (!ownershipKnown) return { kind: "unknown" };
   return { kind: "free" };
+}
+
+const SORT_KEYS: SortKey[] = ["value", "points", "average", "perMillion", "name"];
+const OWNERSHIP_KEYS: CatalogueFilter["ownership"][] = ["all", "owned", "free"];
+
+/**
+ * The catalogue view a URL asks for.
+ *
+ * The address is an entry point, not a mirror: this reads the opening state and nothing
+ * writes it back, so pressing pills afterwards does not rewrite the URL. Making it a
+ * mirror means keeping router and component state in step inside a component that has
+ * no such coupling today, which is more than the affordance is worth. See Ruling 8.
+ *
+ * Anything unrecognised — a typo, a stale link, a repeated parameter — falls back to the
+ * view the catalogue opens with anyway. A bad link should degrade to the normal page.
+ */
+export function parseCatalogueEntry(params: Record<string, string | string[] | undefined>): {
+  sort: SortKey;
+  ownership: CatalogueFilter["ownership"];
+} {
+  const one = (value: string | string[] | undefined) => (typeof value === "string" ? value : null);
+  return {
+    sort: SORT_KEYS.find((key) => key === one(params.sort)) ?? "value",
+    ownership: OWNERSHIP_KEYS.find((key) => key === one(params.ownership)) ?? "all",
+  };
 }

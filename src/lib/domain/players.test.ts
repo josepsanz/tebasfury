@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  bestValueForMoney,
   buildCatalogue,
   clubOrPosition,
   filterCatalogue,
   formatMoney,
+  freeAndScoring,
   ownerDisplay,
+  parseCatalogueEntry,
   pointsPerMillion,
   pointsSeries,
   sortCatalogue,
@@ -208,7 +211,7 @@ describe("sortCatalogue", () => {
     // Important 7: a player with one recorded gameweek and a big score used to
     // outrank a player with several steady weeks, because averagePoints alone
     // cannot tell "10 over 6 games" from "10 over 1". Below
-    // MIN_GAMEWEEKS_FOR_AVERAGE_SORT the row sinks like a null average does — still
+    // MIN_GAMEWEEKS_FOR_RANKING the row sinks like a null average does — still
     // visible under every other sort, just not able to top this one on a single game.
     const oneGame: CatalogueRow = {
       id: "p4", nickname: "Kiri", position: "Forward", status: "ok",
@@ -229,6 +232,56 @@ describe("sortCatalogue", () => {
     const before = rows.map((r) => r.id);
     sortCatalogue(rows, "value");
     expect(rows.map((r) => r.id)).toEqual(before);
+  });
+});
+
+describe("the value-for-money sort", () => {
+  const row = (over: Partial<CatalogueRow> = {}): CatalogueRow => ({
+    id: "p1",
+    nickname: "Ada",
+    position: "Midfielder",
+    status: "ok",
+    currentValue: 1_000_000,
+    seasonPoints: 10,
+    averagePoints: 5,
+    gameweeksRecorded: 4,
+    ownerTeamId: null,
+    ownerName: null,
+    clubName: null,
+    ...over,
+  });
+
+  it("ranks by points per million, and demotes a single-gameweek player", () => {
+    // The same trap "Best average" already had to fix: 12 points in one appearance at
+    // €1.0M is 12.0 pts/M€, which would outrank 30 points across three weeks at €3.0M.
+    const lucky = row({ id: "lucky", nickname: "Kiri", currentValue: 1_000_000, seasonPoints: 12, gameweeksRecorded: 1 });
+    const steady = row({ id: "steady", nickname: "Léo", currentValue: 3_000_000, seasonPoints: 30, gameweeksRecorded: 3 });
+    expect(sortCatalogue([lucky, steady], "perMillion").map((r) => r.id)).toEqual(["steady", "lucky"]);
+  });
+
+  it("sinks a player with no value snapshot rather than treating them as free", () => {
+    const priced = row({ id: "priced", currentValue: 2_000_000, seasonPoints: 20 });
+    const unpriced = row({ id: "unpriced", currentValue: null, seasonPoints: 20 });
+    expect(sortCatalogue([unpriced, priced], "perMillion").map((r) => r.id)).toEqual(["priced", "unpriced"]);
+  });
+
+  it("breaks a tie by name, like every other sort", () => {
+    const zoe = row({ id: "zoe", nickname: "Zoe", currentValue: 2_000_000, seasonPoints: 20 });
+    const ada = row({ id: "ada", nickname: "Ada", currentValue: 2_000_000, seasonPoints: 20 });
+    expect(sortCatalogue([zoe, ada], "perMillion").map((r) => r.id)).toEqual(["ada", "zoe"]);
+  });
+
+  it("ranks by the ratio itself, not by raw points", () => {
+    // Both rows qualify (three-plus gameweeks each), and the cheaper, lower-scoring
+    // player has the better ratio: 20 points at €2.0M is 10.0 pts/M€, against 30 points
+    // at €6.0M, which is only 5.0 pts/M€. A comparator that sorted by seasonPoints
+    // instead of by points-per-million would put "bigSpender" first and fail here.
+    const cheaper = row({ id: "cheaper", nickname: "Cass", currentValue: 2_000_000, seasonPoints: 20, gameweeksRecorded: 3 });
+    const bigSpender = row({ id: "bigSpender", nickname: "Boaz", currentValue: 6_000_000, seasonPoints: 30, gameweeksRecorded: 3 });
+    expect(sortCatalogue([bigSpender, cheaper], "perMillion").map((r) => r.id)).toEqual([
+      "cheaper",
+      "bigSpender",
+    ]);
   });
 });
 
@@ -326,5 +379,105 @@ describe("ownerDisplay", () => {
     // absence of an owner row, in the same "Free agent" colour the catalogue
     // reserves for a fact it has actually checked.
     expect(ownerDisplay(null, false)).toEqual({ kind: "unknown" });
+  });
+});
+
+describe("the opportunity boards", () => {
+  const row = (over: Partial<CatalogueRow> = {}): CatalogueRow => ({
+    id: "p1",
+    nickname: "Ada",
+    position: "Midfielder",
+    status: "ok",
+    currentValue: 2_000_000,
+    seasonPoints: 20,
+    averagePoints: 5,
+    gameweeksRecorded: 4,
+    ownerTeamId: null,
+    ownerName: null,
+    clubName: null,
+    ...over,
+  });
+
+  it("removes a low-sample player from the board rather than sinking them", () => {
+    // Ruling 4. On the catalogue a demoted row still appears at the bottom; on a
+    // five-row board that is indistinguishable from hiding, and padding the board
+    // with rows that cannot be ranked is worse than a board that is honestly short.
+    const lucky = row({ id: "lucky", nickname: "Kiri", currentValue: 1_000_000, seasonPoints: 12, gameweeksRecorded: 1 });
+    const steady = row({ id: "steady", nickname: "Léo", seasonPoints: 20, gameweeksRecorded: 4 });
+    expect(bestValueForMoney([lucky, steady]).map((r) => r.id)).toEqual(["steady"]);
+  });
+
+  it("removes a player with no value snapshot", () => {
+    const unpriced = row({ id: "unpriced", currentValue: null });
+    expect(bestValueForMoney([unpriced])).toEqual([]);
+  });
+
+  it("is empty rather than padded when nobody qualifies", () => {
+    const nobody = row({ id: "nobody", gameweeksRecorded: 0, seasonPoints: 0 });
+    expect(bestValueForMoney([nobody])).toEqual([]);
+  });
+
+  it("excludes a scoreless player even with enough recorded gameweeks and a value", () => {
+    // Season points can be negative in this game, so a nought-point player would
+    // otherwise pass the floor and render as "0.0 pts/M€" under a heading that says
+    // "best". The board filters this the same way it filters a low sample.
+    const scoreless = row({ id: "scoreless", seasonPoints: 0, gameweeksRecorded: 3 });
+    expect(bestValueForMoney([scoreless])).toEqual([]);
+  });
+
+  it("caps the board at five rows", () => {
+    const many = Array.from({ length: 9 }, (_, i) =>
+      row({ id: `p${i}`, nickname: `Player ${i}`, seasonPoints: 30 - i }),
+    );
+    expect(bestValueForMoney(many)).toHaveLength(5);
+    expect(bestValueForMoney(many, 2)).toHaveLength(2);
+  });
+
+  it("lists only unowned players on the free board, best scorer first", () => {
+    const owned = row({ id: "owned", nickname: "Owned", seasonPoints: 40, ownerTeamId: "t1", ownerName: "Manager A" });
+    const freeLow = row({ id: "free-low", nickname: "Low", seasonPoints: 5 });
+    const freeHigh = row({ id: "free-high", nickname: "High", seasonPoints: 11 });
+    expect(freeAndScoring([owned, freeLow, freeHigh]).map((r) => r.id)).toEqual(["free-high", "free-low"]);
+  });
+
+  it("leaves a free player who has not scored off the free board", () => {
+    // The block is called "Free and scoring". A free player on nought points is not an
+    // opportunity, and padding the list with them would make the heading a lie.
+    const scoreless = row({ id: "scoreless", seasonPoints: 0 });
+    expect(freeAndScoring([scoreless])).toEqual([]);
+  });
+
+  it("does not need a value to rank the free board", () => {
+    // Ownership and points are enough. A player swept before their first value
+    // snapshot still belongs here, unlike on the value-for-money board.
+    const unpriced = row({ id: "unpriced", currentValue: null, seasonPoints: 7 });
+    expect(freeAndScoring([unpriced]).map((r) => r.id)).toEqual(["unpriced"]);
+  });
+});
+
+describe("parseCatalogueEntry", () => {
+  it("reads a sort and an ownership filter it recognises", () => {
+    expect(parseCatalogueEntry({ sort: "perMillion", ownership: "free" })).toEqual({
+      sort: "perMillion",
+      ownership: "free",
+    });
+  });
+
+  it("falls back to the catalogue's own defaults for anything else", () => {
+    // A URL is typed by hand, shared, and outlives the code that made it. Every
+    // unrecognised value lands on the view the catalogue opens with anyway, so a stale
+    // or mangled link degrades to the normal page rather than to an error.
+    expect(parseCatalogueEntry({ sort: "bogus", ownership: "nobody" })).toEqual({
+      sort: "value",
+      ownership: "all",
+    });
+    expect(parseCatalogueEntry({})).toEqual({ sort: "value", ownership: "all" });
+  });
+
+  it("refuses a repeated parameter rather than guessing which one was meant", () => {
+    expect(parseCatalogueEntry({ sort: ["perMillion", "points"] })).toEqual({
+      sort: "value",
+      ownership: "all",
+    });
   });
 });

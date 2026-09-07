@@ -6,13 +6,13 @@ import {
   clubOrPosition,
   filterCatalogue,
   formatMoney,
-  ownerDisplay,
   sortCatalogue,
   statusLabel,
   type CatalogueFilter,
   type CatalogueRow,
   type SortKey,
 } from "@/lib/domain/players";
+import { OwnerLabel } from "@/components/owner-label";
 
 const PAGE = 60;
 
@@ -43,6 +43,7 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "value", label: "Most valuable" },
   { key: "points", label: "Highest scoring" },
   { key: "average", label: "Best average" },
+  { key: "perMillion", label: "Best value for money" },
   { key: "name", label: "By name" },
 ];
 
@@ -78,28 +79,21 @@ function Pill({
   );
 }
 
-function Owner({ row, ownershipKnown }: { row: CatalogueRow; ownershipKnown: boolean }) {
-  const display = ownerDisplay(row.ownerName, ownershipKnown);
-  if (display.kind === "owned") return <>{display.name}</>;
-  // Nobody has read the squads yet, so "unowned" is a gap in what we know, not a fact
-  // about the player.
-  if (display.kind === "unknown") {
-    return <span style={{ color: "var(--board-ink-dim)" }}>Owners not swept yet</span>;
-  }
-  return <span style={{ color: "var(--board-free)" }}>Free agent</span>;
-}
-
 export function PlayerCatalogue({
   rows,
   ownershipKnown,
+  initialSort = "value",
+  initialOwnership = "all",
 }: {
   rows: CatalogueRow[];
   ownershipKnown: boolean;
+  initialSort?: SortKey;
+  initialOwnership?: CatalogueFilter["ownership"];
 }) {
   const [query, setQuery] = useState("");
   const [position, setPosition] = useState<string | null>(null);
-  const [ownership, setOwnership] = useState<"all" | "owned" | "free">("all");
-  const [sort, setSort] = useState<SortKey>("value");
+  const [ownership, setOwnership] = useState<CatalogueFilter["ownership"]>(initialOwnership);
+  const [sort, setSort] = useState<SortKey>(initialSort);
   const [shown, setShown] = useState(PAGE);
 
   const { page, total } = useMemo(
@@ -175,7 +169,7 @@ export function PlayerCatalogue({
               <span className="min-w-0">
                 <span className="block truncate text-[14.5px]">{row.nickname}</span>
                 <span className="block truncate text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-                  {clubOrPosition(row)} · <Owner row={row} ownershipKnown={ownershipKnown} />
+                  {clubOrPosition(row)} · <OwnerLabel ownerName={row.ownerName} ownershipKnown={ownershipKnown} />
                   {statusLabel(row.status) === null ? null : (
                     <span style={{ color: "var(--board-alert)" }}>
                       {" "}
