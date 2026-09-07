@@ -274,11 +274,17 @@ here instead of being silently dropped.
   branch and cannot wedge the sweep — but "empty from the API" and "some ids valid" are
   covered separately and their combination is not.
 
-### The visual checks nobody has performed
+### The visual checks — performed 2026-09-07, all clean
 
 Both new views sit behind `requireSession()` and the E2E suite has no authenticated
-fixture, so no agent could load either page in a browser. Everything below was reasoned
-about in writing and never seen. Run `pnpm dev`, sign in, and work through it at 375px.
+fixture, so no agent could load either page in a browser: every layout claim on them was
+reasoned about in writing and never seen. The owner worked through the list below on
+2026-09-07, against the deployed build with the real 836-player catalogue and 13 squads
+swept, and **found nothing wrong**. Items 7 and 13 are the exception and remain open by
+nature, not by omission — see the note after the list.
+
+The list is kept rather than deleted because it is the checklist to re-run whenever these
+two views change, and because it records what was verified by eye rather than by test.
 
 On `/players`:
 
@@ -315,3 +321,10 @@ Elsewhere:
 17. The search input on real iOS Safari: `type="search"` gets platform chrome and a
     clear button, and nothing sets `::placeholder`, so its contrast on the dark ground
     is unverified.
+
+Two of those checks could not be performed on 2026-09-07 and are not a matter of effort:
+the value chart's axis at 200+ daily ticks (item 13) and the bar chart's axis at 20+
+recorded gameweeks (item 7) both need data volume that did not exist yet. The value
+series began on the day of the first sweep, and the points backfill only reaches as far
+as the catalogue's `weekPoints` window. Both become checkable a few weeks into the
+season; until then the axis density at real season length is unverified.
