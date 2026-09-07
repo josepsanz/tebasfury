@@ -94,8 +94,14 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
 
   revalidatePath("/players");
   revalidatePath("/admin/sync");
-  const { playersSynced, squadsSynced, squadsSkipped, droppedSquadPlayers, nextRunAt } =
-    outcome.result;
+  const {
+    playersSynced,
+    squadsSynced,
+    squadsSkipped,
+    droppedSquadPlayers,
+    realTeamsKnown,
+    nextRunAt,
+  } = outcome.result;
   // The two counts below are usually both zero and add nothing when they are — they
   // only appear when there is something an operator would want to see: a squad that
   // looked implausible and was left alone, or a player id the catalogue did not
@@ -107,8 +113,13 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
 
   return {
     ok: true,
+    // Club coverage is reported on every sweep rather than joining `notes`, which
+    // appear only when non-zero. Ruling 1 accepts the coverage may never be complete,
+    // and a number that shows up only when something is wrong cannot show a gap
+    // closing.
     message:
-      `Swept ${playersSynced} players and ${squadsSynced} squads` +
+      `Swept ${playersSynced} players and ${squadsSynced} squads, ` +
+      `${realTeamsKnown} clubs known` +
       (notes.length > 0 ? ` (${notes.join(", ")})` : "") +
       `. Next sweep at ${nextRunAt.toISOString()}.`,
   };

@@ -34,7 +34,7 @@
 - Consumes: nothing.
 - Produces: `realTeams` table export from `@/lib/db/schema`, with columns `id: string`, `name: string`, `slug: string`, `badgeUrl: string | null`, `firstSeenAt: Date`, `lastSeenAt: Date`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/lib/db/schema.test.ts`. It needs its own `describe` with its own database handle, matching the file's existing structure:
 
@@ -81,12 +81,12 @@ describe("the club table", () => {
 
 Add `realTeams` to the import list from `./schema` at the top of the file.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm test src/lib/db/schema.test.ts`
 Expected: FAIL — `realTeams` is not exported from `./schema`.
 
-- [ ] **Step 3: Add the table to the schema**
+- [x] **Step 3: Add the table to the schema**
 
 Append to the end of `src/lib/db/schema.ts`:
 
@@ -119,7 +119,7 @@ export const realTeams = pgTable("real_teams", {
 });
 ```
 
-- [ ] **Step 4: Generate the migration**
+- [x] **Step 4: Generate the migration**
 
 Run: `pnpm drizzle-kit generate`
 
@@ -133,12 +133,12 @@ cat drizzle/0007_*.sql
 
 Expected: a single `CREATE TABLE "real_teams"` with the six columns, no `ALTER TABLE` on any other table, and no foreign key.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pnpm test src/lib/db/schema.test.ts`
 Expected: PASS. `createTestDatabase` runs the whole `./drizzle` folder, so the new migration is applied automatically.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/db/schema.ts src/lib/db/schema.test.ts drizzle/
@@ -158,7 +158,7 @@ git commit -m "feat: add the real_teams table for observed club names"
 - Consumes: nothing from Task 1.
 - Produces: `RealTeamRow = { id: string; name: string; slug: string; badgeUrl: string | null }` and `SquadRow = { teamId: string; playerIds: string[]; realTeams: RealTeamRow[] }`, both exported from `@/lib/fantasy-client`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to the `"the squad mapping"` describe in `src/lib/fantasy-client/index.test.ts`:
 
@@ -189,12 +189,12 @@ Add to the `"the squad mapping"` describe in `src/lib/fantasy-client/index.test.
   });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pnpm test src/lib/fantasy-client/index.test.ts`
 Expected: FAIL — `squad.realTeams` is `undefined`.
 
-- [ ] **Step 3: Describe the club at the boundary**
+- [x] **Step 3: Describe the club at the boundary**
 
 In `src/lib/fantasy-client/schemas.ts`, add above `squadSchema`:
 
@@ -249,7 +249,7 @@ with:
  * carries it in the same id space — which is why club affiliation costs no extra call.
 ```
 
-- [ ] **Step 4: Map it across the boundary**
+- [x] **Step 4: Map it across the boundary**
 
 In `src/lib/fantasy-client/index.ts`, replace the `SquadRow` type:
 
@@ -296,12 +296,12 @@ And replace the body of `getSquad`'s return:
   };
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pnpm test src/lib/fantasy-client/`
 Expected: PASS, including the pre-existing assertion that no squad entry is silently dropped.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/fantasy-client/
@@ -320,7 +320,7 @@ git commit -m "feat: read club names from the squad response"
 - Consumes: `realTeams` table (Task 1); `RealTeamRow`, `SquadRow.realTeams` (Task 2).
 - Produces: `PlayerSweepResult.realTeamsKnown: number` — **the number of rows in `real_teams` after the sweep**, not the number of clubs this sweep observed.
 
-- [ ] **Step 1: Extend the test fake**
+- [x] **Step 1: Extend the test fake**
 
 In `src/lib/sync/players.test.ts`, replace `fakeClient` and add a club helper. Existing call sites pass one or two arguments and stay untouched:
 
@@ -350,7 +350,7 @@ function fakeClient(
 
 Add `RealTeamRow` to the type import from `@/lib/fantasy-client`, and `realTeams` to the schema import. Add `await h.db.delete(realTeams);` to the `beforeEach` cleanup, **before** `await h.db.delete(players);`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Add to the `runPlayerSweep` describe:
 
@@ -460,12 +460,12 @@ Add to the `runPlayerSweep` describe:
   });
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `pnpm test src/lib/sync/players.test.ts`
 Expected: FAIL — `result.realTeamsKnown` is `undefined` and `real_teams` stays empty.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 In `src/lib/sync/players.ts`:
 
@@ -549,12 +549,12 @@ In `runPlayerSweep`, after `const squads = await replaceSquads(...)`:
 
 and add `realTeamsKnown: clubCount.value,` to the returned object.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pnpm test src/lib/sync/`
 Expected: PASS — the five new tests plus every pre-existing sweep test.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/sync/players.ts src/lib/sync/players.test.ts
@@ -574,7 +574,7 @@ git commit -m "feat: persist the clubs a sweep observes"
 - Consumes: `realTeams` table (Task 1).
 - Produces: `RealTeamRecord = { id: string; name: string }`; `CatalogueRow.clubName: string | null`; `buildCatalogue` gains a required `clubs: RealTeamRecord[]` input; `clubOrPosition(row): string`; `CatalogueData.clubs: RealTeamRecord[]`; `PlayerDetail.club: RealTeamRecord | null`.
 
-- [ ] **Step 1: Write the failing domain tests**
+- [x] **Step 1: Write the failing domain tests**
 
 In `src/lib/domain/players.test.ts`, add `clubs` to the shared `input` object used by the `buildCatalogue` describe (the tests below assume `p1` maps to a known club and `p3` does not):
 
@@ -643,12 +643,12 @@ Add `clubOrPosition` to the imports at the top of the test file.
 
 **Expect a wave of type errors here, and they are the point.** `src/lib/domain/players.test.ts` has no module-level `CatalogueRow` factory — the `filterCatalogue` and `sortCatalogue` describes build their rows as inline `CatalogueRow` literals (see the `oneGame` and `steady` pair around line 155). Once `clubName` joins the type, every one of those literals fails to compile until it is given a value. Add `clubName: null` to each; that is the correct default for a row whose club is beside the point of the test. The local `row()` factory above is block-scoped inside its own describe and does not clash with the file's existing `record()`.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pnpm test src/lib/domain/players.test.ts`
 Expected: FAIL — `clubOrPosition` is not exported and `clubName` is not on the built rows.
 
-- [ ] **Step 3: Implement the domain**
+- [x] **Step 3: Implement the domain**
 
 In `src/lib/domain/players.ts`:
 
@@ -718,7 +718,7 @@ export function clubOrPosition(row: Pick<CatalogueRow, "clubName" | "position">)
 }
 ```
 
-- [ ] **Step 4: Implement the reads**
+- [x] **Step 4: Implement the reads**
 
 In `src/lib/db/queries.ts`, add `realTeams` to the schema import and `RealTeamRecord` to the type import from `@/lib/domain/players`.
 
@@ -761,7 +761,7 @@ In `loadPlayer`, add to the `Promise.all` — `row` is already in scope, fetched
 
 Destructure it as `clubRows` and return `club: clubRows[0] ?? null,`.
 
-- [ ] **Step 5: Add the read test**
+- [x] **Step 5: Add the read test**
 
 Append to `src/lib/db/queries.test.ts` a describe with its own database handle, matching how every other describe in that file is built. Add `realTeams` to the schema import and `buildCatalogue` to the imports from `@/lib/domain/players`:
 
@@ -807,7 +807,7 @@ describe("club names", () => {
 });
 ```
 
-- [ ] **Step 6: Fix the one remaining call site**
+- [x] **Step 6: Fix the one remaining call site**
 
 `src/app/(portal)/players/page.tsx:9-11` — destructure `clubs` from `loadPlayerCatalogue` and pass it through:
 
@@ -817,12 +817,12 @@ describe("club names", () => {
   const rows = buildCatalogue({ players, totals, values, ownership, clubs });
 ```
 
-- [ ] **Step 7: Run the whole suite**
+- [x] **Step 7: Run the whole suite**
 
 Run: `pnpm test`
 Expected: PASS. TypeScript will have flagged any `buildCatalogue` call site still missing `clubs`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/db/queries.ts src/lib/db/queries.test.ts src/lib/domain/players.ts src/lib/domain/players.test.ts "src/app/(portal)/players/page.tsx"
@@ -842,7 +842,7 @@ git commit -m "feat: resolve club names into the catalogue and player detail"
 - Consumes: `clubOrPosition`, `CatalogueRow.clubName` (Task 4); `PlayerDetail.club` (Task 4).
 - Produces: nothing later tasks depend on.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `src/components/player-catalogue.test.tsx` already has a factory at the top of the file, `row(id, over)`, that builds a `CatalogueRow`. Add `clubName: null` to its defaults — TypeScript will demand it once Task 4 lands — and then add this test to the `PlayerCatalogue` describe:
 
@@ -865,12 +865,12 @@ git commit -m "feat: resolve club names into the catalogue and player detail"
   });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm test src/components/player-catalogue.test.tsx`
 Expected: FAIL — the markup contains `Forward` and not `Real Betis`.
 
-- [ ] **Step 3: Change the catalogue meta line**
+- [x] **Step 3: Change the catalogue meta line**
 
 In `src/components/player-catalogue.tsx`, add `clubOrPosition` to the imports from `@/lib/domain/players`, and replace `{row.position} · <Owner ... />` with:
 
@@ -880,7 +880,7 @@ In `src/components/player-catalogue.tsx`, add `clubOrPosition` to the imports fr
 
 Nothing else in the row changes: the line keeps its `truncate`, its 11px size and its three facts, so the width behaviour verified at 320px is preserved.
 
-- [ ] **Step 4: Change the detail header**
+- [x] **Step 4: Change the detail header**
 
 In `src/app/(portal)/players/[id]/page.tsx`, `detail.club` is now available. The header's meta line is a 13px `<p>` that wraps freely, so it keeps the position **and** gains the club — the deliberate divergence from the catalogue argued in Ruling 4. Replace:
 
@@ -895,17 +895,17 @@ with:
         {detail.club === null ? "" : ` · ${detail.club.name}`} ·{" "}
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pnpm test`
 Expected: PASS.
 
-- [ ] **Step 6: Lint and build**
+- [x] **Step 6: Lint and build**
 
 Run: `pnpm lint && pnpm build`
 Expected: both clean. The build is what catches a type error in a server component that Vitest never renders.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/components/player-catalogue.tsx src/components/player-catalogue.test.tsx "src/app/(portal)/players/[id]/page.tsx"

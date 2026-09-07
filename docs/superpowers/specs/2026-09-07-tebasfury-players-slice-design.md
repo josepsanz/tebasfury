@@ -189,13 +189,11 @@ the execution ledger, so none of it has to be rediscovered.
 
 ### Before the next deploy
 
-- **Migrations `0003`, `0004`, `0005` and `0006` have never been applied to
-  production.** Checked directly, the same way the standings slice checked `0003` and
-  `0004`: `team_gameweek_stats` does not exist on the live database. Run
-  `DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate` before the next deploy, or the
-  first sweep 500s at runtime with `relation "players" does not exist` instead of
-  failing at build. `0005` (the four player tables) and `0006` (an index on
-  `player_value_snapshots`) are both additive and safe against a populated database.
+- **Closed.** Migrations `0003` through `0006` were applied when this slice shipped —
+  the players views have since been swept and verified against the live database, which
+  could not have happened otherwise. The passage that said they never had was true when
+  written. Nothing here is outstanding; `docs/deployment.md` carries the migration step
+  for whatever slice comes next.
 
 ### Worth watching once
 
@@ -228,8 +226,9 @@ the execution ledger, so none of it has to be rediscovered.
   cost. This is a cheap win for the next slice to pick up, not a defect in this one:
   restoring it would touch the schema, the client, the sweep, the domain module and
   both views, and a cross-call join belongs behind its own review rather than folded
-  into an unrelated fix wave. Until then the catalogue cannot say which club a player
-  plays for.
+  into an unrelated fix wave. **Resolved** — the club affiliation slice picked it up
+  exactly as described, at zero additional API cost. See
+  `docs/superpowers/specs/2026-09-07-tebasfury-club-affiliation-design.md`.
 - `lastSeenAt` is written by every sweep and read by nothing. A player who leaves the
   competition keeps their last snapshot shown as a current value for ever, with no
   visible sign they are gone.
@@ -286,6 +285,9 @@ nature, not by omission — see the note after the list.
 The list is kept rather than deleted because it is the checklist to re-run whenever these
 two views change, and because it records what was verified by eye rather than by test.
 
+Items 18, 19 and 20 were added later by the club affiliation slice and **have not been
+performed** — the 2026-09-07 pass could not have covered a view that did not exist yet.
+
 On `/players`:
 
 1. Do the twelve filter/sort pills push the first player row below the fold, and is that
@@ -296,6 +298,10 @@ On `/players`:
 4. Does the page scroll horizontally anywhere between 320px and 768px?
 5. Does the search feel instant against the full ~836-row catalogue on a real phone?
 6. Does "Showing 60 of X" read naturally once a filter has already narrowed the list?
+18. The meta line at 320px with the longest club name and a non-`ok` status — does
+    anything truncate now that the club has taken the position's place?
+19. A row whose club is unknown sitting next to one whose club is known — do the two
+    read as different kinds of fact rather than as an inconsistency?
 
 On `/players/{id}`:
 
@@ -308,6 +314,7 @@ On `/players/{id}`:
 12. Does the status read identically on the catalogue and the detail view?
 13. The value chart's line axis at 200+ daily ticks — the series has never been seen
     past a handful of days, so tick density at season length is unverified.
+20. Does the header meta line wrap acceptably with four facts instead of three?
 
 Elsewhere:
 
