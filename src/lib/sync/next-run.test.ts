@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   decideNextRun,
   nextRunAfterFailure,
+  nextPlayerSweep,
+  nextPlayerSweepAfterFailure,
   FAILURE_INTERVAL_MS,
   LIVE_INTERVAL_MS,
   MAX_INTERVAL_MS,
@@ -47,5 +49,19 @@ describe("nextRunAfterFailure", () => {
     const next = nextRunAfterFailure(now);
     expect(next.getTime() - now.getTime()).toBe(FAILURE_INTERVAL_MS);
     expect(FAILURE_INTERVAL_MS).toBeLessThan(LIVE_INTERVAL_MS);
+  });
+});
+
+describe("the player sweep cadence", () => {
+  const playerNow = new Date("2026-09-07T04:00:00Z");
+
+  it("comes back a day later", () => {
+    expect(nextPlayerSweep(playerNow).toISOString()).toBe("2026-09-08T04:00:00.000Z");
+  });
+
+  it("comes back sooner after a failure, but not fast enough to hammer", () => {
+    expect(nextPlayerSweepAfterFailure(playerNow).toISOString()).toBe(
+      "2026-09-07T05:00:00.000Z",
+    );
   });
 });
