@@ -1,6 +1,7 @@
 import { desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { syncRuns } from "@/lib/db/schema";
+import { loadLastPlayerSweep } from "@/lib/db/queries";
 import { hasStoredCredential } from "@/lib/fantasy-client/credentials";
 import { requirePermission } from "@/lib/auth/guards";
 import { SyncControls } from "./sync-controls";
@@ -12,9 +13,15 @@ export default async function SyncPage() {
   // Presence, not readability. This is the one screen that can re-bootstrap a
   // credential, so it must not decrypt one: a rotated `CREDENTIALS_KEY` would take
   // down the page that fixes a rotated `CREDENTIALS_KEY`.
-  const [hasCredential, runs] = await Promise.all([
+  //
+  // `lastPlayerSweep` is read here, not derived from `runs`: the standings chain can
+  // log ten rows in under one busy weekend hour (see the doc comment on the query),
+  // so a daily sweep's own row is almost never among the ten most recent runs. It is
+  // the diagnostic `docs/deployment.md` step 8 actually depends on.
+  const [hasCredential, runs, lastPlayerSweep] = await Promise.all([
     hasStoredCredential(db),
     db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(10),
+    loadLastPlayerSweep(db),
   ]);
 
   // The banner stands only while nothing has synced since the credential broke.
@@ -41,7 +48,7 @@ export default async function SyncPage() {
         </p>
       )}
 
-      <SyncControls hasCredential={hasCredential} />
+      <SyncControls hasCredential={hasCredential} lastPlayerSweep={lastPlayerSweep} />
 
       <h2 className="mt-10 text-lg font-semibold">Recent runs</h2>
       {runs.length === 0 ? (

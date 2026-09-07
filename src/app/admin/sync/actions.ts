@@ -94,11 +94,22 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
 
   revalidatePath("/players");
   revalidatePath("/admin/sync");
-  const { playersSynced, squadsSynced, nextRunAt } = outcome.result;
+  const { playersSynced, squadsSynced, squadsSkipped, droppedSquadPlayers, nextRunAt } =
+    outcome.result;
+  // The two counts below are usually both zero and add nothing when they are — they
+  // only appear when there is something an operator would want to see: a squad that
+  // looked implausible and was left alone, or a player id the catalogue did not
+  // recognise.
+  const notes = [
+    squadsSkipped > 0 ? `${squadsSkipped} squad(s) left unchanged (empty response)` : null,
+    droppedSquadPlayers > 0 ? `${droppedSquadPlayers} unknown squad id(s) dropped` : null,
+  ].filter((note): note is string => note !== null);
+
   return {
     ok: true,
     message:
-      `Swept ${playersSynced} players and ${squadsSynced} squads. ` +
-      `Next sweep at ${nextRunAt.toISOString()}.`,
+      `Swept ${playersSynced} players and ${squadsSynced} squads` +
+      (notes.length > 0 ? ` (${notes.join(", ")})` : "") +
+      `. Next sweep at ${nextRunAt.toISOString()}.`,
   };
 }
