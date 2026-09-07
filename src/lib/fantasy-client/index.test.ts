@@ -359,6 +359,31 @@ describe("the squad mapping", () => {
     await getSquad("at", "018012894", "9000019");
     expect(fetchMock.mock.calls[0][0]).toContain("/leagues/018012894/teams/9000019");
   });
+
+  it("returns the clubs named in the squad, deduplicated", async () => {
+    // The committed fixture's 15 entries name 10 distinct clubs — several players
+    // share one. A squad's clubs are a set, not a list parallel to its players.
+    stubFetch(squadFixture, 200);
+    const squad = await getSquad("at", "018012894", "9000019");
+    expect(squad.realTeams).toHaveLength(10);
+    expect(squad.realTeams).toContainEqual({
+      id: "14",
+      name: "Rayo Vallecano",
+      slug: "rayo-vallecano",
+      badgeUrl:
+        "https://assets-fantasy.llt-services.com/teambadge/t184/color/t184_rayo-vallecano.png",
+    });
+  });
+
+  it("learns no club, rather than throwing, when an entry carries no team", async () => {
+    // Every entry in the one capture carries `team`, but one capture is not a
+    // specification. A response that omits it must leave the club unlearned — never
+    // fail the sweep for that team.
+    stubFetch({ id: "9000019", players: [{ playerMaster: { id: "p1" } }] }, 200);
+    const squad = await getSquad("at", "018012894", "9000019");
+    expect(squad.playerIds).toEqual(["p1"]);
+    expect(squad.realTeams).toEqual([]);
+  });
 });
 
 describe("createClient", () => {
