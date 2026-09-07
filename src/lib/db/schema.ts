@@ -10,6 +10,7 @@ import {
   bigint,
   jsonb,
   primaryKey,
+  date,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -195,3 +196,88 @@ export const accountRelations = relations(account, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+/**
+ * The eligible player catalogue.
+ *
+ * `status` holds the API's own string rather than an enum. We have seen one value
+ * (`ok`) and guessing the rest would be inventing a vocabulary; a lookup table can
+ * come later, when the real values are known.
+ *
+ * `lastSeenAt` is how a player who leaves the competition is told apart from one who
+ * is simply not in a squad: the row stays, and its age says so.
+ */
+export const players = pgTable("players", {
+  id: text("id").primaryKey(),
+  nickname: text("nickname").notNull(),
+  position: text("position").notNull(),
+  realTeamId: text("real_team_id").notNull(),
+  status: text("status").notNull(),
+  imageUrl: text("image_url"),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Points for one player in one gameweek — backfilled from `weekPoints` on the first
+ * sweep, extended by every sweep after it.
+ *
+ * `gameweek` deliberately does NOT reference `gameweeks.number`. The two cadences are
+ * independent: a player sweep must not fail because the standings chain has not
+ * recorded a week yet, and the catalogue's own points are truthful without it.
+ */
+export const playerGameweekPoints = pgTable(
+  "player_gameweek_points",
+  {
+    playerId: text("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    gameweek: integer("gameweek").notNull(),
+    points: integer("points").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.playerId, table.gameweek] })],
+);
+
+/**
+ * One market value, on one day.
+ *
+ * The API has no value history — `marketValue` is current state, the same trap as
+ * team value — so the series can only be accumulated forward. `takenOn` is a DATE and
+ * not a timestamp on purpose: one snapshot a day is the resolution the daily cadence
+ * can honestly claim, and the primary key is what makes a second sweep on the same
+ * day correct the day's reading rather than duplicate it.
+ */
+export const playerValueSnapshots = pgTable(
+  "player_value_snapshots",
+  {
+    playerId: text("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    takenOn: date("taken_on", { mode: "string" }).notNull(),
+    value: bigint("value", { mode: "number" }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.playerId, table.takenOn] })],
+);
+
+/**
+ * Who owns whom, right now.
+ *
+ * This is current state, replaced each sweep — NOT an event log. The fair-play slice
+ * will read the activity endpoint for transfers, which catches operations the portal
+ * never observed; diffing these snapshots would not. `firstSeenAt` survives a sweep
+ * that finds the player still there, so it means "in this squad since", and a
+ * transfer resets it by deleting the old row.
+ */
+export const squadMembers = pgTable(
+  "squad_members",
+  {
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    playerId: text("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.teamId, table.playerId] })],
+);
