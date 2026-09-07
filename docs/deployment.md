@@ -97,6 +97,9 @@ DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
 The inline `DATABASE_URL` takes priority over the one in `.env.local`, so the
 migrations land on the database you name here rather than the development one.
 
+Migration `0005` adds the four player tables and is safe to run against a populated
+database: it only creates tables, so nothing already there is touched.
+
 ## 5. Redeploy and verify
 
 The code is already on GitHub, so there is nothing to push. Trigger a new build from
@@ -166,3 +169,20 @@ in the history of scheduled ones.
 
 It is a person, a browser and two minutes. Refreshes are headless from then on, using
 the same client id that issued the token — refreshing with a different one fails.
+
+## 8. Start the daily player sweep
+
+The sweep runs on its own self-scheduling chain, separate from the standings sync, and
+like that one it has no cron behind it: each sweep books the next. Nothing books the
+first, so it has to be started by hand, once, per environment.
+
+On `/admin/sync`, press **Sweep players**. A successful sweep reports how many players
+and squads it read and when the next one is due; from then on the chain runs itself.
+
+If sweeps stop — the run history shows no `players-schedule` row for more than a day —
+press the button again. That is the whole recovery: the chain restarts from it.
+
+The first sweep also backfills every player's points for every gameweek played so far,
+so it does more work than the ones after it. Market value is different: it has no
+history anywhere in LaLiga's API, so the value chart starts on the day of the first
+sweep and fills in one day at a time. There is no way to recover the days before it.

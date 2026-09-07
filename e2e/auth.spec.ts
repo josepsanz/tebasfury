@@ -30,6 +30,11 @@ test("the sync endpoint refuses an unsigned request", async ({ request }) => {
   expect(res.status()).toBe(401);
 });
 
+test("the player sweep endpoint refuses an unsigned request", async ({ request }) => {
+  const res = await request.post("/api/sync/players", { data: { trigger: "players-schedule" } });
+  expect(res.status()).toBe(401);
+});
+
 // The standings and progress views need a session — any league manager's, not a
 // particular permission — exactly like `/admin/sync` needs one plus a permission.
 // This suite never signs in through Google (see the dummy env above), so these

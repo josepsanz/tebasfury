@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { bootstrapCredential, triggerSyncNow, type ActionResult } from "./actions";
+import {
+  bootstrapCredential,
+  triggerPlayerSweepNow,
+  triggerSyncNow,
+  type ActionResult,
+} from "./actions";
 
 export function SyncControls({ hasCredential }: { hasCredential: boolean }) {
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -31,14 +36,25 @@ export function SyncControls({ hasCredential }: { hasCredential: boolean }) {
         </button>
       </form>
 
-      <button
-        type="button"
-        disabled={pending || !hasCredential}
-        onClick={() => startTransition(async () => setResult(await triggerSyncNow()))}
-        className="board-button board-button-primary"
-      >
-        {pending ? "Syncing…" : "Sync now"}
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          disabled={pending || !hasCredential}
+          onClick={() => startTransition(async () => setResult(await triggerSyncNow()))}
+          className="board-button board-button-primary"
+        >
+          {pending ? "Syncing…" : "Sync now"}
+        </button>
+
+        <button
+          type="button"
+          disabled={pending || !hasCredential}
+          onClick={() => startTransition(async () => setResult(await triggerPlayerSweepNow()))}
+          className="board-button"
+        >
+          {pending ? "Working…" : "Sweep players"}
+        </button>
+      </div>
 
       {result && (
         <p

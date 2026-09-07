@@ -7,8 +7,10 @@ import { saveRefreshToken } from "@/lib/fantasy-client/credentials";
 import { CredentialError, createClient } from "@/lib/fantasy-client";
 import { getEnv } from "@/lib/env";
 import { requirePermission } from "@/lib/auth/guards";
-import { scheduleNextRun } from "@/lib/scheduler";
+import { schedulePlayerSweep, scheduleNextRun } from "@/lib/scheduler";
 import { runSync } from "@/lib/sync";
+import { nextPlayerSweepAfterFailure } from "@/lib/sync/next-run";
+import { runPlayerSweep } from "@/lib/sync/players";
 import { failureMessage, runAndSchedule } from "@/lib/sync/scheduled-run";
 import { CREDENTIAL_RECOVERY_MESSAGE } from "./credential-state";
 
@@ -64,5 +66,39 @@ export async function triggerSyncNow(): Promise<ActionResult> {
   return {
     ok: true,
     message: `Synced ${weeksSynced.length} gameweek(s). Next run at ${nextRunAt.toISOString()}.`,
+  };
+}
+
+export async function triggerPlayerSweepNow(): Promise<ActionResult> {
+  await requirePermission({ sync: ["trigger"] });
+
+  const now = new Date();
+  // Through `runAndSchedule` like the endpoint, and for the same reason: the daily
+  // chain has to be started by hand once, and this button is where that happens.
+  const outcome = await runAndSchedule({
+    now,
+    schedule: (at) => schedulePlayerSweep(at, now),
+    nextAfterFailure: nextPlayerSweepAfterFailure,
+    run: async () => {
+      const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
+      return runPlayerSweep({ db, client, now, runId: randomUUID(), trigger: "players-manual" });
+    },
+  });
+
+  if (outcome.status === "failed") {
+    if (outcome.error instanceof CredentialError) {
+      return { ok: false, message: CREDENTIAL_RECOVERY_MESSAGE };
+    }
+    return { ok: false, message: failureMessage(outcome.error) };
+  }
+
+  revalidatePath("/players");
+  revalidatePath("/admin/sync");
+  const { playersSynced, squadsSynced, nextRunAt } = outcome.result;
+  return {
+    ok: true,
+    message:
+      `Swept ${playersSynced} players and ${squadsSynced} squads. ` +
+      `Next sweep at ${nextRunAt.toISOString()}.`,
   };
 }

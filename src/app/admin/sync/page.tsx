@@ -30,7 +30,8 @@ export default async function SyncPage() {
       <h1 className="text-xl font-semibold">Sync</h1>
       <p className="mt-2" style={{ color: "var(--board-ink-dim)" }}>
         {hasCredential
-          ? "A LaLiga credential is stored. Syncs run on their own; trigger one here to check."
+          ? "A LaLiga credential is stored. Standings sync every few minutes while a " +
+            "round is live; players are swept once a day. Trigger either here to check."
           : "No LaLiga credential is stored yet, so nothing can sync. Paste a bootstrap refresh token below."}
       </p>
 
