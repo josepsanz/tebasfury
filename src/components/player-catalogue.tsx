@@ -6,11 +6,33 @@ import {
   filterCatalogue,
   formatMoney,
   sortCatalogue,
+  type CatalogueFilter,
   type CatalogueRow,
   type SortKey,
 } from "@/lib/domain/players";
 
 const PAGE = 60;
+
+/**
+ * Search, filter and sort, then take the current page off the front.
+ *
+ * Pulled out of the component as a plain function — rather than left as an inline
+ * `useMemo` — because the one thing a `renderToStaticMarkup` test cannot drive is the
+ * component's own filter state (there is no DOM library here to simulate a click or a
+ * keystroke). Calling this directly with a filter that actually narrows the input is
+ * how "the count line reflects the FILTERED length, not the raw rows count" gets
+ * proven at all: `total` here can never equal `rows.length` by accident, because a
+ * narrowing filter is passed in explicitly rather than reached by user interaction.
+ */
+export function paginateCatalogue(
+  rows: CatalogueRow[],
+  filter: CatalogueFilter,
+  sort: SortKey,
+  shown: number,
+): { page: CatalogueRow[]; total: number } {
+  const visible = sortCatalogue(filterCatalogue(rows, filter), sort);
+  return { page: visible.slice(0, shown), total: visible.length };
+}
 
 const POSITIONS = ["Goalkeeper", "Defender", "Midfielder", "Forward", "Coach"];
 
@@ -89,9 +111,9 @@ export function PlayerCatalogue({
   const [sort, setSort] = useState<SortKey>("value");
   const [shown, setShown] = useState(PAGE);
 
-  const visible = useMemo(
-    () => sortCatalogue(filterCatalogue(rows, { query, position, ownership }), sort),
-    [rows, query, position, ownership, sort],
+  const { page, total } = useMemo(
+    () => paginateCatalogue(rows, { query, position, ownership }, sort, shown),
+    [rows, query, position, ownership, sort, shown],
   );
 
   if (rows.length === 0) {
@@ -153,7 +175,7 @@ export function PlayerCatalogue({
       </div>
 
       <ol className="mt-5">
-        {visible.slice(0, shown).map((row) => (
+        {page.map((row) => (
           <li key={row.id} style={{ borderColor: "var(--board-line)" }} className="border-b">
             <Link
               href={`/players/${row.id}`}
@@ -188,19 +210,19 @@ export function PlayerCatalogue({
         ))}
       </ol>
 
-      {visible.length === 0 && (
+      {total === 0 && (
         <p className="mt-6" style={{ color: "var(--board-ink-dim)" }}>
           No player matches that. Clear a filter to widen it.
         </p>
       )}
 
-      {visible.length > shown && (
+      {total > shown && (
         <div className="mt-5 flex items-center gap-4">
           <button type="button" onClick={() => setShown(shown + PAGE)} className="board-button">
             Show {PAGE} more
           </button>
           <span className="text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-            Showing {shown} of {visible.length}
+            Showing {shown} of {total}
           </span>
         </div>
       )}
