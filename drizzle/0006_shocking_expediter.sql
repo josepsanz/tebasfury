@@ -1,0 +1,1 @@
+CREATE INDEX "player_value_snapshots_player_id_taken_on_desc_idx" ON "player_value_snapshots" USING btree ("player_id","taken_on" DESC NULLS LAST);

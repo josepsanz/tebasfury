@@ -43,6 +43,13 @@
       "when": 1788755426520,
       "tag": "0005_slim_black_crow",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788773635904,
+      "tag": "0006_shocking_expediter",
+      "breakpoints": true
     }
   ]
 }

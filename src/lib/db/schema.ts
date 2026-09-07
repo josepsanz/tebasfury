@@ -257,7 +257,18 @@ export const playerValueSnapshots = pgTable(
     takenOn: date("taken_on", { mode: "string" }).notNull(),
     value: bigint("value", { mode: "number" }).notNull(),
   },
-  (table) => [primaryKey({ columns: [table.playerId, table.takenOn] })],
+  (table) => [
+    primaryKey({ columns: [table.playerId, table.takenOn] }),
+    // The catalogue's `DISTINCT ON (player_id) … ORDER BY player_id ASC, taken_on
+    // DESC` cannot be satisfied by the primary key above, which is ascending on both
+    // columns — a mixed-direction ORDER BY needs its own index, or every `/players`
+    // load plans a full scan plus a sort of the whole table. Snapshots accrue per
+    // player per DAY, not per gameweek, so this table is ~225,000 rows by May.
+    index("player_value_snapshots_player_id_taken_on_desc_idx").on(
+      table.playerId,
+      table.takenOn.desc(),
+    ),
+  ],
 );
 
 /**
