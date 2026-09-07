@@ -382,6 +382,24 @@ Written before implementation, because they follow from decisions already made:
   of use can answer. If it turns out to rank thin-sample cheap players all year, the floor
   is the dial to turn, and it has a name.
 
+Two more, found by the whole-branch review after implementation rather than argued in
+advance, and deliberately not fixed in this slice:
+
+- **The catalogue's opening state is seeded once and never re-seeded.** `initialSort` and
+  `initialOwnership` become `useState` values, so a client-side navigation between two
+  catalogue URLs would keep the component mounted and silently ignore the new state. It
+  is unreachable today — the only two such links live on `/`, and typing an address is a
+  full document load — and it is arguably Ruling 8 working exactly as written. It becomes
+  a real trap the moment a link between two catalogue views appears *inside* `/players`,
+  which is precisely what the club filter would add. One `key` on the component is the
+  insurance when that day comes.
+- **Three hand-written lists shadow two small unions.** `SORT_KEYS` and `SORTS` each spell
+  out `SortKey`, and `OWNERSHIP` spells out `CatalogueFilter["ownership"]`, with no
+  exhaustiveness check over any of them. A sixth sort key compiles while being silently
+  unreachable by URL and invisible as a pill. `as const satisfies readonly SortKey[]`, or a
+  `Record<SortKey, …>` keyed lookup, would make the omission a type error. The next slice
+  to add a sort — rising-in-value is the expected one — is when this bites.
+
 ## The visual checks — not yet performed
 
 On `/`:
