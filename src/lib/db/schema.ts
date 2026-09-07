@@ -293,3 +293,30 @@ export const squadMembers = pgTable(
   },
   (table) => [primaryKey({ columns: [table.teamId, table.playerId] })],
 );
+
+/**
+ * A LaLiga club, learned from `playerMaster.team` on the squad response the sweep
+ * already fetches for ownership. Costs no extra API call.
+ *
+ * Accumulated, never seeded. A club nobody in this league owns a player from simply
+ * has no row, and the views say so by omission rather than by guessing — the same
+ * refusal to invent that keeps `gameweeks.opensAt` null for a backfilled week.
+ *
+ * Deliberately NOT the target of a foreign key from `players.real_team_id`. Inside
+ * `runPlayerSweep` the catalogue is written before a single squad is read, so on the
+ * first sweep all ~836 players are written at a moment when no club is known at all.
+ * A foreign key would fail the whole sweep, and every retry after it, for ever — the
+ * same trap `squad_members.player_id` documents from the other side.
+ *
+ * `slug` and `badgeUrl` are stored and rendered by nothing: they arrive in a response
+ * already being parsed, so keeping them costs two columns, while recovering them
+ * later would cost a migration and a full sweep.
+ */
+export const realTeams = pgTable("real_teams", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  badgeUrl: text("badge_url"),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -10,6 +10,7 @@ import {
   playerGameweekPoints,
   playerValueSnapshots,
   squadMembers,
+  realTeams,
 } from "./schema";
 
 describe("the standings schema", () => {
@@ -153,5 +154,44 @@ describe("the players schema", () => {
     const [row] = await h.db.select().from(squadMembers);
     expect(row).toMatchObject({ teamId: "t1", playerId: "p1" });
     expect(row.firstSeenAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("the club table", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("stores a club keyed by the id the API gives it, with the badge nullable", async () => {
+    await h.db.insert(realTeams).values({
+      id: "21",
+      name: "Deportivo Alavés",
+      slug: "deportivo-alaves",
+      badgeUrl: null,
+    });
+    const [row] = await h.db.select().from(realTeams);
+    expect(row).toMatchObject({ id: "21", name: "Deportivo Alavés", badgeUrl: null });
+    expect(row.firstSeenAt).toBeInstanceOf(Date);
+    expect(row.lastSeenAt).toBeInstanceOf(Date);
+  });
+
+  it("does not constrain players to a known club", async () => {
+    // Ruling 2: inside a sweep the catalogue is written BEFORE any squad is read, so
+    // on the first sweep every player is written when no club is known at all. A
+    // foreign key here would fail the sweep and every retry after it, for ever.
+    await h.db.insert(players).values({
+      id: "p1",
+      nickname: "Nobody's Club",
+      position: "Midfielder",
+      realTeamId: "not-a-club-we-have-seen",
+      status: "ok",
+      imageUrl: null,
+    });
+    const [row] = await h.db.select().from(players).where(eq(players.id, "p1"));
+    expect(row.realTeamId).toBe("not-a-club-we-have-seen");
   });
 });
