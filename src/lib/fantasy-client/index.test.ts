@@ -8,11 +8,15 @@ import {
   createClient,
   getAccessToken,
   getCurrentWeek,
+  getPlayers,
+  getSquad,
   getStanding,
 } from "./index";
 import live from "./__fixtures__/standing-live.json";
 import settled from "./__fixtures__/standing-settled.json";
 import weekFixture from "./__fixtures__/week-current.json";
+import playersFixture from "./__fixtures__/players.json";
+import squadFixture from "./__fixtures__/squad.json";
 
 // `getEnv()` validates the whole application configuration as a single
 // object, so exercising CREDENTIALS_KEY here still requires stubbing the
@@ -203,6 +207,157 @@ describe("the standing mapping", () => {
     stubFetch(live, 200);
     const { raw } = await getStanding("at", "018012894");
     expect(raw).toEqual(live);
+  });
+});
+
+/**
+ * The catalogue as it arrives: quoted numbers, and a `weekPoints` array whose entries
+ * name their own gameweek. The fixture's JSON type is a union of the entries that do
+ * and do not carry `lastSeasonPoints`, which is awkward to read through; this names
+ * the fields the assertions below actually use.
+ */
+type CapturedPlayer = {
+  id: string;
+  nickname: string;
+  positionId: string;
+  playerStatus: string;
+  marketValue: string;
+  points: number;
+  weekPoints: { weekNumber: number; points: number }[];
+  image: string;
+  teamId: string;
+};
+const captured = playersFixture as CapturedPlayer[];
+
+/**
+ * The catalogue's own shape is what these pin. Its `weekPoints` arrays are sparse and
+ * unordered — in the capture two clubs had played their gameweek-6 fixture and not
+ * their fourth, gameweek 5 appears nowhere, and 179 of the 836 players' arrays are
+ * not in ascending order — so the gameweek an entry names is the only safe way to
+ * read it, and that is what the mapping produces.
+ */
+describe("the players mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("maps every captured player into a domain row", async () => {
+    stubFetch(playersFixture, 200);
+    const rows = await getPlayers("at");
+    expect(rows).toHaveLength(captured.length);
+    expect(rows.every((r) => typeof r.id === "string" && r.id.length > 0)).toBe(true);
+    expect(rows.every((r) => typeof r.nickname === "string")).toBe(true);
+  });
+
+  it("hands on numbers where the catalogue quoted them", async () => {
+    // `marketValue` arrives as "46122750". A string would reach a numeric column and
+    // sort as text, which puts 9,298,946 above 46,122,750.
+    stubFetch(playersFixture, 200);
+    const rows = await getPlayers("at");
+    expect(rows.map((r) => r.marketValue)).toEqual(captured.map((p) => Number(p.marketValue)));
+    expect(rows.map((r) => r.realTeamId)).toEqual(captured.map((p) => p.teamId));
+  });
+
+  it("names the position rather than handing on the API's id", async () => {
+    // A number is not something a catalogue can print. The map lives in the client
+    // because deciding what a field MEANS is this directory's whole job. An id the
+    // map does not know falls through as a digit, and this is what catches it.
+    stubFetch(playersFixture, 200);
+    const rows = await getPlayers("at");
+    expect(rows.every((r) => /^[A-Za-z]/.test(r.position))).toBe(true);
+  });
+
+  it("keeps the API's own word for availability", async () => {
+    stubFetch(playersFixture, 200);
+    const rows = await getPlayers("at");
+    const statuses = new Set(captured.map((p) => p.playerStatus));
+    expect(new Set(rows.map((r) => r.status))).toEqual(statuses);
+  });
+
+  it("files each score under the gameweek the API named, not under its place in the array", async () => {
+    // Remiro's four scores arrive as gameweeks 2, 1, 3 and 6: his club had played its
+    // sixth fixture and not its fourth. Read by index, his 10-point gameweek 6 would
+    // be filed as gameweek 4 — which is the season's history quietly falsified.
+    stubFetch(playersFixture, 200);
+    const rows = await getPlayers("at");
+
+    expect(captured.find((p) => p.id === "274")?.weekPoints.map((w) => w.weekNumber)).toEqual(
+      [2, 1, 3, 6],
+    );
+    expect(rows.find((r) => r.id === "274")?.weekPoints).toEqual([
+      { week: 1, points: 4 },
+      { week: 2, points: 8 },
+      { week: 3, points: 4 },
+      { week: 6, points: 10 },
+    ]);
+  });
+
+  it("orders every player's gameweeks ascending, however they arrived", async () => {
+    // Not cosmetic: a caller charting the array in the order it arrived would draw a
+    // season that jumps backwards for 179 of the 836 players in the capture.
+    stubFetch(playersFixture, 200);
+    const rows = await getPlayers("at");
+    for (const [i, row] of rows.entries()) {
+      expect(row.weekPoints.map((w) => w.week)).toEqual(
+        captured[i].weekPoints.map((w) => w.weekNumber).sort((a, b) => a - b),
+      );
+    }
+  });
+
+  it("loses no score on the way through, and they still sum to the season total", async () => {
+    // The sum identity holds for all 836 players in the capture. It is the evidence
+    // that `weekPoints` is the whole of a player's season, so a shape change breaks a
+    // test rather than a season's history.
+    stubFetch(playersFixture, 200);
+    const rows = await getPlayers("at");
+    for (const [i, row] of rows.entries()) {
+      expect(row.weekPoints).toHaveLength(captured[i].weekPoints.length);
+      expect(row.weekPoints.reduce((s, w) => s + w.points, 0)).toBe(captured[i].points);
+    }
+  });
+
+  it("asks the competition's catalogue endpoint", async () => {
+    const fetchMock = stubFetch(playersFixture, 200);
+    await getPlayers("at");
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/competition\/1\/players$/);
+  });
+
+  it("throws when the response no longer matches the schema", async () => {
+    stubFetch([{ unexpected: true }], 200);
+    await expect(getPlayers("at")).rejects.toThrowError();
+  });
+
+  it("throws rather than guess when a score loses the gameweek it belongs to", async () => {
+    // The shape the brief assumed: a bare array of numbers. If the API ever sends it,
+    // there is no honest way to know which gameweek each number is, so it fails here.
+    const withoutLabels = captured.map((p) => ({
+      ...p,
+      weekPoints: p.weekPoints.map((w) => w.points),
+    }));
+    stubFetch(withoutLabels, 200);
+    await expect(getPlayers("at")).rejects.toThrowError();
+  });
+});
+
+describe("the squad mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("returns one player id per squad entry, dropping none", async () => {
+    // Dropping an entry would quietly shrink a squad and make an owned player look
+    // free, so the count is asserted rather than the ids alone.
+    stubFetch(squadFixture, 200);
+    const squad = await getSquad("at", "018012894", "9000019");
+    expect(squad.playerIds).toHaveLength(squadFixture.players.length);
+    expect(squad.playerIds.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
+    expect(squad.teamId).toBe("9000019");
+  });
+
+  it("asks for the team inside the league", async () => {
+    const fetchMock = stubFetch(squadFixture, 200);
+    await getSquad("at", "018012894", "9000019");
+    expect(fetchMock.mock.calls[0][0]).toContain("/leagues/018012894/teams/9000019");
   });
 });
 

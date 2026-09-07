@@ -17,6 +17,16 @@ import settledFixture from "@/lib/fantasy-client/__fixtures__/standing-settled.j
 import weekFixture from "@/lib/fantasy-client/__fixtures__/week-current.json";
 import { runSync } from "./index";
 
+/**
+ * The standings sync never reaches for the catalogue or for a squad. They are stubbed
+ * once, here, because both cadences share one client: the type carries all four calls
+ * even where a test exercises only two.
+ */
+const unusedPlayerCalls = {
+  getPlayers: async () => [],
+  getSquad: async (teamId: string) => ({ teamId, playerIds: [] }),
+};
+
 const row = (
   teamId: string,
   managerName: string,
@@ -56,6 +66,7 @@ function fakeClient(
       const rows = byWeek[w === undefined ? "live" : String(w)] ?? [];
       return { rows, raw: rows };
     },
+    ...unusedPlayerCalls,
   };
 }
 
@@ -165,6 +176,7 @@ describe("runSync", () => {
     const broken: FantasyClient = {
       getCurrentWeek: async () => { throw new Error("upstream is down"); },
       getStanding: async () => ({ rows: [], raw: [] }),
+      ...unusedPlayerCalls,
     };
     await expect(
       runSync({ db: h.db, client: broken, now, runId: "r2", trigger: "schedule" }),
@@ -180,6 +192,7 @@ describe("runSync", () => {
     const broken: FantasyClient = {
       getCurrentWeek: async () => { throw new CredentialError("the credential is unreadable"); },
       getStanding: async () => ({ rows: [], raw: [] }),
+      ...unusedPlayerCalls,
     };
     await expect(
       runSync({ db: h.db, client: broken, now, runId: "r1", trigger: "schedule" }),
@@ -314,6 +327,7 @@ describe("runSync against the committed fixtures", () => {
     return {
       getCurrentWeek: () => getCurrentWeek("token"),
       getStanding: (week) => getStanding("token", "018012894", week),
+      ...unusedPlayerCalls,
     };
   }
 
