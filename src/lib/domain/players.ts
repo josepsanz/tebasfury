@@ -157,3 +157,23 @@ export function formatMoney(value: number): string {
   if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   return `${Math.round(value / 1000)}K`;
 }
+
+/**
+ * Task 1 established the five real `status` values. Translating them to proper
+ * English is naming a known vocabulary, not inventing one; any value not in this map
+ * (there is none today) falls back to the raw string rather than vanishing.
+ * `ok` is deliberately absent — availability is only worth surfacing as a problem —
+ * and returns `null` so callers render nothing. Shared by both the catalogue and the
+ * player page, so it lives here rather than in either component.
+ */
+const STATUS_LABELS: Record<string, string> = {
+  out_of_league: "Out of the league",
+  injured: "Injured",
+  doubtful: "Doubtful",
+  suspended: "Suspended",
+};
+
+export function statusLabel(status: string): string | null {
+  if (status === "ok") return null;
+  return STATUS_LABELS[status] ?? status;
+}

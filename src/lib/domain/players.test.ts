@@ -6,6 +6,7 @@ import {
   pointsPerMillion,
   pointsSeries,
   sortCatalogue,
+  statusLabel,
   valueSeries,
   type CatalogueRow,
   type PlayerRecord,
@@ -197,5 +198,25 @@ describe("formatMoney", () => {
 
   it("reads in thousands below one", () => {
     expect(formatMoney(840_000)).toBe("840K");
+  });
+});
+
+describe("statusLabel", () => {
+  it("renders nothing for a player who is simply available", () => {
+    expect(statusLabel("ok")).toBeNull();
+  });
+
+  it("translates the known machine values to proper English", () => {
+    expect(statusLabel("out_of_league")).toBe("Out of the league");
+    expect(statusLabel("injured")).toBe("Injured");
+    expect(statusLabel("doubtful")).toBe("Doubtful");
+    expect(statusLabel("suspended")).toBe("Suspended");
+  });
+
+  it("falls back to the raw status for a value outside the known five", () => {
+    // Task 1 named five real status values, and this project translates every one of
+    // them to proper English. A sixth value that shows up later must still be visible
+    // rather than silently vanish.
+    expect(statusLabel("benched")).toBe("benched");
   });
 });

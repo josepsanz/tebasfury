@@ -6,6 +6,7 @@ import {
   filterCatalogue,
   formatMoney,
   sortCatalogue,
+  statusLabel,
   type CatalogueFilter,
   type CatalogueRow,
   type SortKey,
@@ -48,19 +49,6 @@ const OWNERSHIP: { key: "all" | "owned" | "free"; label: string }[] = [
   { key: "owned", label: "Owned" },
   { key: "free", label: "Free" },
 ];
-
-/**
- * Task 1 established the five real `status` values. Translating them to proper
- * English is naming a known vocabulary, not inventing one; any value not in this map
- * (there is none today) falls back to the raw string rather than vanishing.
- * `ok` is deliberately absent — availability is only worth surfacing as a problem.
- */
-const STATUS_LABELS: Record<string, string> = {
-  out_of_league: "Out of the league",
-  injured: "Injured",
-  doubtful: "Doubtful",
-  suspended: "Suspended",
-};
 
 /** The pill treatment the progress view already uses for pinning managers. */
 function Pill({
@@ -185,10 +173,10 @@ export function PlayerCatalogue({
                 <span className="block truncate text-[14.5px]">{row.nickname}</span>
                 <span className="block truncate text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
                   {row.position} · <Owner row={row} ownershipKnown={ownershipKnown} />
-                  {row.status === "ok" ? null : (
+                  {statusLabel(row.status) === null ? null : (
                     <span style={{ color: "var(--board-alert)" }}>
                       {" "}
-                      · {STATUS_LABELS[row.status] ?? row.status}
+                      · {statusLabel(row.status)}
                     </span>
                   )}
                 </span>

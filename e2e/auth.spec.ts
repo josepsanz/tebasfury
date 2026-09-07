@@ -69,3 +69,10 @@ test("the players link is hidden without a session", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Players" })).toHaveCount(0);
 });
+
+test("a player page redirects anyone who has not signed in", async ({ page }) => {
+  // The guard has to run before the lookup, or an anonymous visitor learns which ids
+  // exist from the difference between a redirect and a 404.
+  await page.goto("/players/9999");
+  await expect(page).toHaveURL(/\/login$/);
+});
