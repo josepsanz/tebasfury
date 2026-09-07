@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCatalogue,
+  clubOrPosition,
   filterCatalogue,
   formatMoney,
   ownerDisplay,
@@ -28,7 +29,7 @@ describe("buildCatalogue", () => {
     players: [
       record("p1", { nickname: "Ada" }),
       record("p2", { nickname: "Bruno", position: "Forward" }),
-      record("p3", { nickname: "Cleo", position: "Goalkeeper" }),
+      record("p3", { nickname: "Cleo", position: "Goalkeeper", realTeamId: "rt9" }),
     ],
     totals: [
       { playerId: "p1", seasonPoints: 40, gameweeksRecorded: 4 },
@@ -39,6 +40,7 @@ describe("buildCatalogue", () => {
       { playerId: "p2", value: 4_000_000, takenOn: "2026-09-07" },
     ],
     ownership: [{ playerId: "p1", teamId: "t1", managerName: "Manager A" }],
+    clubs: [{ id: "rt1", name: "FC Barcelona" }],
   };
 
   it("joins value, points and ownership onto every player", () => {
@@ -84,11 +86,13 @@ describe("filterCatalogue", () => {
       id: "p1", nickname: "Ada", position: "Midfielder",
       status: "ok", currentValue: 12_000_000, seasonPoints: 40, averagePoints: 10,
       gameweeksRecorded: 4, ownerTeamId: "t1", ownerName: "Manager A",
+      clubName: null,
     },
     {
       id: "p2", nickname: "Bruno", position: "Forward",
       status: "ok", currentValue: 4_000_000, seasonPoints: 9, averagePoints: 3,
       gameweeksRecorded: 3, ownerTeamId: null, ownerName: null,
+      clubName: null,
     },
   ];
 
@@ -110,22 +114,76 @@ describe("filterCatalogue", () => {
   });
 });
 
+describe("club names on the catalogue", () => {
+  const row = (over: Partial<CatalogueRow> = {}): CatalogueRow => ({
+    id: "p1",
+    nickname: "Ada",
+    position: "Midfielder",
+    status: "ok",
+    currentValue: 1_000_000,
+    seasonPoints: 10,
+    averagePoints: 5,
+    gameweeksRecorded: 2,
+    ownerTeamId: null,
+    ownerName: null,
+    clubName: "FC Barcelona",
+    ...over,
+  });
+
+  it("fills the club name from the club map and leaves it null when unmapped", () => {
+    const rows = buildCatalogue({
+      players: [
+        { id: "p1", nickname: "Ada", position: "Midfielder", realTeamId: "rt1", status: "ok", imageUrl: null },
+        { id: "p2", nickname: "Bo", position: "Forward", realTeamId: "rt9", status: "ok", imageUrl: null },
+      ],
+      totals: [],
+      values: [],
+      ownership: [],
+      clubs: [{ id: "rt1", name: "FC Barcelona" }],
+    });
+    expect(rows[0].clubName).toBe("FC Barcelona");
+    expect(rows[1].clubName).toBeNull();
+  });
+
+  it("searches the club name as well as the nickname", () => {
+    const rows = [row({ id: "p1", nickname: "Ada", clubName: "Real Betis" }), row({ id: "p2", nickname: "Bo" })];
+    const found = filterCatalogue(rows, { query: "betis", position: null, ownership: "all" });
+    expect(found.map((r) => r.id)).toEqual(["p1"]);
+  });
+
+  it("does not match a club query against a player whose club is unknown", () => {
+    const rows = [row({ clubName: null })];
+    expect(filterCatalogue(rows, { query: "barcelona", position: null, ownership: "all" })).toEqual([]);
+  });
+
+  it("leads the meta line with the club, and with the position when there is none", () => {
+    // Rulings 4 and 5. A plain function rather than inline JSX because
+    // renderToStaticMarkup cannot drive component state — this is the only way the
+    // rule is provable at all.
+    expect(clubOrPosition({ clubName: "Real Betis", position: "Forward" })).toBe("Real Betis");
+    expect(clubOrPosition({ clubName: null, position: "Forward" })).toBe("Forward");
+  });
+});
+
 describe("sortCatalogue", () => {
   const rows: CatalogueRow[] = [
     {
       id: "p1", nickname: "Zoe", position: "Midfielder", status: "ok",
       currentValue: 1_000_000, seasonPoints: 40, averagePoints: 10, gameweeksRecorded: 4,
       ownerTeamId: null, ownerName: null,
+      clubName: null,
     },
     {
       id: "p2", nickname: "Ada", position: "Forward", status: "ok",
       currentValue: 9_000_000, seasonPoints: 9, averagePoints: 3, gameweeksRecorded: 3,
       ownerTeamId: null, ownerName: null,
+      clubName: null,
     },
     {
       id: "p3", nickname: "Bruno", position: "Forward", status: "ok",
       currentValue: null, seasonPoints: 0, averagePoints: null, gameweeksRecorded: 0,
       ownerTeamId: null, ownerName: null,
+      clubName: null,
     },
   ];
 
@@ -156,11 +214,13 @@ describe("sortCatalogue", () => {
       id: "p4", nickname: "Kiri", position: "Forward", status: "ok",
       currentValue: 1_000_000, seasonPoints: 12, averagePoints: 12, gameweeksRecorded: 1,
       ownerTeamId: null, ownerName: null,
+      clubName: null,
     };
     const steady: CatalogueRow = {
       id: "p5", nickname: "Léo", position: "Forward", status: "ok",
       currentValue: 1_000_000, seasonPoints: 30, averagePoints: 10, gameweeksRecorded: 3,
       ownerTeamId: null, ownerName: null,
+      clubName: null,
     };
     expect(sortCatalogue([oneGame, steady], "average").map((r) => r.id)).toEqual(["p5", "p4"]);
   });

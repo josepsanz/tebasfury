@@ -50,6 +50,13 @@
       "when": 1788773635904,
       "tag": "0006_shocking_expediter",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788795202575,
+      "tag": "0007_simple_ser_duncan",
+      "breakpoints": true
     }
   ]
 }

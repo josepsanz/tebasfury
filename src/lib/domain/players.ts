@@ -12,6 +12,10 @@ export type PlayerTotals = { playerId: string; seasonPoints: number; gameweeksRe
 
 export type CurrentValue = { playerId: string; value: number; takenOn: string };
 export type Ownership = { playerId: string; teamId: string; managerName: string };
+
+/** A club, as the catalogue needs it. Slug and badge stay in the database — Ruling 3. */
+export type RealTeamRecord = { id: string; name: string };
+
 export type ValuePoint = { takenOn: string; value: number };
 export type GameweekPoints = { gameweek: number; points: number };
 
@@ -29,6 +33,8 @@ export type CatalogueRow = {
   gameweeksRecorded: number;
   ownerTeamId: string | null;
   ownerName: string | null;
+  /** Null when no squad response has yet named this player's club. See Ruling 1. */
+  clubName: string | null;
 };
 
 /**
@@ -43,10 +49,12 @@ export function buildCatalogue(input: {
   totals: PlayerTotals[];
   values: CurrentValue[];
   ownership: Ownership[];
+  clubs: RealTeamRecord[];
 }): CatalogueRow[] {
   const totals = new Map(input.totals.map((t) => [t.playerId, t]));
   const values = new Map(input.values.map((v) => [v.playerId, v]));
   const owners = new Map(input.ownership.map((o) => [o.playerId, o]));
+  const clubs = new Map(input.clubs.map((c) => [c.id, c.name]));
 
   return input.players.map((player) => {
     const total = totals.get(player.id);
@@ -65,6 +73,7 @@ export function buildCatalogue(input: {
       gameweeksRecorded: total?.gameweeksRecorded ?? 0,
       ownerTeamId: owner?.teamId ?? null,
       ownerName: owner?.managerName ?? null,
+      clubName: clubs.get(player.realTeamId) ?? null,
     };
   });
 }
@@ -76,18 +85,40 @@ export type CatalogueFilter = {
 };
 
 /**
- * Name only, case-insensitively. The API carries no club name to search against — see
- * Ruling 1 in this slice's spec — so the haystack is the nickname alone.
+ * Name and club, case-insensitively. The club name does not come from this endpoint —
+ * it is joined in from the squad responses the sweep already fetches — so a player
+ * whose club has never been observed is findable by name only.
  */
 export function filterCatalogue(rows: CatalogueRow[], filter: CatalogueFilter): CatalogueRow[] {
   const query = filter.query.trim().toLowerCase();
   return rows.filter((row) => {
-    if (query !== "" && !row.nickname.toLowerCase().includes(query)) return false;
+    if (query !== "") {
+      const haystack = row.clubName === null ? row.nickname : `${row.nickname} ${row.clubName}`;
+      if (!haystack.toLowerCase().includes(query)) return false;
+    }
     if (filter.position !== null && row.position !== filter.position) return false;
     if (filter.ownership === "owned" && row.ownerTeamId === null) return false;
     if (filter.ownership === "free" && row.ownerTeamId !== null) return false;
     return true;
   });
+}
+
+/**
+ * What a catalogue row's meta line leads with: the club when it is known, the position
+ * when it is not.
+ *
+ * Ruling 4 gave the club the position's place because position is the only one of that
+ * line's four facts reachable another way — the filter pills select it and the player's
+ * own page prints it — while the owner and the availability status have no second
+ * route. Ruling 5 hands the slot back when there is no club to show, so no row is ever
+ * left opening on the owner, and the catalogue behaves exactly as it did before on the
+ * day this deploys, improving on its own as sweeps observe clubs.
+ *
+ * The two categories are visually unmistakable, so a reader is never misled about
+ * which one a given row is showing.
+ */
+export function clubOrPosition(row: Pick<CatalogueRow, "clubName" | "position">): string {
+  return row.clubName ?? row.position;
 }
 
 export type SortKey = "value" | "points" | "average" | "name";

@@ -5,12 +5,13 @@ import {
   playerGameweekPoints,
   playerValueSnapshots,
   players,
+  realTeams,
   squadMembers,
   syncRuns,
   teams,
 } from "@/lib/db/schema";
 import { CREDENTIAL_ERROR_NAME, CredentialError } from "@/lib/fantasy-client";
-import type { PlayerRow, SquadRow } from "@/lib/fantasy-client";
+import type { PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
 import { MINIMUM_CATALOGUE, runPlayerSweep, utcDate, type PlayerClient } from "./players";
 
 const player = (id: string, over: Partial<PlayerRow> = {}): PlayerRow => ({
@@ -33,12 +34,24 @@ function catalogue(count: number, over: (i: number) => Partial<PlayerRow> = () =
   return Array.from({ length: count }, (_, i) => player(`p${i}`, over(i)));
 }
 
-function fakeClient(rows: PlayerRow[], squads: Record<string, string[]> = {}): PlayerClient {
+const club = (id: string, name: string): RealTeamRow => ({
+  id,
+  name,
+  slug: name.toLowerCase().replaceAll(" ", "-"),
+  badgeUrl: null,
+});
+
+function fakeClient(
+  rows: PlayerRow[],
+  squads: Record<string, string[]> = {},
+  clubs: Record<string, RealTeamRow[]> = {},
+): PlayerClient {
   return {
     getPlayers: async () => rows,
     getSquad: async (teamId: string): Promise<SquadRow> => ({
       teamId,
       playerIds: squads[teamId] ?? [],
+      realTeams: clubs[teamId] ?? [],
     }),
   };
 }
@@ -58,6 +71,7 @@ describe("runPlayerSweep", () => {
     await h.db.delete(squadMembers);
     await h.db.delete(playerValueSnapshots);
     await h.db.delete(playerGameweekPoints);
+    await h.db.delete(realTeams);
     await h.db.delete(players);
     await h.db.delete(teams);
     await h.db.delete(syncRuns);
@@ -373,7 +387,7 @@ describe("runPlayerSweep", () => {
       getPlayers: async () => {
         throw new CredentialError("nope");
       },
-      getSquad: async (teamId) => ({ teamId, playerIds: [] }),
+      getSquad: async (teamId) => ({ teamId, playerIds: [], realTeams: [] }),
     };
     await expect(
       runPlayerSweep({
@@ -409,6 +423,110 @@ describe("runPlayerSweep", () => {
     expect(second.nickname).toBe("Renamed");
     expect(second.firstSeenAt).toEqual(first.firstSeenAt);
     expect(second.lastSeenAt.getTime()).toBeGreaterThan(first.lastSeenAt.getTime());
+  });
+
+  it("writes one club row when two squads name the same club", async () => {
+    await h.db.insert(teams).values([
+      { id: "t1", managerId: 1, managerName: "A" },
+      { id: "t2", managerId: 2, managerName: "B" },
+    ]);
+
+    const result = await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(
+        catalogue(MINIMUM_CATALOGUE),
+        { t1: ["p0"], t2: ["p1"] },
+        { t1: [club("4", "FC Barcelona")], t2: [club("4", "FC Barcelona"), club("5", "Real Betis")] },
+      ),
+      now,
+      runId: "s1",
+      trigger: "players-manual",
+    });
+
+    const rows = await h.db.select().from(realTeams);
+    expect(rows).toHaveLength(2);
+    expect(result.realTeamsKnown).toBe(2);
+  });
+
+  it("refreshes a renamed club and keeps first_seen_at", async () => {
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "A" });
+    const first = fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"] }, { t1: [club("4", "Barcelona")] });
+    await runPlayerSweep({ db: h.db, client: first, now, runId: "s1", trigger: "players-manual" });
+    const [before] = await h.db.select().from(realTeams);
+
+    const second = fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"] }, { t1: [club("4", "FC Barcelona")] });
+    await runPlayerSweep({ db: h.db, client: second, now: tomorrow, runId: "s2", trigger: "players-manual" });
+    const [after] = await h.db.select().from(realTeams);
+
+    expect(after.name).toBe("FC Barcelona");
+    expect(after.firstSeenAt.getTime()).toBe(before.firstSeenAt.getTime());
+    expect(after.lastSeenAt.getTime()).toBeGreaterThan(before.lastSeenAt.getTime());
+  });
+
+  it("learns a club from a squad whose membership is skipped", async () => {
+    // The empty-squad guard protects `first_seen_at` from a suspicious response. It is
+    // not a verdict that a club NAME in that response is false — a club name is a
+    // weaker claim than a membership list, not a stronger one.
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "A" });
+    await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"] }, {}),
+      now,
+      runId: "s1",
+      trigger: "players-manual",
+    });
+
+    const result = await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: [] }, { t1: [club("4", "FC Barcelona")] }),
+      now: tomorrow,
+      runId: "s2",
+      trigger: "players-manual",
+    });
+
+    expect(result.squadsSkipped).toBe(1);
+    expect(await h.db.select().from(realTeams)).toHaveLength(1);
+  });
+
+  it("reports every club known, not only the ones this sweep saw", async () => {
+    // This pins the definition of realTeamsKnown. It is the accumulated total, because
+    // the question it answers is "how many clubs can the catalogue name?" — and that is
+    // the table the views resolve against. This assertion is what fails if someone
+    // later "simplifies" it to a per-sweep count.
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "A" });
+    await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(
+        catalogue(MINIMUM_CATALOGUE),
+        { t1: ["p0"] },
+        { t1: [club("4", "FC Barcelona"), club("5", "Real Betis"), club("6", "Celta")] },
+      ),
+      now,
+      runId: "s1",
+      trigger: "players-manual",
+    });
+
+    const result = await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"] }, {}),
+      now: tomorrow,
+      runId: "s2",
+      trigger: "players-manual",
+    });
+
+    expect(result.realTeamsKnown).toBe(3);
+  });
+
+  it("reports no clubs when none have ever been observed", async () => {
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "A" });
+    const result = await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"] }, {}),
+      now,
+      runId: "s1",
+      trigger: "players-manual",
+    });
+    expect(result.realTeamsKnown).toBe(0);
   });
 });
 

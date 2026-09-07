@@ -34,7 +34,8 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
     <section className="mx-auto max-w-2xl">
       <h1 className="text-xl font-medium">{player.nickname}</h1>
       <p className="mt-1 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
-        {player.position} ·{" "}
+        {player.position}
+        {detail.club === null ? "" : ` · ${detail.club.name}`} ·{" "}
         {owned.kind === "owned" && owned.name}
         {owned.kind === "free" && (
           <span style={{ color: "var(--board-free)" }}>Free agent</span>

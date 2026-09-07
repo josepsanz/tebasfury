@@ -5,12 +5,14 @@ import {
   playerGameweekPoints,
   players,
   playerValueSnapshots,
+  realTeams,
   squadMembers,
   syncRuns,
   teamGameweekStats,
   teams,
 } from "./schema";
 import { loadPlayer, loadPlayerCatalogue, loadSnapshots } from "./queries";
+import { buildCatalogue } from "@/lib/domain/players";
 
 describe("loadSnapshots", () => {
   let h: TestDatabase;
@@ -212,5 +214,45 @@ describe("loadPlayer, before any squad has been read", () => {
     const detail = await loadPlayer(h.db, "p1");
     expect(detail?.owner).toBeNull();
     expect(detail?.ownershipKnown).toBe(false);
+  });
+});
+
+describe("club names", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    // The ids and the name are the real ones from the committed fixtures: `F. Garcés`
+    // is teamId "21" in players.json, and 21 is Deportivo Alavés in squad.json. This
+    // is the mapping the whole slice exists to make, checked end to end.
+    await h.db.insert(realTeams).values({
+      id: "21",
+      name: "Deportivo Alavés",
+      slug: "deportivo-alaves",
+      badgeUrl: null,
+    });
+    await h.db.insert(players).values([
+      { id: "p1", nickname: "F. Garcés", position: "Defender", realTeamId: "21", status: "ok", imageUrl: null },
+      { id: "p2", nickname: "Unplaced", position: "Forward", realTeamId: "99", status: "ok", imageUrl: null },
+    ]);
+  });
+  afterAll(async () => { await h.close(); });
+
+  it("resolves a club id to its name, from the database through to a catalogue row", async () => {
+    const { players: records, totals, values, ownership, clubs } = await loadPlayerCatalogue(h.db);
+    const rows = buildCatalogue({ players: records, totals, values, ownership, clubs });
+
+    expect(clubs).toContainEqual({ id: "21", name: "Deportivo Alavés" });
+    expect(rows.find((r) => r.id === "p1")?.clubName).toBe("Deportivo Alavés");
+  });
+
+  it("leaves a player whose club has never been observed without one", async () => {
+    const { players: records, totals, values, ownership, clubs } = await loadPlayerCatalogue(h.db);
+    const rows = buildCatalogue({ players: records, totals, values, ownership, clubs });
+    expect(rows.find((r) => r.id === "p2")?.clubName).toBeNull();
+  });
+
+  it("gives the player page its club, and null when there is none", async () => {
+    expect((await loadPlayer(h.db, "p1"))?.club).toEqual({ id: "21", name: "Deportivo Alavés" });
+    expect((await loadPlayer(h.db, "p2"))?.club).toBeNull();
   });
 });

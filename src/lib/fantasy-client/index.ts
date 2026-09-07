@@ -286,8 +286,22 @@ export type PlayerRow = {
   weekPoints: PlayerWeekPoints[];
 };
 
-/** One league team's squad, as ids the portal can join on. */
-export type SquadRow = { teamId: string; playerIds: string[] };
+/** One LaLiga club, as a squad response reveals it. */
+export type RealTeamRow = {
+  id: string;
+  name: string;
+  slug: string;
+  badgeUrl: string | null;
+};
+
+/**
+ * One league team's squad, as ids the portal can join on.
+ *
+ * `teamId` is the FANTASY team of a manager. `realTeams` are the LaLiga clubs its
+ * players belong to. The two live one field apart in the same type and the collision
+ * is easy to trip on — they are different id spaces entirely.
+ */
+export type SquadRow = { teamId: string; playerIds: string[]; realTeams: RealTeamRow[] };
 
 function toPlayerRow(entry: PlayerEntry): PlayerRow {
   return {
@@ -338,11 +352,25 @@ export async function getSquad(
     `/v1/competition/${COMPETITION}/leagues/${leagueId}/teams/${teamId}`,
     squadSchema,
   );
+
+  const realTeams = new Map<string, RealTeamRow>();
+  for (const entry of squad.players) {
+    const team = entry.playerMaster?.team;
+    if (team === undefined) continue;
+    realTeams.set(team.id, {
+      id: team.id,
+      name: team.name,
+      slug: team.slug,
+      badgeUrl: team.badgeColor ?? null,
+    });
+  }
+
   return {
     teamId,
     playerIds: squad.players
       .map((entry) => entry.playerMaster?.id ?? entry.id)
       .filter((id): id is string => id !== undefined),
+    realTeams: [...realTeams.values()],
   };
 }
 

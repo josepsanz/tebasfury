@@ -88,10 +88,8 @@ every use, and Vercel's variables cannot be rewritten at runtime.
 
 **This step is not optional, and sharing a Neon branch with local development does not
 make it so.** `pnpm drizzle-kit generate` writes SQL locally; it applies nothing to any
-database. Checked directly against production: `0003`, `0004`, `0005` and `0006` have
-never run there — `team_gameweek_stats` does not exist on the live database. Run this
-before the first deploy that needs any of them, or the first sync 500s at runtime with
-`relation "players" does not exist` instead of failing at build:
+database. Run this before the first deploy that needs a migration, or the first sync
+500s at runtime with `relation "players" does not exist` instead of failing at build:
 
 ```bash
 DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
@@ -100,9 +98,14 @@ DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
 The inline `DATABASE_URL` takes priority over the one in `.env.local`, so the
 migrations land on the database you name here rather than the development one.
 
-`0005` (the four player tables) and `0006` (an index on `player_value_snapshots`) are
-both safe to run against a populated database: neither touches a row that is already
-there — `0005` only creates tables and `0006` only creates an index.
+`0003` through `0006` **were** applied when the players slice shipped. An earlier
+version of this passage said they never had, which was true when written: the players
+slice has since been deployed, swept and verified in production, which could not have
+happened without them.
+
+`0007` (the `real_teams` table) is outstanding and must be applied before the club
+affiliation slice deploys. It is safe against the populated database: it only creates a
+table, adds no constraint to any existing one, and declares no foreign key.
 
 ## 5. Redeploy and verify
 

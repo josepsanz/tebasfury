@@ -3,6 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
+  clubOrPosition,
   filterCatalogue,
   formatMoney,
   ownerDisplay,
@@ -174,7 +175,7 @@ export function PlayerCatalogue({
               <span className="min-w-0">
                 <span className="block truncate text-[14.5px]">{row.nickname}</span>
                 <span className="block truncate text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-                  {row.position} · <Owner row={row} ownershipKnown={ownershipKnown} />
+                  {clubOrPosition(row)} · <Owner row={row} ownershipKnown={ownershipKnown} />
                   {statusLabel(row.status) === null ? null : (
                     <span style={{ color: "var(--board-alert)" }}>
                       {" "}

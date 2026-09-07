@@ -86,8 +86,9 @@ const weekPointsEntrySchema = z.object({
  * Coercion absorbs that rather than spreading it, and it costs nothing if the API
  * ever settles on one or the other.
  *
- * There is no `team` object here: the catalogue names a `teamId` and nothing else, so
- * a club's NAME cannot be read from this endpoint at all.
+ * There is no `team` object here: the catalogue names a `teamId` and nothing else. The
+ * NAME behind that id comes from the squad response instead, where `playerMaster.team`
+ * carries it in the same id space — which is why club affiliation costs no extra call.
  */
 export const playerEntrySchema = z.object({
   id: z.coerce.string(),
@@ -106,6 +107,24 @@ export const playerEntrySchema = z.object({
 export const playersSchema = z.array(playerEntrySchema);
 
 /**
+ * The club a player belongs to, nested under `playerMaster` on a squad response.
+ *
+ * `team` is OPTIONAL and that is the point: all 15 entries in the committed fixture
+ * carry it, but one capture is not a specification, and a squad response that omits
+ * it must leave the club unlearned rather than fail the sweep for that team.
+ *
+ * The response also carries `assets` and `badgeWhite`. They are deliberately not
+ * described here — nothing has a use for them, and an unused field is an assumption
+ * travelling for free.
+ */
+const squadTeamSchema = z.object({
+  id: z.coerce.string(),
+  name: z.string(),
+  slug: z.string(),
+  badgeColor: z.string().nullable().optional(),
+});
+
+/**
  * One league team's squad. The entries nest the catalogue player under
  * `playerMaster` in every response seen so far, but a flat `id` is accepted too —
  * and `getSquad`'s test asserts that no entry is silently dropped, so a third shape
@@ -116,7 +135,9 @@ export const squadSchema = z.object({
   players: z.array(
     z.object({
       id: z.coerce.string().optional(),
-      playerMaster: z.object({ id: z.coerce.string() }).optional(),
+      playerMaster: z
+        .object({ id: z.coerce.string(), team: squadTeamSchema.optional() })
+        .optional(),
     }),
   ),
 });
