@@ -354,6 +354,14 @@ Nothing is added to `queries.test.ts`: there is no new read to cover.
   Resist it for now: the catalogue row is a `<Link>` inside a client component with
   pagination, and the board's is a server-rendered row with a different right-hand unit.
   Sharing them would couple a server component to a client one for the sake of a `<span>`.
+- The three-state owner label **was** extracted, to `src/components/owner-label.tsx`, and
+  is imported by both `player-catalogue.tsx` and `opportunity-board.tsx`. The reason is the
+  drift that `ownerDisplay`'s own doc comment says it exists to prevent: change "Owners not
+  swept yet" in one file and the portal says two different things. It needed no `"use client"`
+  directive — it holds no state, and the build's client-reference manifests confirmed it
+  stays out of the home page's client bundle while being inlined into the catalogue's. The
+  advice against sharing the *row* is unaffected; the reason is the row's shape, not a rule
+  against sharing at the component level.
 
 ## Follow-ups this slice is expected to leave behind
 
@@ -373,3 +381,24 @@ Written before implementation, because they follow from decisions already made:
   whether it actually identifies good signings in this league is a question only a season
   of use can answer. If it turns out to rank thin-sample cheap players all year, the floor
   is the dial to turn, and it has a name.
+## The visual checks — not yet performed
+
+On `/`:
+
+21. The two boards on a 320px screen: does the right-hand figure keep its unit
+    un-wrapped when a row carries a long club name, an "Out of the league" status and
+    an owner all at once?
+22. Are the two boards distinguishable at a glance, given they share a row shape and
+    differ only in heading and unit? A reader must never think the second board is
+    more of the first.
+23. The signed-out page: unchanged from before this slice, with no flash of the boards
+    during hydration.
+24. A board rendering its empty note beside a board rendering rows — do the two read as
+    one page, or does the empty one look broken?
+
+On `/players`:
+
+25. Thirteen pills. Step 3's check 1 asked whether twelve pushed the first player row
+    below the fold; this slice adds one and does not fix the row.
+26. Arriving from a home-page link: is it obvious which pill the URL selected, or does
+    the page look like it opened on the wrong view?
