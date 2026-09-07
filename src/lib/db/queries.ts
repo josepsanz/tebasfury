@@ -1,8 +1,25 @@
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, like, notLike, sum } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "./schema";
 import type { Snapshot, TeamRef } from "@/lib/domain/standings";
-import { gameweeks, syncRuns, teamGameweekStats, teams } from "./schema";
+import type {
+  CurrentValue,
+  GameweekPoints,
+  Ownership,
+  PlayerRecord,
+  PlayerTotals,
+  ValuePoint,
+} from "@/lib/domain/players";
+import {
+  gameweeks,
+  playerGameweekPoints,
+  playerValueSnapshots,
+  players as playersTable,
+  squadMembers,
+  syncRuns,
+  teamGameweekStats,
+  teams,
+} from "./schema";
 
 /**
  * The production database is `neon-http`, tests run against an in-process
@@ -31,7 +48,14 @@ export async function loadSnapshots(db: Db): Promise<PortalData> {
     db
       .select()
       .from(syncRuns)
-      .where(eq(syncRuns.status, "succeeded"))
+      .where(
+        and(
+          eq(syncRuns.status, "succeeded"),
+          // The daily player sweep writes no gameweek snapshot, so its success says
+          // nothing about how fresh THIS page is.
+          notLike(syncRuns.trigger, "players-%"),
+        ),
+      )
       .orderBy(desc(syncRuns.finishedAt))
       .limit(1),
   ]);
@@ -50,5 +74,135 @@ export async function loadSnapshots(db: Db): Promise<PortalData> {
     lastSync: runs[0]?.finishedAt ?? null,
     currentGameweek: weeks[0]?.number ?? null,
     isLive: weeks[0]?.isLive ?? false,
+  };
+}
+
+export type CatalogueData = {
+  players: PlayerRecord[];
+  totals: PlayerTotals[];
+  values: CurrentValue[];
+  ownership: Ownership[];
+  /**
+   * Whether any squad has been read at all. Before the first sweep reads them every
+   * player would look free, which is a different statement from "nobody owns them".
+   */
+  ownershipKnown: boolean;
+  lastSweep: Date | null;
+};
+
+const toRecord = (row: typeof playersTable.$inferSelect): PlayerRecord => ({
+  id: row.id,
+  nickname: row.nickname,
+  position: row.position,
+  realTeamId: row.realTeamId,
+  status: row.status,
+  imageUrl: row.imageUrl,
+});
+
+/** Everything the catalogue needs, aggregated in the database. */
+export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
+  const [playerRows, totalRows, valueRows, ownershipRows, sweeps] = await Promise.all([
+    db.select().from(playersTable).orderBy(playersTable.nickname),
+
+    // Six hundred players times thirty-eight weeks by May. Summed here, not shipped.
+    db
+      .select({
+        playerId: playerGameweekPoints.playerId,
+        seasonPoints: sum(playerGameweekPoints.points),
+        gameweeksRecorded: count(),
+      })
+      .from(playerGameweekPoints)
+      .groupBy(playerGameweekPoints.playerId),
+
+    // DISTINCT ON keeps one row per player — the newest, thanks to the ORDER BY —
+    // entirely in Postgres. By May this table is 836 players times a season of days;
+    // shipping it whole to sum in JS is the timeout the aggregation constraint warns of.
+    db
+      .selectDistinctOn([playerValueSnapshots.playerId], {
+        playerId: playerValueSnapshots.playerId,
+        value: playerValueSnapshots.value,
+        takenOn: playerValueSnapshots.takenOn,
+      })
+      .from(playerValueSnapshots)
+      .orderBy(playerValueSnapshots.playerId, desc(playerValueSnapshots.takenOn)),
+
+    db
+      .select({
+        playerId: squadMembers.playerId,
+        teamId: squadMembers.teamId,
+        managerName: teams.managerName,
+      })
+      .from(squadMembers)
+      .innerJoin(teams, eq(teams.id, squadMembers.teamId)),
+
+    db
+      .select()
+      .from(syncRuns)
+      .where(and(eq(syncRuns.status, "succeeded"), like(syncRuns.trigger, "players-%")))
+      .orderBy(desc(syncRuns.finishedAt))
+      .limit(1),
+  ]);
+
+  return {
+    players: playerRows.map(toRecord),
+    // Postgres returns a bigint for `sum`, which the driver hands over as a string.
+    totals: totalRows.map((t) => ({
+      playerId: t.playerId,
+      seasonPoints: Number(t.seasonPoints ?? 0),
+      gameweeksRecorded: t.gameweeksRecorded,
+    })),
+    values: valueRows,
+    ownership: ownershipRows,
+    ownershipKnown: ownershipRows.length > 0,
+    lastSweep: sweeps[0]?.finishedAt ?? null,
+  };
+}
+
+export type PlayerDetail = {
+  player: PlayerRecord;
+  values: ValuePoint[];
+  points: GameweekPoints[];
+  owner: Ownership | null;
+  lastSweep: Date | null;
+};
+
+export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail | null> {
+  const [row] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
+  if (!row) return null;
+
+  const [values, points, owners, sweeps] = await Promise.all([
+    db
+      .select({ takenOn: playerValueSnapshots.takenOn, value: playerValueSnapshots.value })
+      .from(playerValueSnapshots)
+      .where(eq(playerValueSnapshots.playerId, playerId))
+      .orderBy(playerValueSnapshots.takenOn),
+    db
+      .select({ gameweek: playerGameweekPoints.gameweek, points: playerGameweekPoints.points })
+      .from(playerGameweekPoints)
+      .where(eq(playerGameweekPoints.playerId, playerId))
+      .orderBy(playerGameweekPoints.gameweek),
+    db
+      .select({
+        playerId: squadMembers.playerId,
+        teamId: squadMembers.teamId,
+        managerName: teams.managerName,
+      })
+      .from(squadMembers)
+      .innerJoin(teams, eq(teams.id, squadMembers.teamId))
+      .where(eq(squadMembers.playerId, playerId)),
+    db
+      .select()
+      .from(syncRuns)
+      .where(and(eq(syncRuns.status, "succeeded"), like(syncRuns.trigger, "players-%")))
+      .orderBy(desc(syncRuns.finishedAt))
+      .limit(1),
+  ]);
+
+  return {
+    player: toRecord(row),
+    values,
+    points,
+    owner: owners[0] ?? null,
+    lastSweep: sweeps[0]?.finishedAt ?? null,
   };
 }

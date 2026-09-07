@@ -1,7 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./testing";
-import { gameweeks, syncRuns, teamGameweekStats, teams } from "./schema";
-import { loadSnapshots } from "./queries";
+import {
+  gameweeks,
+  playerGameweekPoints,
+  players,
+  playerValueSnapshots,
+  squadMembers,
+  syncRuns,
+  teamGameweekStats,
+  teams,
+} from "./schema";
+import { loadPlayer, loadPlayerCatalogue, loadSnapshots } from "./queries";
 
 describe("loadSnapshots", () => {
   let h: TestDatabase;
@@ -24,6 +33,13 @@ describe("loadSnapshots", () => {
     await h.db.insert(syncRuns).values({
       id: "r1", trigger: "schedule", status: "succeeded",
       startedAt: new Date("2026-08-23T10:00:00Z"), finishedAt: new Date("2026-08-23T10:00:05Z"), weeksSynced: 1,
+    });
+    // A player sweep, later than the standings run above. It must not be what the
+    // standings pages call their last sync: it wrote no snapshot of theirs.
+    await h.db.insert(syncRuns).values({
+      id: "s1", trigger: "players-schedule", status: "succeeded",
+      startedAt: new Date("2026-08-24T04:00:00Z"),
+      finishedAt: new Date("2026-08-24T04:00:20Z"),
     });
   });
   afterAll(async () => { await h.close(); });
@@ -53,5 +69,110 @@ describe("loadSnapshots", () => {
     });
     const { lastSync } = await loadSnapshots(h.db);
     expect(lastSync?.toISOString()).toBe("2026-08-23T10:00:05.000Z");
+  });
+
+  it("reports the last standings sync, not the last run of any kind", async () => {
+    const { lastSync } = await loadSnapshots(h.db);
+    expect(lastSync?.toISOString()).toBe("2026-08-23T10:00:05.000Z");
+  });
+});
+
+describe("loadPlayerCatalogue", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Manager A" });
+    await h.db.insert(players).values([
+      { id: "p1", nickname: "Ada", position: "Midfielder", realTeamId: "rt1", status: "ok" },
+      { id: "p2", nickname: "Bruno", position: "Forward", realTeamId: "rt2", status: "injured" },
+    ]);
+    await h.db.insert(playerValueSnapshots).values([
+      { playerId: "p1", takenOn: "2026-09-06", value: 11_000_000 },
+      { playerId: "p1", takenOn: "2026-09-07", value: 12_000_000 },
+      { playerId: "p2", takenOn: "2026-09-07", value: 4_000_000 },
+    ]);
+    await h.db.insert(playerGameweekPoints).values([
+      { playerId: "p1", gameweek: 1, points: 12 },
+      { playerId: "p1", gameweek: 2, points: 28 },
+      { playerId: "p2", gameweek: 1, points: 9 },
+    ]);
+    await h.db.insert(squadMembers).values({ teamId: "t1", playerId: "p1" });
+    await h.db.insert(syncRuns).values({
+      id: "s1", trigger: "players-schedule", status: "succeeded",
+      startedAt: new Date("2026-09-07T04:00:00Z"),
+      finishedAt: new Date("2026-09-07T04:00:20Z"),
+    });
+  });
+  afterAll(async () => { await h.close(); });
+
+  it("returns the latest value per player, not every snapshot ever taken", async () => {
+    // By May this table is six hundred players times a season of days. Reading all of
+    // it to find today's value is the difference between a page and a timeout.
+    const { values } = await loadPlayerCatalogue(h.db);
+    expect(values).toHaveLength(2);
+    expect(values.find((v) => v.playerId === "p1")).toMatchObject({
+      value: 12_000_000,
+      takenOn: "2026-09-07",
+    });
+  });
+
+  it("aggregates the points in the database rather than shipping every row", async () => {
+    const { totals } = await loadPlayerCatalogue(h.db);
+    expect(totals.find((t) => t.playerId === "p1")).toEqual({
+      playerId: "p1",
+      seasonPoints: 40,
+      gameweeksRecorded: 2,
+    });
+  });
+
+  it("names the owner of an owned player", async () => {
+    const { ownership } = await loadPlayerCatalogue(h.db);
+    expect(ownership).toEqual([{ playerId: "p1", teamId: "t1", managerName: "Manager A" }]);
+  });
+
+  it("reports whether ownership is known at all", async () => {
+    // Before a sweep reads the squads, every player would look free. That is a
+    // different statement from "nobody owns them", and the view must be able to tell.
+    const { ownershipKnown } = await loadPlayerCatalogue(h.db);
+    expect(ownershipKnown).toBe(true);
+  });
+
+  it("reports when the catalogue was last swept", async () => {
+    const { lastSweep } = await loadPlayerCatalogue(h.db);
+    expect(lastSweep?.toISOString()).toBe("2026-09-07T04:00:20.000Z");
+  });
+});
+
+describe("loadPlayer", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Manager A" });
+    await h.db.insert(players).values({
+      id: "p1", nickname: "Ada", position: "Midfielder",
+      realTeamId: "rt1", status: "ok",
+    });
+    await h.db.insert(playerValueSnapshots).values([
+      { playerId: "p1", takenOn: "2026-09-06", value: 11_000_000 },
+      { playerId: "p1", takenOn: "2026-09-07", value: 12_000_000 },
+    ]);
+    await h.db.insert(playerGameweekPoints).values([
+      { playerId: "p1", gameweek: 1, points: 12 },
+      { playerId: "p1", gameweek: 2, points: 28 },
+    ]);
+    await h.db.insert(squadMembers).values({ teamId: "t1", playerId: "p1" });
+  });
+  afterAll(async () => { await h.close(); });
+
+  it("returns the player with their whole value and points history", async () => {
+    const detail = await loadPlayer(h.db, "p1");
+    expect(detail?.player.nickname).toBe("Ada");
+    expect(detail?.values).toHaveLength(2);
+    expect(detail?.points).toHaveLength(2);
+    expect(detail?.owner?.managerName).toBe("Manager A");
+  });
+
+  it("returns null for a player nobody has ever swept", async () => {
+    expect(await loadPlayer(h.db, "nope")).toBeNull();
   });
 });
