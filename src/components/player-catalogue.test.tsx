@@ -103,6 +103,27 @@ describe("PlayerCatalogue", () => {
     const html = renderToStaticMarkup(<PlayerCatalogue rows={[row("p1")]} ownershipKnown />);
     expect(html).toContain('href="/players/p1"');
   });
+
+  it("leads a row with its club, and falls back to the position without one", () => {
+    // Rulings 4 and 5: the club takes the position's place on the meta line, and hands
+    // it back when no squad response has named the club yet.
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[
+          row("p1", { nickname: "Ada", clubName: "Real Betis", position: "Forward" }),
+          row("p2", { nickname: "Bo", clubName: null, position: "Goalkeeper" }),
+        ]}
+        ownershipKnown
+      />,
+    );
+    // Asserted against the whole meta line, not the bare words: "Forward" and
+    // "Goalkeeper" are also two of the fixed position filter pills, so a document-wide
+    // `not.toContain("Forward")` can never pass however the row renders.
+    expect(html).toContain("Real Betis · Manager A");
+    expect(html).not.toContain("Forward · Manager A");
+    expect(html).toContain("Goalkeeper · Manager A");
+  });
+
 });
 
 describe("paginateCatalogue", () => {
