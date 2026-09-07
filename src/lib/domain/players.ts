@@ -175,6 +175,54 @@ export function sortCatalogue(rows: CatalogueRow[], key: SortKey): CatalogueRow[
   return [...rows].sort(comparators[key]);
 }
 
+/**
+ * How many rows a home-page board shows.
+ *
+ * Five is a landing page's worth of rows rather than a measured figure, which is
+ * exactly why it has a name: disagreeing with it later should cost one line, not a
+ * search for the number 5 across two components.
+ */
+export const BOARD_ROWS = 5;
+
+/**
+ * The best points per million of market value.
+ *
+ * Unqualified rows are FILTERED, not sunk — the difference from `sortCatalogue`'s own
+ * treatment, and the reason is the board's size. Five rows are a claim that these are
+ * the best; a board padded to five with rows that cannot be ranked, showing a dash
+ * where the figure goes, makes that claim falsely. See Ruling 4.
+ *
+ * Two things disqualify a player: fewer than `MIN_GAMEWEEKS_FOR_RANKING` recorded
+ * gameweeks, and no value snapshot yet (which is what `pointsPerMillion` returns null
+ * for, alongside a value of zero).
+ */
+export function bestValueForMoney(rows: CatalogueRow[], limit = BOARD_ROWS): CatalogueRow[] {
+  const qualified = rows.filter(
+    (row) =>
+      row.gameweeksRecorded >= MIN_GAMEWEEKS_FOR_RANKING &&
+      pointsPerMillion(row.seasonPoints, row.currentValue) !== null,
+  );
+  return sortCatalogue(qualified, "perMillion").slice(0, limit);
+}
+
+/**
+ * Unowned players who are actually scoring, best first.
+ *
+ * Deliberately takes no `ownershipKnown`: this function cannot tell "nobody owns them"
+ * from "no squad has been read", and it should not try. The caller renders Ruling 6's
+ * line instead of calling this at all when ownership is unknown.
+ *
+ * A free player on nought points is excluded rather than padding the list. The block
+ * is called "Free and scoring", and a scoreless row would make its own heading false.
+ * No value is required — ownership and points are the whole claim here.
+ */
+export function freeAndScoring(rows: CatalogueRow[], limit = BOARD_ROWS): CatalogueRow[] {
+  const free = filterCatalogue(rows, { query: "", position: null, ownership: "free" }).filter(
+    (row) => row.seasonPoints > 0,
+  );
+  return sortCatalogue(free, "points").slice(0, limit);
+}
+
 /** Oldest first: the chart reads left to right, and the caller's order is not a series. */
 export function valueSeries(values: ValuePoint[]): ValuePoint[] {
   return [...values].sort((a, b) => a.takenOn.localeCompare(b.takenOn));
