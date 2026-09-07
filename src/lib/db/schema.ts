@@ -200,9 +200,10 @@ export const accountRelations = relations(account, ({ one }) => ({
 /**
  * The eligible player catalogue.
  *
- * `status` holds the API's own string rather than an enum. We have seen one value
- * (`ok`) and guessing the rest would be inventing a vocabulary; a lookup table can
- * come later, when the real values are known.
+ * `status` holds the API's own string rather than an enum. Task 1's live capture
+ * found five values: `ok`, `out_of_league`, `injured`, `doubtful`, `suspended`.
+ * The set may not be exhaustive — this is one moment in one season, not a
+ * specification. A lookup table or check constraint can codify it later.
  *
  * `lastSeenAt` is how a player who leaves the competition is told apart from one who
  * is simply not in a squad: the row stays, and its age says so.
