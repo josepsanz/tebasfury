@@ -117,6 +117,26 @@ describe("runPlayerSweep", () => {
     expect(points.map((p) => p.gameweek).sort((a, b) => a - b)).toEqual([1, 3, 6]);
   });
 
+  it("writes every row when the catalogue crosses the chunking boundary", async () => {
+    // More than one 400-row chunk is not an edge case for this sweep, it is the ONLY
+    // production path: the real catalogue is around six hundred players, and the
+    // points backfill alone is thousands of rows. One row past the boundary is
+    // enough to force a second chunk; this asserts every row from both chunks
+    // actually landed, not just that the call didn't throw.
+    const COUNT = 401;
+    const client = fakeClient(catalogue(COUNT));
+
+    const result = await runPlayerSweep({
+      db: h.db, client, now, runId: "s1", trigger: "players-schedule",
+    });
+
+    expect(result.playersSynced).toBe(COUNT);
+    expect(await h.db.select().from(players)).toHaveLength(COUNT);
+    // Each fixture player carries two weekPoints entries, so this write is twice the
+    // catalogue's size and crosses the chunk boundary twice over.
+    expect(await h.db.select().from(playerGameweekPoints)).toHaveLength(COUNT * 2);
+  });
+
   it("stamps the value snapshot with the day, and a second sweep that day does not duplicate it", async () => {
     await runPlayerSweep({
       db: h.db, client: fakeClient(catalogue(MINIMUM_CATALOGUE)), now,
@@ -170,7 +190,18 @@ describe("runPlayerSweep", () => {
     await expect(
       runPlayerSweep({
         db: h.db,
-        client: fakeClient(catalogue(MINIMUM_CATALOGUE - 1)),
+        // The players the truncated catalogue shares with the first sweep (p0..p98)
+        // carry visibly different values here. A row count alone cannot tell "wrote
+        // nothing" from "wrote the overlap, then failed" — both leave 100 rows in
+        // place, because upsertCatalogue never deletes a row absent from the incoming
+        // catalogue. Checking the overlap still holds the FIRST sweep's values is
+        // what actually proves nothing was written.
+        client: fakeClient(
+          catalogue(MINIMUM_CATALOGUE - 1, () => ({
+            nickname: "Should never be written",
+            marketValue: 1,
+          })),
+        ),
         now: tomorrow,
         runId: "s2",
         trigger: "players-schedule",
@@ -178,8 +209,10 @@ describe("runPlayerSweep", () => {
     ).rejects.toThrowError(/99/);
 
     // Replacing six hundred players with a truncated response is worse than skipping
-    // a day, so nothing was written.
-    expect(await h.db.select().from(players)).toHaveLength(MINIMUM_CATALOGUE);
+    // a day, so nothing was written — not even the overlap.
+    const stored = await h.db.select().from(players);
+    expect(stored).toHaveLength(MINIMUM_CATALOGUE);
+    expect(stored.find((p) => p.id === "p0")?.nickname).toBe("Player p0");
     const [failed] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "s2"));
     expect(failed.status).toBe("failed");
   });

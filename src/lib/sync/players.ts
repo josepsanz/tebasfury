@@ -48,7 +48,8 @@ export const MINIMUM_CATALOGUE = 100;
  * driver. Row by row would be the alternative, and by the end of a season the points
  * backfill alone is six hundred players times thirty-eight weeks: twenty-two thousand
  * round trips, well past the function timeout. Postgres caps a statement at 65,535
- * bound parameters; 400 rows of eight columns is comfortably inside it.
+ * bound parameters; 400 rows of seven columns (the widest write, `upsertCatalogue`'s)
+ * is comfortably inside it.
  */
 const CHUNK = 400;
 
