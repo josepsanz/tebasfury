@@ -117,12 +117,16 @@ describe("runPlayerSweep", () => {
     expect(points.map((p) => p.gameweek).sort((a, b) => a - b)).toEqual([1, 3, 6]);
   });
 
-  it("writes every row when the catalogue crosses the chunking boundary", async () => {
+  it("writes every row when the catalogue crosses its own chunking boundary", async () => {
     // More than one 400-row chunk is not an edge case for this sweep, it is the ONLY
-    // production path: the real catalogue is around six hundred players, and the
-    // points backfill alone is thousands of rows. One row past the boundary is
-    // enough to force a second chunk; this asserts every row from both chunks
-    // actually landed, not just that the call didn't throw.
+    // production path: the real catalogue is around six hundred players. One row past
+    // the boundary is enough to force a second chunk; this asserts every row from both
+    // chunks actually landed, not just that the call didn't throw.
+    //
+    // This no longer also exercises the points write's own boundary: CHUNK_POINTS is
+    // wider than CHUNK_CATALOGUE (each write is sized to its own column count, see the
+    // doc comment on the CHUNK_* constants), so 401 players' worth of weekPoints — 802
+    // rows — sits comfortably under it. The dedicated test below covers that one.
     const COUNT = 401;
     const client = fakeClient(catalogue(COUNT));
 
@@ -132,9 +136,28 @@ describe("runPlayerSweep", () => {
 
     expect(result.playersSynced).toBe(COUNT);
     expect(await h.db.select().from(players)).toHaveLength(COUNT);
-    // Each fixture player carries two weekPoints entries, so this write is twice the
-    // catalogue's size and crosses the chunk boundary twice over.
     expect(await h.db.select().from(playerGameweekPoints)).toHaveLength(COUNT * 2);
+  });
+
+  it("writes every row when the points backfill crosses its own, wider chunking boundary", async () => {
+    // CHUNK_POINTS is 2,000 — five times CHUNK_CATALOGUE — because the points
+    // backfill is the one write that grows every gameweek. Proving that boundary
+    // needs 2,000+ points rows, not 2,000+ players: this fixture gives a
+    // MINIMUM_CATALOGUE-sized catalogue many more weekPoints entries each instead,
+    // which is also the shape a real mid-season backfill actually takes (one player,
+    // many weeks) rather than an unrealistically large catalogue.
+    const WEEKS = 21;
+    const client = fakeClient(
+      catalogue(MINIMUM_CATALOGUE, () => ({
+        weekPoints: Array.from({ length: WEEKS }, (_, i) => ({ week: i + 1, points: i })),
+      })),
+    );
+
+    await runPlayerSweep({ db: h.db, client, now, runId: "s1", trigger: "players-schedule" });
+
+    const total = MINIMUM_CATALOGUE * WEEKS;
+    expect(total).toBeGreaterThan(2_000); // the assertion below is only meaningful if this crosses the boundary
+    expect(await h.db.select().from(playerGameweekPoints)).toHaveLength(total);
   });
 
   it("stamps the value snapshot with the day, and a second sweep that day does not duplicate it", async () => {
@@ -258,6 +281,83 @@ describe("runPlayerSweep", () => {
       runId: "s1", trigger: "players-schedule",
     });
     expect(result.squadsSynced).toBe(2);
+  });
+
+  it("refuses to wipe a squad that comes back empty for a team that had members", async () => {
+    // Important 3: a team in a 13-manager league cannot field a lineup of nobody, so
+    // an empty response is far more likely a fetch hiccup than a fact. Deleting would
+    // wipe firstSeenAt, the one column nothing can recompute.
+    await h.db.insert(teams).values([
+      { id: "t1", managerId: 1, managerName: "Manager A" },
+      { id: "t2", managerId: 2, managerName: "Manager B" },
+    ]);
+
+    await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0", "p1"], t2: ["p2"] }),
+      now,
+      runId: "s1",
+      trigger: "players-schedule",
+    });
+    const before = await h.db.select().from(squadMembers).where(eq(squadMembers.teamId, "t1"));
+    expect(before).toHaveLength(2);
+
+    const result = await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: [], t2: ["p2"] }),
+      now: tomorrow,
+      runId: "s2",
+      trigger: "players-schedule",
+    });
+
+    const after = await h.db.select().from(squadMembers).where(eq(squadMembers.teamId, "t1"));
+    expect(after).toEqual(before);
+    expect(result.squadsSkipped).toBe(1);
+  });
+
+  it("still clears a team that has genuinely never had a recorded squad", async () => {
+    // The plausibility floor above must not block the ordinary case: the very first
+    // sweep, before any of a team's players have ever been seen, legitimately has
+    // nothing to protect.
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Manager A" });
+
+    const result = await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: [] }),
+      now,
+      runId: "s1",
+      trigger: "players-schedule",
+    });
+
+    expect(await h.db.select().from(squadMembers)).toHaveLength(0);
+    expect(result.squadsSkipped).toBe(0);
+  });
+
+  it("drops a squad id the catalogue does not recognise, rather than failing the whole sweep", async () => {
+    // Important 4: squad_members.player_id has an FK to players.id, and
+    // onConflictDoNothing does not absorb an FK violation. Without filtering, a
+    // single unrecognised id in one of thirteen squads would throw here, and
+    // nextPlayerSweepAfterFailure would book an hourly retry that fails the same way
+    // for ever.
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Manager A" });
+
+    const result = await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0", "not-in-the-catalogue"] }),
+      now,
+      runId: "s1",
+      trigger: "players-schedule",
+    });
+
+    const members = await h.db
+      .select()
+      .from(squadMembers)
+      .where(eq(squadMembers.teamId, "t1"));
+    expect(members.map((m) => m.playerId)).toEqual(["p0"]);
+    expect(result.droppedSquadPlayers).toBe(1);
+
+    const [run] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "s1"));
+    expect(run.status).toBe("succeeded");
   });
 
   it("records the run, and records a credential failure by name", async () => {

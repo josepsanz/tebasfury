@@ -27,6 +27,15 @@ export type PlayerClient = Pick<FantasyClient, "getPlayers" | "getSquad">;
 export type PlayerSweepResult = {
   playersSynced: number;
   squadsSynced: number;
+  /**
+   * Teams whose squad response came back empty (or entirely of unknown player ids)
+   * while the database already held members for them. Skipped rather than wiped —
+   * see `replaceSquads` — because a team in a 13-manager league cannot own nobody,
+   * so an empty response reads as an API hiccup, not a fact.
+   */
+  squadsSkipped: number;
+  /** Squad member ids the catalogue did not recognise, dropped rather than failing the sweep. */
+  droppedSquadPlayers: number;
   nextRunAt: Date;
 };
 
@@ -40,22 +49,40 @@ export type PlayerSweepResult = {
 export const MINIMUM_CATALOGUE = 100;
 
 /**
- * Rows per statement.
+ * Rows per statement, sized per write rather than once for all four.
  *
  * Writes go out as multi-row `INSERT … VALUES (…), (…) ON CONFLICT`, which is ONE
  * statement and one round trip — not `db.batch()`, which does not exist on the PGlite
  * instance the tests use, and not a transaction, which does not work on Neon's HTTP
  * driver. Row by row would be the alternative, and by the end of a season the points
- * backfill alone is six hundred players times thirty-eight weeks: twenty-two thousand
- * round trips, well past the function timeout. Postgres caps a statement at 65,535
- * bound parameters; 400 rows of seven columns (the widest write, `upsertCatalogue`'s)
- * is comfortably inside it.
+ * backfill alone is eight hundred players times thirty-eight weeks: thirty-two
+ * thousand round trips, far past the function timeout.
+ *
+ * Postgres caps a statement at 65,535 bound parameters, and that cap is `rows ×
+ * columns` — so it is a budget per write, not one number for the sweep. A single
+ * constant tuned for the widest write made the narrowest one, the points backfill,
+ * take five times the round trips it needs, and the points backfill is the only write
+ * here that grows every gameweek:
+ *
+ *   `players`                 7 columns × 400   = 2,800 parameters
+ *   `player_value_snapshots`  3 columns × 2,000 = 6,000 parameters
+ *   `player_gameweek_points`  3 columns × 2,000 = 6,000 parameters
+ *   `squad_members`           2 columns × 2,000 = 4,000 parameters
+ *
+ * Every one of those is an order of magnitude inside the cap, which is deliberate:
+ * a column added to any of these tables must not silently cross it. What the larger
+ * sizes buy is round trips — a full-season points backfill of ~32,000 rows goes out
+ * in 16 statements instead of 80, which is the difference the function timeout cares
+ * about. Anything raised here must be re-checked against `65,535 / columns`.
  */
-const CHUNK = 400;
+export const CHUNK_CATALOGUE = 400;
+export const CHUNK_VALUES = 2_000;
+export const CHUNK_POINTS = 2_000;
+export const CHUNK_SQUAD = 2_000;
 
-function chunked<T>(rows: T[]): T[][] {
+function chunked<T>(rows: T[], size: number): T[][] {
   const out: T[][] = [];
-  for (let i = 0; i < rows.length; i += CHUNK) out.push(rows.slice(i, i + CHUNK));
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
   return out;
 }
 
@@ -100,7 +127,11 @@ export async function runPlayerSweep(deps: {
     await upsertCatalogue(db, catalogue, now);
     await appendValueSnapshots(db, catalogue, now);
     await backfillPoints(db, catalogue);
-    const squadsSynced = await replaceSquads(db, client);
+    // The FK from squad_members.player_id targets players.id, so the id set the squad
+    // response is checked against is exactly what upsertCatalogue just wrote — not a
+    // stale read of the table from before this sweep.
+    const knownPlayerIds = new Set(catalogue.map((p) => p.id));
+    const squads = await replaceSquads(db, client, knownPlayerIds);
 
     const nextRunAt = nextPlayerSweep(now);
     await db
@@ -108,7 +139,13 @@ export async function runPlayerSweep(deps: {
       .set({ status: "succeeded", finishedAt: new Date() })
       .where(eq(syncRuns.id, runId));
 
-    return { playersSynced: catalogue.length, squadsSynced, nextRunAt };
+    return {
+      playersSynced: catalogue.length,
+      squadsSynced: squads.squadsSynced,
+      squadsSkipped: squads.squadsSkipped,
+      droppedSquadPlayers: squads.droppedSquadPlayers,
+      nextRunAt,
+    };
   } catch (error) {
     await db
       .update(syncRuns)
@@ -138,7 +175,7 @@ async function upsertCatalogue(db: Db, catalogue: PlayerRow[], now: Date) {
     lastSeenAt: now,
   }));
 
-  for (const chunk of chunked(rows)) {
+  for (const chunk of chunked(rows, CHUNK_CATALOGUE)) {
     await db
       .insert(players)
       .values(chunk)
@@ -167,7 +204,7 @@ async function appendValueSnapshots(db: Db, catalogue: PlayerRow[], now: Date) {
   const takenOn = utcDate(now);
   const rows = catalogue.map((p) => ({ playerId: p.id, takenOn, value: p.marketValue }));
 
-  for (const chunk of chunked(rows)) {
+  for (const chunk of chunked(rows, CHUNK_VALUES)) {
     await db
       .insert(playerValueSnapshots)
       .values(chunk)
@@ -200,7 +237,7 @@ async function backfillPoints(db: Db, catalogue: PlayerRow[]) {
     })),
   );
 
-  for (const chunk of chunked(rows)) {
+  for (const chunk of chunked(rows, CHUNK_POINTS)) {
     await db
       .insert(playerGameweekPoints)
       .values(chunk)
@@ -211,21 +248,45 @@ async function backfillPoints(db: Db, catalogue: PlayerRow[]) {
   }
 }
 
+type SquadSweepResult = { squadsSynced: number; squadsSkipped: number; droppedSquadPlayers: number };
+
 /**
  * Squads, one call per team, from the teams the standings cadence has recorded.
  *
  * Insert-then-prune rather than delete-then-insert: `firstSeenAt` means "in this squad
  * since", and deleting every row each sweep would reset it to today for a player who
  * has not moved in months.
+ *
+ * Two defensive checks against an undocumented, unofficial API:
+ *
+ * - Every incoming id is checked against `knownPlayerIds` (this sweep's own catalogue)
+ *   before it is inserted. `squad_members.player_id` has an FK to `players.id`, and
+ *   `onConflictDoNothing` does not absorb an FK violation — a single squad naming a
+ *   player the catalogue did not return would otherwise throw, failing the whole sweep
+ *   and every hourly retry after it, for ever.
+ * - A response that, after that filter, names nobody is refused rather than believed
+ *   for a team that already had members. A team in a 13-manager league cannot field a
+ *   lineup of nobody, so an empty response is far more likely a fetch hiccup than a
+ *   fact, and deleting would wipe `firstSeenAt` — the one column nothing can recompute.
+ *   A team that has genuinely never had a recorded squad (the very first sweep, before
+ *   any of its players were seen) has nothing to protect, so that case still clears.
  */
-async function replaceSquads(db: Db, client: PlayerClient): Promise<number> {
+async function replaceSquads(
+  db: Db,
+  client: PlayerClient,
+  knownPlayerIds: Set<string>,
+): Promise<SquadSweepResult> {
   const known = await db.select().from(teams);
+  let squadsSkipped = 0;
+  let droppedSquadPlayers = 0;
 
   for (const team of known) {
     const squad = await client.getSquad(team.id);
+    const validIds = squad.playerIds.filter((id) => knownPlayerIds.has(id));
+    droppedSquadPlayers += squad.playerIds.length - validIds.length;
 
-    if (squad.playerIds.length > 0) {
-      for (const chunk of chunked(squad.playerIds)) {
+    if (validIds.length > 0) {
+      for (const chunk of chunked(validIds, CHUNK_SQUAD)) {
         await db
           .insert(squadMembers)
           .values(chunk.map((playerId) => ({ teamId: team.id, playerId })))
@@ -238,15 +299,28 @@ async function replaceSquads(db: Db, client: PlayerClient): Promise<number> {
         .where(
           and(
             eq(squadMembers.teamId, team.id),
-            notInArray(squadMembers.playerId, squad.playerIds),
+            notInArray(squadMembers.playerId, validIds),
           ),
         );
-    } else {
-      // `notInArray` against an empty list is not valid SQL, and an empty squad is a
-      // real answer — an emptied team owns nobody.
-      await db.delete(squadMembers).where(eq(squadMembers.teamId, team.id));
+      continue;
     }
+
+    // `notInArray` against an empty list is not valid SQL, and an empty (or entirely
+    // unrecognised) response is not automatically a real answer the way it is for the
+    // catalogue floor above — see the plausibility check in the doc comment.
+    const [existing] = await db
+      .select({ playerId: squadMembers.playerId })
+      .from(squadMembers)
+      .where(eq(squadMembers.teamId, team.id))
+      .limit(1);
+
+    if (existing) {
+      squadsSkipped += 1;
+      continue;
+    }
+
+    await db.delete(squadMembers).where(eq(squadMembers.teamId, team.id));
   }
 
-  return known.length;
+  return { squadsSynced: known.length, squadsSkipped, droppedSquadPlayers };
 }
