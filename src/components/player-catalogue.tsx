@@ -6,13 +6,13 @@ import {
   clubOrPosition,
   filterCatalogue,
   formatMoney,
-  ownerDisplay,
   sortCatalogue,
   statusLabel,
   type CatalogueFilter,
   type CatalogueRow,
   type SortKey,
 } from "@/lib/domain/players";
+import { OwnerLabel } from "@/components/owner-label";
 
 const PAGE = 60;
 
@@ -77,17 +77,6 @@ function Pill({
       {children}
     </button>
   );
-}
-
-function Owner({ row, ownershipKnown }: { row: CatalogueRow; ownershipKnown: boolean }) {
-  const display = ownerDisplay(row.ownerName, ownershipKnown);
-  if (display.kind === "owned") return <>{display.name}</>;
-  // Nobody has read the squads yet, so "unowned" is a gap in what we know, not a fact
-  // about the player.
-  if (display.kind === "unknown") {
-    return <span style={{ color: "var(--board-ink-dim)" }}>Owners not swept yet</span>;
-  }
-  return <span style={{ color: "var(--board-free)" }}>Free agent</span>;
 }
 
 export function PlayerCatalogue({
@@ -180,7 +169,7 @@ export function PlayerCatalogue({
               <span className="min-w-0">
                 <span className="block truncate text-[14.5px]">{row.nickname}</span>
                 <span className="block truncate text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-                  {clubOrPosition(row)} · <Owner row={row} ownershipKnown={ownershipKnown} />
+                  {clubOrPosition(row)} · <OwnerLabel row={row} ownershipKnown={ownershipKnown} />
                   {statusLabel(row.status) === null ? null : (
                     <span style={{ color: "var(--board-alert)" }}>
                       {" "}
