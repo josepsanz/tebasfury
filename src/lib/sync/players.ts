@@ -1,15 +1,16 @@
-import { and, eq, notInArray, sql } from "drizzle-orm";
+import { and, count, eq, notInArray, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import {
   playerGameweekPoints,
   playerValueSnapshots,
   players,
+  realTeams,
   squadMembers,
   syncRuns,
   teams,
 } from "@/lib/db/schema";
-import type { FantasyClient, PlayerRow } from "@/lib/fantasy-client";
+import type { FantasyClient, PlayerRow, RealTeamRow } from "@/lib/fantasy-client";
 import { describeFailure } from "./failure";
 import { nextPlayerSweep } from "./next-run";
 
@@ -36,6 +37,16 @@ export type PlayerSweepResult = {
   squadsSkipped: number;
   /** Squad member ids the catalogue did not recognise, dropped rather than failing the sweep. */
   droppedSquadPlayers: number;
+  /**
+   * How many clubs the catalogue can put a NAME to — the row count of `real_teams`
+   * after this sweep, not the number of clubs this sweep happened to observe. The two
+   * differ whenever a club was learned earlier and not seen today, and the accumulated
+   * total is the one that answers the question actually being asked.
+   *
+   * Ruling 1 accepts that coverage may never reach twenty. This counter is the only
+   * place that gap is visible without opening the database.
+   */
+  realTeamsKnown: number;
   nextRunAt: Date;
 };
 
@@ -133,6 +144,9 @@ export async function runPlayerSweep(deps: {
     const knownPlayerIds = new Set(catalogue.map((p) => p.id));
     const squads = await replaceSquads(db, client, knownPlayerIds);
 
+    await upsertRealTeams(db, squads.realTeams, now);
+    const [clubCount] = await db.select({ value: count() }).from(realTeams);
+
     const nextRunAt = nextPlayerSweep(now);
     await db
       .update(syncRuns)
@@ -144,6 +158,7 @@ export async function runPlayerSweep(deps: {
       squadsSynced: squads.squadsSynced,
       squadsSkipped: squads.squadsSkipped,
       droppedSquadPlayers: squads.droppedSquadPlayers,
+      realTeamsKnown: clubCount.value,
       nextRunAt,
     };
   } catch (error) {
@@ -248,7 +263,12 @@ async function backfillPoints(db: Db, catalogue: PlayerRow[]) {
   }
 }
 
-type SquadSweepResult = { squadsSynced: number; squadsSkipped: number; droppedSquadPlayers: number };
+type SquadSweepResult = {
+  squadsSynced: number;
+  squadsSkipped: number;
+  droppedSquadPlayers: number;
+  realTeams: RealTeamRow[];
+};
 
 /**
  * Squads, one call per team, from the teams the standings cadence has recorded.
@@ -279,9 +299,16 @@ async function replaceSquads(
   const known = await db.select().from(teams);
   let squadsSkipped = 0;
   let droppedSquadPlayers = 0;
+  const clubs = new Map<string, RealTeamRow>();
 
   for (const team of known) {
     const squad = await client.getSquad(team.id);
+
+    // Clubs are learned from every response that PARSED — including one whose
+    // membership the guard below then refuses. That guard protects `firstSeenAt` from
+    // a suspicious response; it does not make a club name in it false.
+    for (const c of squad.realTeams) clubs.set(c.id, c);
+
     const validIds = squad.playerIds.filter((id) => knownPlayerIds.has(id));
     droppedSquadPlayers += squad.playerIds.length - validIds.length;
 
@@ -322,5 +349,38 @@ async function replaceSquads(
     await db.delete(squadMembers).where(eq(squadMembers.teamId, team.id));
   }
 
-  return { squadsSynced: known.length, squadsSkipped, droppedSquadPlayers };
+  return {
+    squadsSynced: known.length,
+    squadsSkipped,
+    droppedSquadPlayers,
+    realTeams: [...clubs.values()],
+  };
+}
+
+/**
+ * The clubs observed this sweep, deduplicated across every squad.
+ *
+ * One statement, unchunked, and that is deliberate: a competition has about twenty
+ * clubs, so ~20 rows × 6 columns ≈ 120 bound parameters — three orders of magnitude
+ * inside Postgres's 65,535 cap. Like every other write in this file, a column added
+ * here must be re-checked against `65,535 / columns`.
+ *
+ * `firstSeenAt` is never in the update set; `lastSeenAt` always is. Name, slug and
+ * badge are overwritten, so a rebranded club's newest observation wins.
+ */
+async function upsertRealTeams(db: Db, clubs: RealTeamRow[], now: Date) {
+  if (clubs.length === 0) return;
+
+  await db
+    .insert(realTeams)
+    .values(clubs.map((c) => ({ ...c, lastSeenAt: now })))
+    .onConflictDoUpdate({
+      target: realTeams.id,
+      set: {
+        name: sql`excluded.name`,
+        slug: sql`excluded.slug`,
+        badgeUrl: sql`excluded.badge_url`,
+        lastSeenAt: sql`excluded.last_seen_at`,
+      },
+    });
 }
