@@ -1,11 +1,28 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 import type { ClaimRow } from "@/lib/claims";
 import { holdsATeam, rowState } from "@/lib/domain/claim-row";
 
 type ClaimResult = { ok: boolean; message: string };
 type ClaimAction = (formData: FormData) => Promise<ClaimResult>;
+
+/**
+ * The claim/release submit button, shared by all three rows. `disabled:opacity-40`
+ * is what actually shows the pending state — `disabled` alone renders identically to
+ * enabled with this underline styling, which on a phone reads as a missed tap.
+ */
+function SubmitButton({ pending, children }: { pending: boolean; children: ReactNode }) {
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="text-[11px] underline underline-offset-4 disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
+}
 
 /**
  * The claim board: every manager's team, and the one control each row's state allows.
@@ -73,13 +90,7 @@ export function ClaimList({
               {state === "free" && !taken ? (
                 <form action={(formData) => run(claimAction, formData)}>
                   <input type="hidden" name="teamId" value={row.teamId} />
-                  <button
-                    type="submit"
-                    disabled={pending}
-                    className="text-[11px] underline underline-offset-4"
-                  >
-                    This is me
-                  </button>
+                  <SubmitButton pending={pending}>This is me</SubmitButton>
                 </form>
               ) : null}
 
@@ -91,13 +102,7 @@ export function ClaimList({
                   <span className="text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
                     Yours
                   </span>
-                  <button
-                    type="submit"
-                    disabled={pending}
-                    className="text-[11px] underline underline-offset-4"
-                  >
-                    Release
-                  </button>
+                  <SubmitButton pending={pending}>Release</SubmitButton>
                 </form>
               ) : null}
 
@@ -109,13 +114,7 @@ export function ClaimList({
                   {canReleaseAny ? (
                     <form action={(formData) => run(releaseAction, formData)}>
                       <input type="hidden" name="teamId" value={row.teamId} />
-                      <button
-                        type="submit"
-                        disabled={pending}
-                        className="text-[11px] underline underline-offset-4"
-                      >
-                        Release
-                      </button>
+                      <SubmitButton pending={pending}>Release</SubmitButton>
                     </form>
                   ) : null}
                 </span>

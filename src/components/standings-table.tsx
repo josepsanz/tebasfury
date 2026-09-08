@@ -62,12 +62,12 @@ export function StandingsTable({
             {row.position}
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-[14.5px]">
-              {row.managerName}
+            <span className="flex items-baseline gap-2 min-w-0">
+              <span className="truncate text-[14.5px]">{row.managerName}</span>
               {row.teamId === myTeamId ? (
                 <span
                   aria-label="Your team"
-                  className="ml-2 text-[10px] uppercase tracking-[0.1em]"
+                  className="shrink-0 text-[10px] uppercase tracking-[0.1em]"
                   style={{ color: "var(--board-ink-dim)" }}
                 >
                   you
