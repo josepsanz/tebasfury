@@ -37,10 +37,12 @@ export function StandingsTable({
   rows,
   formByTeam,
   isLive,
+  myTeamId,
 }: {
   rows: TableRow[];
   formByTeam: Record<string, number[]>;
   isLive: boolean;
+  myTeamId?: string | null;
 }) {
   return (
     <ol className="mt-4">
@@ -60,7 +62,18 @@ export function StandingsTable({
             {row.position}
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-[14.5px]">{row.managerName}</span>
+            <span className="block truncate text-[14.5px]">
+              {row.managerName}
+              {row.teamId === myTeamId ? (
+                <span
+                  aria-label="Your team"
+                  className="ml-2 text-[10px] uppercase tracking-[0.1em]"
+                  style={{ color: "var(--board-ink-dim)" }}
+                >
+                  you
+                </span>
+              ) : null}
+            </span>
             <span className="block text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
               {movement(row)}
             </span>
