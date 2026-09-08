@@ -133,8 +133,12 @@ export async function releaseTeamAsAdmin(
 
 /**
  * Every team and whether it is claimed, ordered by manager name so the list reads the
- * same for everybody. `claimedBy` is an id and never reaches a rendered page: what a
- * reader sees is derived from whether it matches their own.
+ * same for everybody. `claimedBy` DOES cross to the browser: `ClaimList` is a client
+ * component, so these ids for all rows are serialized into the RSC payload inlined in
+ * the HTML. What the privacy rule forbids is rendering WHO holds a team — no name is
+ * exposed, and the ids are opaque, so that holds even though they leave the server.
+ * Resolving each row's "is this mine" state on the server instead, rather than
+ * shipping every `claimedBy` to the client, would keep the ids out entirely.
  */
 export async function loadClaimBoard(db: Db): Promise<ClaimRow[]> {
   return db
