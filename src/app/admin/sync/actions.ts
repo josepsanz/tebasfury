@@ -93,6 +93,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
   }
 
   revalidatePath("/players");
+  revalidatePath("/market");
   revalidatePath("/admin/sync");
   const {
     playersSynced,

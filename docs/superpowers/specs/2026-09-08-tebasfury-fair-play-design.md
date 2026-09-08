@@ -435,6 +435,11 @@ View:
   will be there when somebody does.
 - **The tally remains available.** If the log turns out not to change behaviour by itself,
   the cumulative count per manager is the next lever, and it needs no new data.
+- **The `/market` page renders every operation ever captured, unpaginated.** That is fine now
+  and fine at the ~4,000-row season the spec projects, but the feed has no bound: by May the
+  page renders the whole season rather than a recent window. Nothing is wrong today; the point
+  is that the day it does become slow, a bound on the feed is the answer, and the read already
+  returns rows newest-first so the cheapest version is a limit rather than a redesign.
 
 ## The visual checks — not yet performed
 

@@ -17,7 +17,7 @@ describe("NavLinks", () => {
     expect(html).toMatch(/aria-current="page"[^>]*>Market</);
   });
 
-  it("offers the five destinations every manager has", () => {
+  it("offers the four destinations every manager has", () => {
     const html = renderToStaticMarkup(<NavLinks canTriggerSync={false} />);
     for (const label of ["Standings", "Progress", "Players", "Market"]) {
       expect(html).toContain(label);
