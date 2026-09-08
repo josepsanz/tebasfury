@@ -102,3 +102,23 @@ describe("StandingsTable", () => {
     expect(notLive).not.toContain("+10");
   });
 });
+
+describe("the viewer's own row", () => {
+  const rows = buildTable(season, teams);
+
+  it("marks it, and marks only it", () => {
+    const html = renderToStaticMarkup(
+      <StandingsTable rows={rows} formByTeam={{}} isLive={false} myTeamId="b" />,
+    );
+    expect(html.match(/aria-label="Your team"/g)).toHaveLength(1);
+    // And it is B's row that carries it, not merely some row.
+    expect(html.slice(html.indexOf("Manager B"))).toContain('aria-label="Your team"');
+  });
+
+  it("marks nothing when the viewer has claimed no team", () => {
+    const html = renderToStaticMarkup(
+      <StandingsTable rows={rows} formByTeam={{}} isLive={false} myTeamId={null} />,
+    );
+    expect(html).not.toContain('aria-label="Your team"');
+  });
+});

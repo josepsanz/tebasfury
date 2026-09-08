@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./testing";
 import {
@@ -12,6 +12,7 @@ import {
   squadMembers,
   realTeams,
   marketOperations,
+  user,
 } from "./schema";
 
 describe("the standings schema", () => {
@@ -239,5 +240,51 @@ describe("the market operations table", () => {
       .where(eq(marketOperations.id, "999"));
     expect(row.playerId).toBe("not-a-player-we-have-swept");
     expect(row.amount).toBeNull();
+  });
+});
+
+describe("the claim on a team", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(user).values([
+      { id: "u1", name: "Alice", email: "alice@example.com" },
+      { id: "u2", name: "Bruno", email: "bruno@example.com" },
+    ]);
+    await h.db.insert(teams).values([
+      { id: "c1", managerId: 101, managerName: "Manager C1" },
+      { id: "c2", managerId: 102, managerName: "Manager C2" },
+      { id: "c3", managerId: 103, managerName: "Manager C3" },
+    ]);
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("lets a user hold one team", async () => {
+    await h.db.update(teams).set({ userId: "u1" }).where(eq(teams.id, "c1"));
+    const [row] = await h.db.select().from(teams).where(eq(teams.id, "c1"));
+    expect(row.userId).toBe("u1");
+  });
+
+  it("refuses a second team for the same user", async () => {
+    await expect(
+      h.db.update(teams).set({ userId: "u1" }).where(eq(teams.id, "c2")),
+    ).rejects.toThrow();
+  });
+
+  it("leaves unclaimed teams alone, however many there are", async () => {
+    // Two NULLs are distinct to a unique index, which is the whole reason this
+    // index can be a plain one. Twelve unclaimed teams must not collide.
+    const unclaimed = await h.db.select().from(teams).where(isNull(teams.userId));
+    expect(unclaimed.map((t) => t.id).sort()).toEqual(["c2", "c3"]);
+  });
+
+  it("frees the team when the account goes away, rather than deleting it", async () => {
+    await h.db.update(teams).set({ userId: "u2" }).where(eq(teams.id, "c3"));
+    await h.db.delete(user).where(eq(user.id, "u2"));
+    const [row] = await h.db.select().from(teams).where(eq(teams.id, "c3"));
+    expect(row).toBeDefined();
+    expect(row.userId).toBeNull();
   });
 });

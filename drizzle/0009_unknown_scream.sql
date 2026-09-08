@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "teams_user_id_unique" ON "teams" USING btree ("user_id");

@@ -119,7 +119,7 @@ function hasBeenPlayed(week: Gameweek, rows: StandingRow[], now: Date): boolean 
   return closed && rows.some((row) => row.weekPoints !== 0);
 }
 
-function upsertTeams(db: Db, rows: StandingRow[]) {
+export function upsertTeams(db: Db, rows: StandingRow[]) {
   return rows.map((row) =>
     db.insert(teams).values({
       id: row.teamId,

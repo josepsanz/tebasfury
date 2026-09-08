@@ -3,11 +3,13 @@ import { loadSnapshots } from "@/lib/db/queries";
 import { buildTable } from "@/lib/domain/standings";
 import { requireSession } from "@/lib/auth/guards";
 import { StandingsTable } from "@/components/standings-table";
+import { loadMyTeam } from "@/lib/claims";
 
 export default async function StandingsPage() {
-  await requireSession();
+  const session = await requireSession();
   const { snapshots, teams, lastSync, currentGameweek, isLive } = await loadSnapshots(db);
   const rows = buildTable(snapshots, teams);
+  const myTeam = await loadMyTeam(db, { userId: session.user.id });
 
   const formByTeam: Record<string, number[]> = {};
   const weeks = [...new Set(snapshots.map((s) => s.gameweek))].sort((a, b) => a - b).slice(-3);
@@ -33,7 +35,12 @@ export default async function StandingsPage() {
           Nothing has synced yet. An admin can run the first sync from the Sync page.
         </p>
       ) : (
-        <StandingsTable rows={rows} formByTeam={formByTeam} isLive={isLive} />
+        <StandingsTable
+          rows={rows}
+          formByTeam={formByTeam}
+          isLive={isLive}
+          myTeamId={myTeam?.teamId ?? null}
+        />
       )}
 
       <p className="mt-6 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>

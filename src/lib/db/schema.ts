@@ -17,13 +17,24 @@ import {
  * A team as LaLiga Fantasy models it. The API gives teams no name — they are
  * identified by their manager — so the display identity is `managerName`.
  */
-export const teams = pgTable("teams", {
-  id: text("id").primaryKey(),
-  managerId: integer("manager_id").notNull(),
-  managerName: text("manager_name").notNull(),
-  userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
-  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const teams = pgTable(
+  "teams",
+  {
+    id: text("id").primaryKey(),
+    managerId: integer("manager_id").notNull(),
+    managerName: text("manager_name").notNull(),
+    /**
+     * The portal account that claims this team, or null while nobody has.
+     *
+     * Unique, so one person cannot hold two teams — and plainly unique, not
+     * partially: Postgres treats NULLs as distinct in a unique index, so the
+     * twelve unclaimed rows do not collide with each other.
+     */
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("teams_user_id_unique").on(table.userId)],
+);
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
