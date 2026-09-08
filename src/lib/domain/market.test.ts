@@ -51,7 +51,7 @@ describe("holdings", () => {
       op({ id: "buy", activityType: 31, occurredAt: at("2026-09-03T15:02:00Z") }),
       op({ id: "sell", activityType: 33, occurredAt: at("2026-09-07T14:59:00Z") }),
     ]);
-    expect(holding.hours).toBeCloseTo(95.95, 1);
+    expect(holding.hours).toBe(95.95);
     expect(holding.breach).toBe(true);
   });
 
@@ -109,13 +109,18 @@ describe("holdings", () => {
   });
 
   it("keeps two managers' holdings of the same player apart", () => {
+    // The key must include both manager and player. Without it, manager 1's initial
+    // purchase gets overwritten by manager 2's, and manager 1's sale gets paired with
+    // manager 2's purchase date, creating a false 24-hour breach instead of 7 days.
     const result = holdings([
       op({ id: "a-buy", activityType: 31, actorManagerId: 1, occurredAt: at("2026-09-01T00:00:00Z") }),
       op({ id: "b-buy", activityType: 31, actorManagerId: 2, occurredAt: at("2026-09-06T00:00:00Z") }),
       op({ id: "b-sell", activityType: 33, actorManagerId: 2, occurredAt: at("2026-09-07T00:00:00Z") }),
+      op({ id: "a-sell", activityType: 33, actorManagerId: 1, occurredAt: at("2026-09-08T00:00:00Z") }),
     ]);
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({ managerId: 2, hours: 24, breach: true });
+    expect(result[1]).toMatchObject({ managerId: 1, hours: 168, breach: false });
   });
 
   it("ignores the types it cannot name", () => {
