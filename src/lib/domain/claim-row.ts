@@ -1,4 +1,4 @@
-import type { ClaimRow } from "@/lib/claims";
+export type ClaimRow = { teamId: string; managerName: string; claimedBy: string | null };
 
 export type RowState = "free" | "mine" | "taken";
 

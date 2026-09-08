@@ -1,5 +1,6 @@
 import { and, asc, eq, isNull, notExists, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import type { ClaimRow } from "@/lib/domain/claim-row";
 import type * as schema from "@/lib/db/schema";
 import { teams } from "@/lib/db/schema";
 
@@ -8,7 +9,7 @@ type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 export type ClaimOutcome = "claimed" | "taken" | "already-claimed-another";
 export type ReleaseOutcome = "released" | "nothing-to-release";
-export type ClaimRow = { teamId: string; managerName: string; claimedBy: string | null };
+export type { ClaimRow };
 export type MyTeam = { teamId: string; managerName: string };
 
 /** Postgres's SQLSTATE for a unique-constraint violation, e.g. `teams_user_id_unique`. */
