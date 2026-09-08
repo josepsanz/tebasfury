@@ -9,6 +9,8 @@ import {
 } from "@/lib/domain/players";
 import { getSession } from "@/lib/auth/guards";
 import { OpportunityBoard } from "@/components/opportunity-board";
+import { loadMyTeam } from "@/lib/claims";
+import { ClaimLine } from "@/components/claim-line";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -33,6 +35,7 @@ export default async function HomePage() {
   const { players, totals, values, ownership, clubs, ownershipKnown } =
     await loadPlayerCatalogue(db);
   const rows = buildCatalogue({ players, totals, values, ownership, clubs });
+  const myTeam = await loadMyTeam(db, { userId: session.user.id });
 
   return (
     <section className="mx-auto max-w-2xl">
@@ -40,6 +43,8 @@ export default async function HomePage() {
       <p className="mt-2" style={{ color: "var(--board-ink-dim)" }}>
         Management portal for our private LaLiga Fantasy league.
       </p>
+
+      <ClaimLine myTeamName={myTeam?.managerName ?? null} />
 
       <OpportunityBoard
         title="Best value for money"
