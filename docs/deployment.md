@@ -104,6 +104,10 @@ affiliation slice; `0008` (the `market_operations` table) went out with the fair
 slice. All of them have since been verified in production — `0008` on 2026-09-08, and
 the table has been capturing the league's operations ever since.
 
+`0009` (a unique index on `teams.user_id`) is outstanding and must be applied before the
+team-claim slice deploys. It is safe against the populated database: the column is
+entirely NULL today, so the index cannot find a duplicate to trip on.
+
 ## 5. Redeploy and verify
 
 The code is already on GitHub, so there is nothing to push. Trigger a new build from
