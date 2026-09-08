@@ -5,7 +5,10 @@ import week from "./__fixtures__/week-current.json";
 import leagues from "./__fixtures__/leagues.json";
 import playersFixture from "./__fixtures__/players.json";
 import squadFixture from "./__fixtures__/squad.json";
+import fixture from "./__fixtures__/activity.json";
 import {
+  activityEntrySchema,
+  activitySchema,
   currentWeekSchema,
   leaguesSchema,
   playersSchema,
@@ -87,5 +90,28 @@ describe("the players schemas parse the real captured responses", () => {
   it("parses a squad", () => {
     const parsed = squadSchema.parse(squadFixture);
     expect(parsed.players.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the activity schema", () => {
+  it("parses an operation type nobody has identified", () => {
+    // Ruling 2 and 8: the set of activity types is OPEN. Three of the six the probe
+    // saw are named; a fourth appearing next week must land in the database, not throw.
+    const parsed = activityEntrySchema.parse({
+      id: "999",
+      activityTypeId: 77,
+      user1Id: 123,
+      createdAt: "2026-09-07T21:32:04+02:00",
+    });
+    expect(parsed.activityTypeId).toBe(77);
+    expect(parsed.user2Id ?? null).toBeNull();
+    expect(parsed.playerMasterId ?? null).toBeNull();
+    expect(parsed.amount ?? null).toBeNull();
+  });
+
+  it("parses every entry in the committed fixture", () => {
+    // The fixture holds one entry per type the live feed actually carried, so this is
+    // the assertion that the schema describes the real shape rather than one type of it.
+    expect(() => activitySchema.parse(fixture)).not.toThrow();
   });
 });

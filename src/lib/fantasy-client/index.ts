@@ -3,6 +3,7 @@ import type * as schema from "@/lib/db/schema";
 import { loadRefreshToken, saveRefreshToken } from "./credentials";
 import { CredentialError } from "./errors";
 import {
+  activitySchema,
   currentWeekSchema,
   leaguesSchema,
   playersSchema,
@@ -374,12 +375,62 @@ export async function getSquad(
   };
 }
 
+/**
+ * One market operation, as everything outside this module sees it.
+ *
+ * `activityType` keeps the API's opaque number. Naming it is the domain's job — see
+ * `operationKind` — and three of the six observed values have names.
+ *
+ * Every optional field arrives as `null`, never `undefined`: these go straight into
+ * nullable columns, and the three types that each omit a different field would
+ * otherwise each produce a different write.
+ */
+export type MarketOperationRow = {
+  id: string;
+  activityType: number;
+  actorManagerId: number;
+  counterpartyManagerId: number | null;
+  playerId: string | null;
+  amount: number | null;
+  weekNumber: number | null;
+  occurredAt: Date;
+};
+
+/**
+ * The league's market operations — a rolling seven-day window.
+ *
+ * It takes no useful parameters. The probe tried `?limit`, `?offset`, `?page`, `?size`
+ * and `?from`; all five returned the identical ninety-four entries, so there is no
+ * paging to add and no history to reach. Whatever is older than the window is gone.
+ */
+export async function getActivity(
+  accessToken: string,
+  leagueId: string,
+): Promise<MarketOperationRow[]> {
+  const rows = await apiGet(
+    accessToken,
+    `/v1/competition/${COMPETITION}/leagues/${leagueId}/activity`,
+    activitySchema,
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    activityType: row.activityTypeId,
+    actorManagerId: row.user1Id,
+    counterpartyManagerId: row.user2Id ?? null,
+    playerId: row.playerMasterId ?? null,
+    amount: row.amount ?? null,
+    weekNumber: row.weekNumber ?? null,
+    occurredAt: new Date(row.createdAt),
+  }));
+}
+
 /** The narrow surface a sync run needs, in mapped rows rather than API entries. */
 export type FantasyClient = {
   getCurrentWeek(): Promise<Gameweek>;
   getStanding(week?: number): Promise<Standing>;
   getPlayers(): Promise<PlayerRow[]>;
   getSquad(teamId: string): Promise<SquadRow>;
+  getActivity(): Promise<MarketOperationRow[]>;
 };
 
 /** Exchanges the credential once and binds it, so one run means one token exchange. */
@@ -390,5 +441,6 @@ export async function createClient(db: Db, leagueId: string): Promise<FantasyCli
     getStanding: (week) => getStanding(accessToken, leagueId, week),
     getPlayers: () => getPlayers(accessToken),
     getSquad: (teamId) => getSquad(accessToken, leagueId, teamId),
+    getActivity: () => getActivity(accessToken, leagueId),
   };
 }
