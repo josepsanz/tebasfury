@@ -76,3 +76,8 @@ test("a player page redirects anyone who has not signed in", async ({ page }) =>
   await page.goto("/players/9999");
   await expect(page).toHaveURL(/\/login$/);
 });
+
+test("the claim page redirects anyone who has not signed in", async ({ page }) => {
+  await page.goto("/claim");
+  await expect(page).toHaveURL(/\/login/);
+});
