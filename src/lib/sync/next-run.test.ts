@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   decideNextRun,
+  isRedundantSweep,
   nextRunAfterFailure,
   nextPlayerSweep,
   nextPlayerSweepAfterFailure,
   FAILURE_INTERVAL_MS,
   LIVE_INTERVAL_MS,
   MAX_INTERVAL_MS,
+  PLAYER_SWEEP_INTERVAL_MS,
+  SWEEP_COLLAPSE_WINDOW_MS,
 } from "./next-run";
 
 const week = (over: Partial<Parameters<typeof decideNextRun>[0]> = {}) => ({
@@ -63,5 +66,45 @@ describe("the player sweep cadence", () => {
     expect(nextPlayerSweepAfterFailure(playerNow).toISOString()).toBe(
       "2026-09-07T05:00:00.000Z",
     );
+  });
+});
+
+describe("isRedundantSweep", () => {
+  const sweepNow = new Date("2026-09-08T16:00:00Z");
+  const hoursBefore = (h: number) => new Date(sweepNow.getTime() - h * 60 * 60 * 1000);
+
+  it("runs when nothing has ever swept, so a first sweep is never suppressed", () => {
+    expect(isRedundantSweep(null, sweepNow)).toBe(false);
+  });
+
+  it("suppresses a sweep hours after another chain already swept today", () => {
+    expect(isRedundantSweep(hoursBefore(6), sweepNow)).toBe(true);
+  });
+
+  it("lets the surviving chain's own daily run through", () => {
+    const yesterday = new Date(sweepNow.getTime() - PLAYER_SWEEP_INTERVAL_MS);
+    expect(isRedundantSweep(yesterday, sweepNow)).toBe(false);
+  });
+
+  it("leaves hours of slack between the window and the daily cadence", () => {
+    expect(SWEEP_COLLAPSE_WINDOW_MS).toBeLessThan(PLAYER_SWEEP_INTERVAL_MS);
+    expect(PLAYER_SWEEP_INTERVAL_MS - SWEEP_COLLAPSE_WINDOW_MS).toBeGreaterThanOrEqual(
+      4 * 60 * 60 * 1000,
+    );
+  });
+
+  it("runs again once the window has passed exactly", () => {
+    const edge = new Date(sweepNow.getTime() - SWEEP_COLLAPSE_WINDOW_MS);
+    expect(isRedundantSweep(edge, sweepNow)).toBe(false);
+  });
+
+  it("suppresses one millisecond inside the window", () => {
+    const inside = new Date(sweepNow.getTime() - SWEEP_COLLAPSE_WINDOW_MS + 1);
+    expect(isRedundantSweep(inside, sweepNow)).toBe(true);
+  });
+
+  it("runs when the clock says the last sweep is in the future, rather than locking out", () => {
+    const skewed = new Date(sweepNow.getTime() + 60 * 60 * 1000);
+    expect(isRedundantSweep(skewed, sweepNow)).toBe(false);
   });
 });

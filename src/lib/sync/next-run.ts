@@ -64,3 +64,42 @@ export function nextPlayerSweep(now: Date): Date {
 export function nextPlayerSweepAfterFailure(now: Date): Date {
   return new Date(now.getTime() + PLAYER_FAILURE_INTERVAL_MS);
 }
+
+/**
+ * How recent a successful sweep has to be for another one to be redundant.
+ *
+ * Four hours short of the daily cadence, and the gap is the whole point: the
+ * surviving chain books itself at exactly `PLAYER_SWEEP_INTERVAL_MS`, so it lands
+ * outside this window and never suppresses itself, while QStash's delivery drift and
+ * the sweep's own duration have room to move without closing that margin.
+ */
+export const SWEEP_COLLAPSE_WINDOW_MS = 20 * 60 * 60 * 1000;
+
+/**
+ * Whether a scheduled sweep should stand down because another chain already swept.
+ *
+ * Nothing in the design stops a second chain existing: every sweep books its successor
+ * unconditionally, so each press of "Sweep players" opens a permanent chain alongside
+ * the one already running. They cost correctness nothing — the sweep is idempotent —
+ * and cost an unofficial API a full catalogue plus one call per team, every day,
+ * forever. This is what collapses them: a redundant sweep does no work and, crucially,
+ * books no successor, so the extra chain ends there.
+ *
+ * It can never end all of them. Whichever chain fires first is not redundant, does the
+ * work and books tomorrow before any later one stands down; the caller reads only
+ * successful sweeps, so a failing chain never silences a healthy one; and two chains
+ * firing within the same instant both run, which duplicates a day and collapses on the
+ * next.
+ *
+ * A `lastSuccessAt` in the future is a clock the code cannot reason about, and the
+ * failure modes are not symmetric: standing down risks ending every chain, running
+ * risks one redundant sweep. So it runs.
+ */
+export function isRedundantSweep(lastSuccessAt: Date | null, now: Date): boolean {
+  if (lastSuccessAt === null) return false;
+
+  const elapsed = now.getTime() - lastSuccessAt.getTime();
+  if (elapsed < 0) return false;
+
+  return elapsed < SWEEP_COLLAPSE_WINDOW_MS;
+}

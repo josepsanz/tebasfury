@@ -98,13 +98,11 @@ DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
 The inline `DATABASE_URL` takes priority over the one in `.env.local`, so the
 migrations land on the database you name here rather than the development one.
 
-`0003` through `0007` **were** applied when their slices shipped. `0003` through `0006`
+`0003` through `0008` **were** applied when their slices shipped. `0003` through `0006`
 landed with the players slice; `0007` (the `real_teams` table) came with the club
-affiliation slice, and both have since been verified in production.
-
-`0008` (the `market_operations` table) is outstanding and must be applied before this
-slice deploys. It is safe against the populated database: it only creates a table and an
-index, adds no constraint to any existing table, and declares no foreign key.
+affiliation slice; `0008` (the `market_operations` table) went out with the fair-play
+slice. All of them have since been verified in production — `0008` on 2026-09-08, and
+the table has been capturing the league's operations ever since.
 
 ## 5. Redeploy and verify
 
@@ -185,10 +183,17 @@ first, so it has to be started by hand, once, per environment.
 On `/admin/sync`, press **Sweep players**. A successful sweep reports how many players
 and squads it read and when the next one is due; from then on the chain runs itself.
 
-Do not press it again just to check the chain is alive: nothing detects a QStash
-message already in flight, so a second press starts a second, permanent chain running
-alongside the first — harmless for correctness (the sweep is idempotent) but it doubles
-load on an API the design is trying to be polite to.
+Pressing it again while the chain is alive does start a second chain — nothing detects
+a QStash message already in flight — but that chain no longer survives. A scheduled
+sweep that finds a successful one inside the last 20 hours stands down without booking
+a successor (`isRedundantSweep`), so the duplicate ends at its own next firing and one
+chain is left. The collapse takes a day; the cost until then is one extra sweep.
+
+Two presses within that same window are the case this does not cover: both open chains
+that fire roughly a day apart and each looks legitimate to the other. That is what
+happened on 2026-09-07, and it is why the guard exists. Prefer the **last successful
+sweep** line for checking the chain is alive — it answers the question the button was
+being pressed to answer.
 
 If sweeps stop, `/admin/sync` names the moment: the **last successful sweep** line next
 to the buttons is the whole diagnostic (the run history table is not — the standings

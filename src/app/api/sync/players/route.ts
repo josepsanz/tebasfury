@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
+import { loadLastPlayerSweep } from "@/lib/db/queries";
 import { createClient } from "@/lib/fantasy-client";
 import { getEnv } from "@/lib/env";
 import { schedulePlayerSweep, verifyQStashSignature } from "@/lib/scheduler";
-import { nextPlayerSweepAfterFailure } from "@/lib/sync/next-run";
+import { isRedundantSweep, nextPlayerSweepAfterFailure } from "@/lib/sync/next-run";
 import { runPlayerSweep } from "@/lib/sync/players";
 import { failureMessage, runAndSchedule } from "@/lib/sync/scheduled-run";
 
@@ -29,6 +30,21 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
+
+  // The one place a chain is allowed to end on purpose. Standing down without booking
+  // a successor is what collapses the duplicate chains each press of "Sweep players"
+  // opens; `isRedundantSweep` argues why this cannot end the last one. The manual
+  // button is deliberately not guarded — it stays the recovery lever, and the chain it
+  // duplicates stands down here on its own next firing.
+  const lastSweepAt = await loadLastPlayerSweep(db);
+  if (isRedundantSweep(lastSweepAt, now)) {
+    return Response.json({
+      skipped: true,
+      reason: "Another chain already swept within the collapse window.",
+      lastSweepAt: lastSweepAt?.toISOString() ?? null,
+    });
+  }
+
   const outcome = await runAndSchedule({
     now,
     schedule: (at) => schedulePlayerSweep(at, now),
