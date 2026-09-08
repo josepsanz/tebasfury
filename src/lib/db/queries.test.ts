@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./testing";
 import {
   gameweeks,
+  marketOperations,
   playerGameweekPoints,
   players,
   playerValueSnapshots,
@@ -11,7 +12,7 @@ import {
   teamGameweekStats,
   teams,
 } from "./schema";
-import { loadPlayer, loadPlayerCatalogue, loadSnapshots } from "./queries";
+import { loadMarket, loadPlayer, loadPlayerCatalogue, loadSnapshots } from "./queries";
 import { buildCatalogue } from "@/lib/domain/players";
 
 describe("loadSnapshots", () => {
@@ -254,5 +255,39 @@ describe("club names", () => {
   it("gives the player page its club, and null when there is none", async () => {
     expect((await loadPlayer(h.db, "p1"))?.club).toEqual({ id: "21", name: "Deportivo Alavés" });
     expect((await loadPlayer(h.db, "p2"))?.club).toBeNull();
+  });
+});
+
+describe("loadMarket", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(teams).values([
+      { id: "t1", managerId: 1, managerName: "Ada" },
+      { id: "t2", managerId: 2, managerName: "Bruno" },
+    ]);
+    await h.db.insert(players).values({
+      id: "p1", nickname: "F. Garcés", position: "Defender", realTeamId: "21", status: "ok", imageUrl: null,
+    });
+    await h.db.insert(marketOperations).values([
+      { id: "op1", activityType: 31, actorManagerId: 1, playerId: "p1", amount: 2_000_000, occurredAt: new Date("2026-09-03T15:02:00Z") },
+      { id: "op2", activityType: 33, actorManagerId: 1, playerId: "p1", amount: 2_500_000, occurredAt: new Date("2026-09-07T14:59:00Z") },
+      { id: "op3", activityType: 6, actorManagerId: 2, playerId: null, amount: 5_700_000, weekNumber: 3, occurredAt: new Date("2026-09-01T02:34:00Z") },
+    ]);
+  });
+  afterAll(async () => { await h.close(); });
+
+  it("reads the operations newest first, with the names the portal knows", async () => {
+    const { operations, managerNames, playerNames } = await loadMarket(h.db);
+    expect(operations.map((o) => o.id)).toEqual(["op2", "op1", "op3"]);
+    expect(managerNames.get(1)).toBe("Ada");
+    expect(playerNames.get("p1")).toBe("F. Garcés");
+  });
+
+  it("reports how far back the log reaches, which is not how far back the feed does", async () => {
+    // `firstSeenAt` is when WE captured an operation. It is the only honest answer to
+    // "why does this sale show an unknown holding period", and Ruling 5 needs it.
+    const { logBegan } = await loadMarket(h.db);
+    expect(logBegan).toBeInstanceOf(Date);
   });
 });

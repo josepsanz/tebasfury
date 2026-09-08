@@ -11,8 +11,10 @@ import type {
   RealTeamRecord,
   ValuePoint,
 } from "@/lib/domain/players";
+import type { MarketOperation } from "@/lib/domain/market";
 import {
   gameweeks,
+  marketOperations,
   playerGameweekPoints,
   playerValueSnapshots,
   players as playersTable,
@@ -242,5 +244,52 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
     club: clubRows[0] ?? null,
     ownershipKnown: anyOwnership.length > 0,
     lastSweep,
+  };
+}
+
+export type MarketData = {
+  /** Newest first — the order the feed reads in. */
+  operations: MarketOperation[];
+  /**
+   * Manager and player names, read whole and merged in the view rather than joined.
+   * Thirteen managers and ~840 players against a few thousand operations: two small
+   * maps beat two joins that would have to tolerate a missing row anyway, which
+   * Ruling 7 guarantees can happen.
+   */
+  managerNames: Map<number, string>;
+  playerNames: Map<string, string>;
+  /**
+   * When this log first captured anything. Older operations exist in the world and
+   * cannot be recovered — the API's window is seven days — so this is the date before
+   * which a holding period is unknowable rather than clean.
+   */
+  logBegan: Date | null;
+};
+
+/** Everything the market page shows. */
+export async function loadMarket(db: Db): Promise<MarketData> {
+  const [operationRows, teamRows, playerRows] = await Promise.all([
+    db.select().from(marketOperations).orderBy(desc(marketOperations.occurredAt)),
+    db.select({ managerId: teams.managerId, managerName: teams.managerName }).from(teams),
+    db.select({ id: playersTable.id, nickname: playersTable.nickname }).from(playersTable),
+  ]);
+
+  return {
+    operations: operationRows.map((row) => ({
+      id: row.id,
+      activityType: row.activityType,
+      actorManagerId: row.actorManagerId,
+      counterpartyManagerId: row.counterpartyManagerId,
+      playerId: row.playerId,
+      amount: row.amount,
+      occurredAt: row.occurredAt,
+    })),
+    managerNames: new Map(teamRows.map((t) => [t.managerId, t.managerName])),
+    playerNames: new Map(playerRows.map((p) => [p.id, p.nickname])),
+    logBegan: operationRows.reduce<Date | null>(
+      (earliest, row) =>
+        earliest === null || row.firstSeenAt < earliest ? row.firstSeenAt : earliest,
+      null,
+    ),
   };
 }
