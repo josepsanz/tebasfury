@@ -57,6 +57,13 @@
       "when": 1788795202575,
       "tag": "0007_simple_ser_duncan",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788826850157,
+      "tag": "0008_sharp_stephen_strange",
+      "breakpoints": true
     }
   ]
 }
