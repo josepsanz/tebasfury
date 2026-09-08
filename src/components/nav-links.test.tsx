@@ -1,10 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NavLinks } from "./nav-links";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/market" }));
+let pathname = "/market";
+vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 
 describe("NavLinks", () => {
+  beforeEach(() => {
+    pathname = "/market";
+  });
+
   it("marks the section you are in", () => {
     const html = renderToStaticMarkup(<NavLinks canTriggerSync={false} />);
     expect(html).toContain('aria-current="page"');
@@ -29,5 +34,18 @@ describe("NavLinks", () => {
     // what keeps a seventh destination, or a reader with larger system text, from
     // losing a destination off the edge entirely.
     expect(renderToStaticMarkup(<NavLinks canTriggerSync />)).toContain("flex-wrap");
+  });
+
+  it("marks a deeper path's section, not every link", () => {
+    pathname = "/players/38128693";
+    const html = renderToStaticMarkup(<NavLinks canTriggerSync={false} />);
+    expect(html).toMatch(/aria-current="page"[^>]*>Players</);
+    expect(html).not.toMatch(/aria-current="page"[^>]*>Standings</);
+  });
+
+  it("marks nothing at the home page", () => {
+    pathname = "/";
+    const html = renderToStaticMarkup(<NavLinks canTriggerSync={false} />);
+    expect(html).not.toContain('aria-current="page"');
   });
 });
