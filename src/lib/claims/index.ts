@@ -15,18 +15,25 @@ export type MyTeam = { teamId: string; managerName: string };
 const UNIQUE_VIOLATION = "23505";
 
 /**
- * True only for an error object carrying Postgres's unique-violation SQLSTATE. Read
- * narrowly off `unknown` — never matched on message text — so both Neon's
- * `NeonDbError` and PGlite's driver error, which both expose a `code` string, are
- * recognised the same way, and anything else is left for the caller to rethrow.
+ * True only for an error object carrying Postgres's unique-violation SQLSTATE,
+ * checked at any depth of `.cause`. drizzle-orm 0.45.2 wraps every driver error in
+ * `DrizzleQueryError`, which exposes `query`, `params` and `cause` but no `code` of
+ * its own — the SQLSTATE lives on the wrapped driver error instead (Neon's
+ * `NeonDbError`, or PGlite's driver error), reached by walking `cause`. Read
+ * narrowly off `unknown` — never matched on message text — and anything that isn't
+ * this exact code, at any depth, is left for the caller to rethrow.
  */
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: unknown }).code === UNIQUE_VIOLATION
-  );
+export function isUniqueViolation(err: unknown): boolean {
+  for (let e: unknown = err; e != null; e = (e as { cause?: unknown }).cause) {
+    if (
+      typeof e === "object" &&
+      "code" in e &&
+      (e as { code?: unknown }).code === UNIQUE_VIOLATION
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**

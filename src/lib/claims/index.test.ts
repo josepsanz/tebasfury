@@ -4,6 +4,7 @@ import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
 import { teams, user } from "@/lib/db/schema";
 import {
   claimTeam,
+  isUniqueViolation,
   loadClaimBoard,
   loadMyTeam,
   releaseTeam,
@@ -73,54 +74,30 @@ describe("claimTeam", () => {
     expect(await ownerOf("t1")).toBe("alice");
   });
 
-  // The two tests below exercise the unique-violation branch: two genuinely
-  // concurrent claims by the SAME user for two DIFFERENT free teams can both pass
-  // `NOT EXISTS` before either commits, and `teams_user_id_unique` is what actually
-  // stops the loser, by raising SQLSTATE 23505. PGlite is single-connection and
-  // in-process, so no sequential test here can reach that error — the `NOT EXISTS`
-  // clause always catches a second call first. These use a fake `db` instead,
-  // standing in for a real concurrent race that cannot be reproduced in-process;
-  // they are not concurrency tests, just tests of the error-mapping.
-  it("maps a unique-violation error to already-claimed-another (fake db, not a real race)", async () => {
-    const fakeDb = {
-      update: () => ({
-        set: () => ({
-          where: () => ({
-            returning: () => Promise.reject({ code: "23505" }),
-          }),
-        }),
-      }),
-      select: () => ({
-        from: () => ({
-          where: () => ({}),
-        }),
-      }),
-    } as unknown as Parameters<typeof claimTeam>[0];
+  // isUniqueViolation exists for the branch above: two genuinely concurrent claims
+  // by the SAME user for two DIFFERENT free teams can both pass `NOT EXISTS` before
+  // either commits, and `teams_user_id_unique` is what actually stops the loser, by
+  // raising SQLSTATE 23505. PGlite is single-connection and in-process, so no
+  // sequential call through claimTeam can reach that error — its own `NOT EXISTS`
+  // clause always catches a second call first. So this provokes the real violation
+  // directly against the index instead, the same way src/lib/db/schema.test.ts does,
+  // and checks the predicate against whatever drizzle actually throws.
+  it("recognises a real unique-violation thrown by drizzle against PGlite", async () => {
+    await claimTeam(h.db, { userId: "alice", teamId: "t1" });
 
-    await expect(claimTeam(fakeDb, { userId: "alice", teamId: "t1" })).resolves.toBe(
-      "already-claimed-another",
-    );
+    let caught: unknown;
+    try {
+      await h.db.update(teams).set({ userId: "alice" }).where(eq(teams.id, "t2"));
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeDefined();
+    expect(isUniqueViolation(caught)).toBe(true);
   });
 
-  it("rethrows any other error untouched (fake db, not a real race)", async () => {
-    const fakeDb = {
-      update: () => ({
-        set: () => ({
-          where: () => ({
-            returning: () => Promise.reject({ code: "42P01" }),
-          }),
-        }),
-      }),
-      select: () => ({
-        from: () => ({
-          where: () => ({}),
-        }),
-      }),
-    } as unknown as Parameters<typeof claimTeam>[0];
-
-    await expect(
-      claimTeam(fakeDb, { userId: "alice", teamId: "t1" }),
-    ).rejects.toMatchObject({ code: "42P01" });
+  it("does not mistake an unrelated error for a unique violation", () => {
+    expect(isUniqueViolation(new Error("boom"))).toBe(false);
   });
 });
 
