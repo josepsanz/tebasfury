@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     squadsSkipped: outcome.result.squadsSkipped,
     droppedSquadPlayers: outcome.result.droppedSquadPlayers,
     realTeamsKnown: outcome.result.realTeamsKnown,
+    operationsCaptured: outcome.result.operationsCaptured,
     nextRunAt: outcome.result.nextRunAt.toISOString(),
   });
 }

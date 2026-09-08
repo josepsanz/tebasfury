@@ -2,6 +2,7 @@ import { and, count, eq, notInArray, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import {
+  marketOperations,
   playerGameweekPoints,
   playerValueSnapshots,
   players,
@@ -10,7 +11,7 @@ import {
   syncRuns,
   teams,
 } from "@/lib/db/schema";
-import type { FantasyClient, PlayerRow, RealTeamRow } from "@/lib/fantasy-client";
+import type { FantasyClient, MarketOperationRow, PlayerRow, RealTeamRow } from "@/lib/fantasy-client";
 import { describeFailure } from "./failure";
 import { nextPlayerSweep } from "./next-run";
 
@@ -22,8 +23,8 @@ import { nextPlayerSweep } from "./next-run";
  */
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-/** The two calls a sweep makes. Narrower than `FantasyClient`, so a fake is two lines. */
-export type PlayerClient = Pick<FantasyClient, "getPlayers" | "getSquad">;
+/** The calls a sweep makes. Narrower than `FantasyClient`, so a fake is a few lines. */
+export type PlayerClient = Pick<FantasyClient, "getPlayers" | "getSquad" | "getActivity">;
 
 export type PlayerSweepResult = {
   playersSynced: number;
@@ -47,6 +48,15 @@ export type PlayerSweepResult = {
    * place that gap is visible without opening the database.
    */
   realTeamsKnown: number;
+  /**
+   * Market operations written by this sweep — the size of the feed, not the number of
+   * new rows, because the seven-day window overlaps six days with yesterday's read.
+   *
+   * Reported on every sweep rather than only when it is zero: a feed that suddenly
+   * returns nothing is the shape of a broken capture, and a number that only appears
+   * when something is wrong cannot show that nothing is.
+   */
+  operationsCaptured: number;
   nextRunAt: Date;
 };
 
@@ -147,6 +157,13 @@ export async function runPlayerSweep(deps: {
     await upsertRealTeams(db, squads.realTeams, now);
     const [clubCount] = await db.select({ value: count() }).from(realTeams);
 
+    // Ruling 6: NOT wrapped in a tolerance. If this throws, the sweep fails, QStash
+    // retries, and every write above is idempotent so the retry is free. The
+    // alternative — carrying on quietly — loses operations that no later sweep can
+    // recover, because the feed's window will have rolled past them.
+    const operations = await client.getActivity();
+    await upsertOperations(db, operations);
+
     const nextRunAt = nextPlayerSweep(now);
     await db
       .update(syncRuns)
@@ -159,6 +176,7 @@ export async function runPlayerSweep(deps: {
       squadsSkipped: squads.squadsSkipped,
       droppedSquadPlayers: squads.droppedSquadPlayers,
       realTeamsKnown: clubCount.value,
+      operationsCaptured: operations.length,
       nextRunAt,
     };
   } catch (error) {
@@ -381,6 +399,37 @@ async function upsertRealTeams(db: Db, clubs: RealTeamRow[], now: Date) {
         slug: sql`excluded.slug`,
         badgeUrl: sql`excluded.badge_url`,
         lastSeenAt: sql`excluded.last_seen_at`,
+      },
+    });
+}
+
+/**
+ * The operations the feed reported, upserted by the API's own id.
+ *
+ * One statement, unchunked: a week of this league's activity was ninety-four rows of
+ * eight columns, about 750 bound parameters against Postgres's 65,535 cap. Re-check
+ * against `65,535 / columns` if a column is ever added.
+ *
+ * `firstSeenAt` is never in the update set — it answers "how far back does our log
+ * reach", and a re-read of a six-day-old operation must not move that answer forward.
+ * Everything else is overwritten, so a corrected amount wins.
+ */
+async function upsertOperations(db: Db, operations: MarketOperationRow[]) {
+  if (operations.length === 0) return;
+
+  await db
+    .insert(marketOperations)
+    .values(operations)
+    .onConflictDoUpdate({
+      target: marketOperations.id,
+      set: {
+        activityType: sql`excluded.activity_type`,
+        actorManagerId: sql`excluded.actor_manager_id`,
+        counterpartyManagerId: sql`excluded.counterparty_manager_id`,
+        playerId: sql`excluded.player_id`,
+        amount: sql`excluded.amount`,
+        weekNumber: sql`excluded.week_number`,
+        occurredAt: sql`excluded.occurred_at`,
       },
     });
 }
