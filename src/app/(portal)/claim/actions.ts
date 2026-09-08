@@ -22,6 +22,7 @@ export async function claim(formData: FormData): Promise<ClaimActionResult> {
   const outcome = await claimTeam(db, { userId: session.user.id, teamId });
   revalidatePath("/claim");
   revalidatePath("/");
+  revalidatePath("/standings");
 
   if (outcome === "claimed") return { ok: true, message: "That team is yours now." };
   if (outcome === "taken") {
@@ -48,6 +49,7 @@ export async function release(formData: FormData): Promise<ClaimActionResult> {
 
   revalidatePath("/claim");
   revalidatePath("/");
+  revalidatePath("/standings");
 
   if (outcome === null) return { ok: false, message: "That is not yours to release." };
   if (outcome === "released") return { ok: true, message: "Released." };
