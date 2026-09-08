@@ -98,14 +98,13 @@ DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
 The inline `DATABASE_URL` takes priority over the one in `.env.local`, so the
 migrations land on the database you name here rather than the development one.
 
-`0003` through `0006` **were** applied when the players slice shipped. An earlier
-version of this passage said they never had, which was true when written: the players
-slice has since been deployed, swept and verified in production, which could not have
-happened without them.
+`0003` through `0007` **were** applied when their slices shipped. `0003` through `0006`
+landed with the players slice; `0007` (the `real_teams` table) came with the club
+affiliation slice, and both have since been verified in production.
 
-`0007` (the `real_teams` table) is outstanding and must be applied before the club
-affiliation slice deploys. It is safe against the populated database: it only creates a
-table, adds no constraint to any existing one, and declares no foreign key.
+`0008` (the `market_operations` table) is outstanding and must be applied before this
+slice deploys. It is safe against the populated database: it only creates a table and an
+index, adds no constraint to any existing table, and declares no foreign key.
 
 ## 5. Redeploy and verify
 

@@ -11,6 +11,7 @@ import {
   playerValueSnapshots,
   squadMembers,
   realTeams,
+  marketOperations,
 } from "./schema";
 
 describe("the standings schema", () => {
@@ -193,5 +194,50 @@ describe("the club table", () => {
     });
     const [row] = await h.db.select().from(players).where(eq(players.id, "p1"));
     expect(row.realTeamId).toBe("not-a-club-we-have-seen");
+  });
+});
+
+describe("the market operations table", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("stores an operation keyed by the id the API gives it", async () => {
+    await h.db.insert(marketOperations).values({
+      id: "44515638",
+      activityType: 1,
+      actorManagerId: 11577824,
+      counterpartyManagerId: 9890566,
+      playerId: "1730",
+      amount: 1_758_321,
+      occurredAt: new Date("2026-09-07T19:32:04Z"),
+    });
+    const [row] = await h.db.select().from(marketOperations);
+    expect(row).toMatchObject({ id: "44515638", activityType: 1, amount: 1_758_321 });
+    expect(row.weekNumber).toBeNull();
+    expect(row.firstSeenAt).toBeInstanceOf(Date);
+  });
+
+  it("stores an operation that names nobody we know", async () => {
+    // Ruling 7: no foreign keys. An operation can name a player the catalogue has not
+    // swept yet, or a manager who joined between standings syncs. A foreign key would
+    // fail the sweep, and every retry after it, for ever.
+    await h.db.insert(marketOperations).values({
+      id: "999",
+      activityType: 77,
+      actorManagerId: 42,
+      playerId: "not-a-player-we-have-swept",
+      occurredAt: new Date("2026-09-07T19:32:04Z"),
+    });
+    const [row] = await h.db
+      .select()
+      .from(marketOperations)
+      .where(eq(marketOperations.id, "999"));
+    expect(row.playerId).toBe("not-a-player-we-have-swept");
+    expect(row.amount).toBeNull();
   });
 });

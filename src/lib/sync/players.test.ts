@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
 import {
+  marketOperations,
   playerGameweekPoints,
   playerValueSnapshots,
   players,
@@ -11,7 +12,7 @@ import {
   teams,
 } from "@/lib/db/schema";
 import { CREDENTIAL_ERROR_NAME, CredentialError } from "@/lib/fantasy-client";
-import type { PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
+import type { MarketOperationRow, PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
 import { MINIMUM_CATALOGUE, runPlayerSweep, utcDate, type PlayerClient } from "./players";
 
 const player = (id: string, over: Partial<PlayerRow> = {}): PlayerRow => ({
@@ -45,6 +46,7 @@ function fakeClient(
   rows: PlayerRow[],
   squads: Record<string, string[]> = {},
   clubs: Record<string, RealTeamRow[]> = {},
+  operations: MarketOperationRow[] = [],
 ): PlayerClient {
   return {
     getPlayers: async () => rows,
@@ -53,6 +55,7 @@ function fakeClient(
       playerIds: squads[teamId] ?? [],
       realTeams: clubs[teamId] ?? [],
     }),
+    getActivity: async () => operations,
   };
 }
 
@@ -75,6 +78,7 @@ describe("runPlayerSweep", () => {
     await h.db.delete(players);
     await h.db.delete(teams);
     await h.db.delete(syncRuns);
+    await h.db.delete(marketOperations);
   });
 
   it("writes the catalogue and backfills the points history on the first sweep", async () => {
@@ -388,6 +392,7 @@ describe("runPlayerSweep", () => {
         throw new CredentialError("nope");
       },
       getSquad: async (teamId) => ({ teamId, playerIds: [], realTeams: [] }),
+      getActivity: async () => [],
     };
     await expect(
       runPlayerSweep({
@@ -527,6 +532,96 @@ describe("runPlayerSweep", () => {
       trigger: "players-manual",
     });
     expect(result.realTeamsKnown).toBe(0);
+  });
+
+  const operation = (over: Partial<MarketOperationRow> = {}): MarketOperationRow => ({
+    id: "op1",
+    activityType: 31,
+    actorManagerId: 1,
+    counterpartyManagerId: null,
+    playerId: "p0",
+    amount: 2_000_000,
+    weekNumber: null,
+    occurredAt: new Date("2026-09-07T19:32:04Z"),
+    ...over,
+  });
+
+  it("captures the operations the feed reports", async () => {
+    const result = await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), {}, {}, [
+        operation({ id: "op1" }),
+        operation({ id: "op2", activityType: 33 }),
+      ]),
+      now,
+      runId: "s1",
+      trigger: "players-manual",
+    });
+
+    expect(await h.db.select().from(marketOperations)).toHaveLength(2);
+    expect(result.operationsCaptured).toBe(2);
+  });
+
+  it("writes an operation once when consecutive sweeps overlap", async () => {
+    // The window is seven days and the cadence is one day, so six days of every feed
+    // have been seen before. The API's own id is the primary key precisely so that a
+    // re-read corrects rather than duplicates.
+    const feed = [operation({ id: "op1", amount: 2_000_000 })];
+    await runPlayerSweep({ db: h.db, client: fakeClient(catalogue(MINIMUM_CATALOGUE), {}, {}, feed), now, runId: "s1", trigger: "players-manual" });
+
+    const corrected = [operation({ id: "op1", amount: 2_500_000 })];
+    await runPlayerSweep({ db: h.db, client: fakeClient(catalogue(MINIMUM_CATALOGUE), {}, {}, corrected), now: tomorrow, runId: "s2", trigger: "players-manual" });
+
+    const rows = await h.db.select().from(marketOperations);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amount).toBe(2_500_000);
+  });
+
+  it("stores an operation naming a player the catalogue has never seen", async () => {
+    // Ruling 7 from the writing side: no foreign key, so this is a row and not a
+    // failed sweep.
+    await runPlayerSweep({
+      db: h.db,
+      client: fakeClient(catalogue(MINIMUM_CATALOGUE), {}, {}, [
+        operation({ id: "op1", playerId: "nobody-we-know" }),
+      ]),
+      now,
+      runId: "s1",
+      trigger: "players-manual",
+    });
+    const [row] = await h.db.select().from(marketOperations);
+    expect(row.playerId).toBe("nobody-we-know");
+  });
+
+  it("fails the whole sweep when the operations cannot be fetched", async () => {
+    // Ruling 6, and deliberately unlike every other tolerance in this file. A squad
+    // that fails today can be re-read tomorrow against the same data; the activity
+    // window will have rolled by then and those operations are gone for good. Failing
+    // hands the retry to QStash, and every write here is idempotent, so a retry is free.
+    //
+    // Matches this file's existing failure tests (see "refuses an implausibly small
+    // catalogue" and "records the run, and records a credential failure by name"):
+    // runPlayerSweep rejects rather than returning a discriminated outcome. The
+    // `outcome.status === "failed"` shape belongs to `runAndSchedule`, one layer up,
+    // not to this function.
+    const client: PlayerClient = {
+      ...fakeClient(catalogue(MINIMUM_CATALOGUE)),
+      getActivity: async () => {
+        throw new Error("activity feed unavailable");
+      },
+    };
+    await expect(
+      runPlayerSweep({
+        db: h.db,
+        client,
+        now,
+        runId: "s1",
+        trigger: "players-manual",
+      }),
+    ).rejects.toThrow("activity feed unavailable");
+
+    const [failed] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "s1"));
+    expect(failed.status).toBe("failed");
   });
 });
 

@@ -435,3 +435,34 @@ View:
   will be there when somebody does.
 - **The tally remains available.** If the log turns out not to change behaviour by itself,
   the cumulative count per manager is the next lever, and it needs no new data.
+- **The `/market` page renders every operation ever captured, unpaginated.** That is fine now
+  and fine at the ~4,000-row season the spec projects, but the feed has no bound: by May the
+  page renders the whole season rather than a recent window. Nothing is wrong today; the point
+  is that the day it does become slow, a bound on the feed is the answer, and the read already
+  returns rows newest-first so the cheapest version is a limit rather than a redesign.
+
+## The visual checks — not yet performed
+
+On `/market`:
+
+27. A row at 320px whose manager name, verb, player name and counterparty all appear at
+    once ("La rataneta received Mangala from cristian1206") — does the amount keep its
+    own column, or does the sentence push it off?
+28. The three holding states in one screen — inside five days, kept, and unknown. Do
+    they read as three different kinds of statement, or does the unknown one look like
+    a failure?
+29. A week-one feed, where almost every sale says "before this log began". Does the page
+    look informative or broken?
+30. Is the breach marker legible in `--board-alert` at 11px, and does it read as a fact
+    rather than an accusation?
+
+On the nav, every page:
+
+31. Two tiers at 375px with Sync visible (an admin): do the five destinations fit one
+    line, and does the second tier wrap cleanly if they do not?
+32. Does the active-section marker survive on `/players/{id}` and on `/admin/sync`,
+    which are deeper than their nav entries?
+33. The 32 vertical pixels the second tier costs — on the standings table and the
+    progress charts, does anything important now sit below the fold that did not?
+34. Signed out: the second tier is absent entirely. Does the single line still look
+    deliberate rather than unfinished?

@@ -93,6 +93,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
   }
 
   revalidatePath("/players");
+  revalidatePath("/market");
   revalidatePath("/admin/sync");
   const {
     playersSynced,
@@ -100,6 +101,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
     squadsSkipped,
     droppedSquadPlayers,
     realTeamsKnown,
+    operationsCaptured,
     nextRunAt,
   } = outcome.result;
   // The two counts below are usually both zero and add nothing when they are — they
@@ -119,7 +121,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
     // closing.
     message:
       `Swept ${playersSynced} players and ${squadsSynced} squads, ` +
-      `${realTeamsKnown} clubs known` +
+      `${realTeamsKnown} clubs known, ${operationsCaptured} operations captured` +
       (notes.length > 0 ? ` (${notes.join(", ")})` : "") +
       `. Next sweep at ${nextRunAt.toISOString()}.`,
   };

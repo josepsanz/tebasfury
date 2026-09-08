@@ -7,6 +7,7 @@ import {
   CredentialError,
   createClient,
   getAccessToken,
+  getActivity,
   getCurrentWeek,
   getPlayers,
   getSquad,
@@ -383,6 +384,69 @@ describe("the squad mapping", () => {
     const squad = await getSquad("at", "018012894", "9000019");
     expect(squad.playerIds).toEqual(["p1"]);
     expect(squad.realTeams).toEqual([]);
+  });
+});
+
+describe("the activity mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const entry = (over: Record<string, unknown> = {}) => ({
+    id: "44515638",
+    activityTypeId: 1,
+    user1Id: 11577824,
+    user2Id: 9890566,
+    playerMasterId: 1730,
+    amount: 1758321,
+    createdAt: "2026-09-07T21:32:04+02:00",
+    ...over,
+  });
+
+  it("maps an operation across the boundary", async () => {
+    stubFetch([entry()], 200);
+    const rows = await getActivity("at", "018012894");
+    expect(rows).toEqual([
+      {
+        id: "44515638",
+        activityType: 1,
+        actorManagerId: 11577824,
+        counterpartyManagerId: 9890566,
+        playerId: "1730",
+        amount: 1758321,
+        weekNumber: null,
+        occurredAt: new Date("2026-09-07T19:32:04.000Z"),
+      },
+    ]);
+  });
+
+  it("turns every field a type omits into null rather than undefined", async () => {
+    // The sweep writes these straight into nullable columns; `undefined` would be a
+    // different write, and the three types that omit different fields would each
+    // produce a different bug.
+    stubFetch(
+      [{ id: "1", activityTypeId: 6, user1Id: 5, weekNumber: 3, amount: 5_700_000, createdAt: "2026-09-01T04:34:34+02:00" }],
+      200,
+    );
+    const [row] = await getActivity("at", "018012894");
+    expect(row.counterpartyManagerId).toBeNull();
+    expect(row.playerId).toBeNull();
+    expect(row.weekNumber).toBe(3);
+  });
+
+  it("reads the offset the API sends rather than assuming UTC", async () => {
+    // `+02:00` at 21:32 is 19:32 UTC. Dropping the offset would shift every holding
+    // period by two hours, which on a 120-hour rule is how a compliant sale becomes a
+    // violation.
+    stubFetch([entry()], 200);
+    const [row] = await getActivity("at", "018012894");
+    expect(row.occurredAt.toISOString()).toBe("2026-09-07T19:32:04.000Z");
+  });
+
+  it("asks the league's own activity path", async () => {
+    const fetchMock = stubFetch([entry()], 200);
+    await getActivity("at", "018012894");
+    expect(fetchMock.mock.calls[0][0]).toContain("/leagues/018012894/activity");
   });
 });
 

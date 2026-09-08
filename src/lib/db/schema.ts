@@ -320,3 +320,46 @@ export const realTeams = pgTable("real_teams", {
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Every market operation the league activity feed has reported.
+ *
+ * The primary key is the API's OWN operation id, which is what makes the daily capture
+ * idempotent: consecutive sweeps overlap by six days, and re-reading an operation must
+ * correct it rather than duplicate it.
+ *
+ * Deliberately the target of no foreign key and holding none. An operation can name a
+ * player the catalogue has not swept yet, or a manager who joined between standings
+ * syncs — the same trap `squad_members.player_id` documents, and `real_teams` documents
+ * from the other side. A key here would fail the sweep and every retry after it.
+ *
+ * Rows arrive uninterpreted. Six `activity_type` values have been observed and three
+ * have names; the other three are stored anyway, because the feed is a rolling
+ * seven-day window and an unstored operation is unrecoverable a week later, while an
+ * uninterpreted one costs a single insert.
+ *
+ * There is no violations table. A violation is arithmetic over two of these rows and a
+ * threshold — computed, not measured — and a stored verdict can outlive the rule that
+ * produced it. See Ruling 2.
+ */
+export const marketOperations = pgTable(
+  "market_operations",
+  {
+    id: text("id").primaryKey(),
+    activityType: integer("activity_type").notNull(),
+    actorManagerId: integer("actor_manager_id").notNull(),
+    counterpartyManagerId: integer("counterparty_manager_id"),
+    playerId: text("player_id"),
+    amount: bigint("amount", { mode: "number" }),
+    weekNumber: integer("week_number"),
+    /** The instant the API reported, offset included. Not a date: the rule is hourly. */
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    /** When our log first saw it — which is how far back the log can honestly reach. */
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // The feed reads newest-first. A b-tree is scanned backwards for a DESC order, so
+    // one ascending index serves both this and the "how far back do we reach" read.
+    index("market_operations_occurred_at_idx").on(table.occurredAt),
+  ],
+);

@@ -18,13 +18,14 @@ import weekFixture from "@/lib/fantasy-client/__fixtures__/week-current.json";
 import { runSync } from "./index";
 
 /**
- * The standings sync never reaches for the catalogue or for a squad. They are stubbed
- * once, here, because both cadences share one client: the type carries all four calls
- * even where a test exercises only two.
+ * The standings sync never reaches for the catalogue, a squad, or the activity feed.
+ * They are stubbed once, here, because every cadence shares one client: the type
+ * carries every call even where a test exercises only two.
  */
 const unusedPlayerCalls = {
   getPlayers: async () => [],
   getSquad: async (teamId: string) => ({ teamId, playerIds: [], realTeams: [] }),
+  getActivity: async () => [],
 };
 
 const row = (

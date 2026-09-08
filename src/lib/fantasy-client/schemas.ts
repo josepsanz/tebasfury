@@ -143,6 +143,36 @@ export const squadSchema = z.object({
 });
 
 /**
+ * One entry in the league activity feed.
+ *
+ * Everything but the id, the type, the actor and the timestamp is OPTIONAL, and that is
+ * the shape of the data rather than caution about it: a weekly bookkeeping entry
+ * carries no player, a market purchase carries no counterparty, and one observed type
+ * carries neither an amount nor a second party. A schema that required them would fail
+ * the sweep on data the API sends every day.
+ *
+ * `activityTypeId` stays a plain number. The set is open — the probe saw six types and
+ * could name three — so an enum here would either reject tomorrow's type or invite a
+ * `default: throw`, and both lose data that a rolling seven-day window never returns.
+ *
+ * `createdAt` is left a string and parsed on the far side of the mapping, where the
+ * offset it carries (`+02:00`) becomes an instant. Coercing it here would hide which
+ * layer owns that conversion.
+ */
+export const activityEntrySchema = z.object({
+  id: z.coerce.string(),
+  activityTypeId: z.coerce.number(),
+  user1Id: z.coerce.number(),
+  user2Id: z.coerce.number().nullable().optional(),
+  playerMasterId: z.coerce.string().nullable().optional(),
+  amount: z.coerce.number().nullable().optional(),
+  weekNumber: z.coerce.number().nullable().optional(),
+  createdAt: z.string(),
+});
+
+export const activitySchema = z.array(activityEntrySchema);
+
+/**
  * These types describe the API's own shape, and they are internal to
  * `lib/fantasy-client/`. Nothing outside this directory may import them: the mapped
  * `StandingRow` and `Gameweek` in `./index.ts` are what crosses the boundary. That is
