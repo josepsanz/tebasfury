@@ -104,9 +104,11 @@ affiliation slice; `0008` (the `market_operations` table) went out with the fair
 slice. All of them have since been verified in production — `0008` on 2026-09-08, and
 the table has been capturing the league's operations ever since.
 
-`0009` (a unique index on `teams.user_id`) is outstanding and must be applied before the
-team-claim slice deploys. It is safe against the populated database: the column is
-entirely NULL today, so the index cannot find a duplicate to trip on.
+`0009` (a unique index on `teams.user_id`) was applied on 2026-09-08 and verified against
+production: `pg_indexes` reports `teams_user_id_unique` as a plain unique index over
+`user_id`, with no `WHERE` clause — which is what lets thirteen unclaimed teams coexist,
+since Postgres treats NULLs as distinct. It went in ahead of the team-claim slice's deploy,
+so that slice can ship without a migration step of its own.
 
 ## 5. Redeploy and verify
 
