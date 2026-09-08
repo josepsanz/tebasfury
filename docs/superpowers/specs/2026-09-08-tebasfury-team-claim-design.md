@@ -269,6 +269,17 @@ manual checks below, and by nothing else.
 
 ## The visual checks — not yet performed
 
+Checks 35–40 below remain unperformed as of this slice's implementation. Every one of
+them needs a signed-in session, and the automated suites deliberately never sign in — the
+Vitest suite never opens a browser, and the Playwright suite stops at the redirect, by
+design — so no agent working from this codebase can load any of these three pages as a
+claimed manager, an unclaimed one, or an admin. The same gap covers more than the visual
+polish: it covers the claim and release flow itself. `/claim`'s only automated coverage
+is that an anonymous visitor gets redirected to `/login`; nobody and nothing has
+exercised what happens after that redirect — clicking Claim, seeing the row flip, an
+admin releasing a row, any of it. These checks are the owner's to walk, at 320px and
+375px, signed in, once with a claimed team and once without, and once as an admin.
+
 On `/claim`:
 
 35. The 13 rows at 320px with the longest names — `LamineTheTuareg` and
