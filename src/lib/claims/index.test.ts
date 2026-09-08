@@ -72,6 +72,56 @@ describe("claimTeam", () => {
     expect(outcome).toBe("taken");
     expect(await ownerOf("t1")).toBe("alice");
   });
+
+  // The two tests below exercise the unique-violation branch: two genuinely
+  // concurrent claims by the SAME user for two DIFFERENT free teams can both pass
+  // `NOT EXISTS` before either commits, and `teams_user_id_unique` is what actually
+  // stops the loser, by raising SQLSTATE 23505. PGlite is single-connection and
+  // in-process, so no sequential test here can reach that error — the `NOT EXISTS`
+  // clause always catches a second call first. These use a fake `db` instead,
+  // standing in for a real concurrent race that cannot be reproduced in-process;
+  // they are not concurrency tests, just tests of the error-mapping.
+  it("maps a unique-violation error to already-claimed-another (fake db, not a real race)", async () => {
+    const fakeDb = {
+      update: () => ({
+        set: () => ({
+          where: () => ({
+            returning: () => Promise.reject({ code: "23505" }),
+          }),
+        }),
+      }),
+      select: () => ({
+        from: () => ({
+          where: () => ({}),
+        }),
+      }),
+    } as unknown as Parameters<typeof claimTeam>[0];
+
+    await expect(claimTeam(fakeDb, { userId: "alice", teamId: "t1" })).resolves.toBe(
+      "already-claimed-another",
+    );
+  });
+
+  it("rethrows any other error untouched (fake db, not a real race)", async () => {
+    const fakeDb = {
+      update: () => ({
+        set: () => ({
+          where: () => ({
+            returning: () => Promise.reject({ code: "42P01" }),
+          }),
+        }),
+      }),
+      select: () => ({
+        from: () => ({
+          where: () => ({}),
+        }),
+      }),
+    } as unknown as Parameters<typeof claimTeam>[0];
+
+    await expect(
+      claimTeam(fakeDb, { userId: "alice", teamId: "t1" }),
+    ).rejects.toMatchObject({ code: "42P01" });
+  });
 });
 
 describe("releaseTeam", () => {

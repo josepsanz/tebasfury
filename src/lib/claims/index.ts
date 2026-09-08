@@ -11,6 +11,24 @@ export type ReleaseOutcome = "released" | "nothing-to-release";
 export type ClaimRow = { teamId: string; managerName: string; claimedBy: string | null };
 export type MyTeam = { teamId: string; managerName: string };
 
+/** Postgres's SQLSTATE for a unique-constraint violation, e.g. `teams_user_id_unique`. */
+const UNIQUE_VIOLATION = "23505";
+
+/**
+ * True only for an error object carrying Postgres's unique-violation SQLSTATE. Read
+ * narrowly off `unknown` — never matched on message text — so both Neon's
+ * `NeonDbError` and PGlite's driver error, which both expose a `code` string, are
+ * recognised the same way, and anything else is left for the caller to rethrow.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === UNIQUE_VIOLATION
+  );
+}
+
 /**
  * Claims a team for a user, first come first served.
  *
@@ -22,24 +40,42 @@ export type MyTeam = { teamId: string; managerName: string };
  * The follow-up read only chooses which of two sentences a loser is shown. It may be
  * out of date by the time it runs, and that costs nothing: the outcome was already
  * decided above, and no decision depends on this read.
+ *
+ * The `where` clause is not quite the whole story, though: two genuinely concurrent
+ * calls by the SAME user for two DIFFERENT free teams each run their own MVCC
+ * snapshot, so both can pass the `NOT EXISTS` sub-select before either commits — the
+ * `where` clause alone cannot see the other transaction. `teams_user_id_unique`
+ * (added in Task 1) is what actually stops the loser, by raising a unique-violation
+ * error on commit. That index is the same authority as the `where` clause — it is
+ * what makes the claim exclusive in the first place — so the outcome it produces is
+ * the true one; this function's only remaining job is to keep its promise to resolve
+ * a `ClaimOutcome` rather than let that error escape as a rejection. This branch is
+ * unreachable from any sequential caller (PGlite included): a second statement from
+ * the same session always loses to `NOT EXISTS` first.
  */
 export async function claimTeam(
   db: Db,
   { userId, teamId }: { userId: string; teamId: string },
 ): Promise<ClaimOutcome> {
-  const claimed = await db
-    .update(teams)
-    .set({ userId })
-    .where(
-      and(
-        eq(teams.id, teamId),
-        isNull(teams.userId),
-        notExists(
-          db.select({ one: sql`1` }).from(teams).where(eq(teams.userId, userId)),
+  let claimed: { id: string }[];
+  try {
+    claimed = await db
+      .update(teams)
+      .set({ userId })
+      .where(
+        and(
+          eq(teams.id, teamId),
+          isNull(teams.userId),
+          notExists(
+            db.select({ one: sql`1` }).from(teams).where(eq(teams.userId, userId)),
+          ),
         ),
-      ),
-    )
-    .returning({ id: teams.id });
+      )
+      .returning({ id: teams.id });
+  } catch (err) {
+    if (isUniqueViolation(err)) return "already-claimed-another";
+    throw err;
+  }
 
   if (claimed.length === 1) return "claimed";
 
