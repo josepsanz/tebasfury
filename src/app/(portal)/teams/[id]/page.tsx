@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadMarket, loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
@@ -71,8 +72,20 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       <PageHeader title={team.managerName} meta={formatRoundsPlayed(metrics.roundsPlayed)} />
       <MetricGrid items={items} />
 
-      <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
+      <h2
+        className="mt-10 flex items-baseline justify-between gap-3 text-[11px] uppercase tracking-[0.06em]"
+        style={{ color: "var(--board-ink-dim)" }}
+      >
         Their squad
+        {/* The only way in to the lineup page. It belongs beside the squad because the
+            two answer neighbouring questions — what they hold, and what they could field
+            with it — and the nav bar is already at its width at 375px. */}
+        <Link
+          href={`/teams/${id}/lineup`}
+          className="normal-case tracking-normal underline underline-offset-4"
+        >
+          best lineup →
+        </Link>
       </h2>
       {/* What they hold now. The market log below is how it got that way — two different
           questions, and neither derivable from the other: the log reaches back only to the

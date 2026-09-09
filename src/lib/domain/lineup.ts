@@ -194,3 +194,16 @@ export function nearestFormation(ranked: RankedFormation[]): RankedFormation | n
     return missingCount(candidate.shortfall) < missingCount(best.shortfall) ? candidate : best;
   }, null);
 }
+
+/**
+ * The metric a URL is asking for.
+ *
+ * Anything unrecognised falls back to `points` rather than erroring: a hand-edited URL is
+ * not an exceptional condition, and a 404 for `?by=banana` is a worse answer than the
+ * table the reader came for. A repeated parameter arrives as an array — take the first,
+ * because comparing the array itself would fall back silently.
+ */
+export function parseMetric(raw: string | string[] | undefined): LineupMetric {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value === "average" ? "average" : "points";
+}

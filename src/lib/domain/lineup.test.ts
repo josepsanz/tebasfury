@@ -5,6 +5,7 @@ import {
   eligible,
   formationName,
   nearestFormation,
+  parseMetric,
   rankFormations,
 } from "./lineup";
 
@@ -293,5 +294,25 @@ describe("nearestFormation", () => {
     const ranked = rankFormations([], "points");
     // An empty squad is equally far from several; the first in FORMATIONS order wins.
     expect(nearestFormation(ranked)?.name).toBe("5-4-1");
+  });
+});
+
+describe("parseMetric", () => {
+  it("takes the two the page offers", () => {
+    expect(parseMetric("points")).toBe("points");
+    expect(parseMetric("average")).toBe("average");
+  });
+
+  it("falls back to points for anything else", () => {
+    // A hand-edited URL is not an exceptional condition worth a 404.
+    expect(parseMetric(undefined)).toBe("points");
+    expect(parseMetric("rubbish")).toBe("points");
+    expect(parseMetric("")).toBe("points");
+  });
+
+  it("takes the first when the parameter is repeated", () => {
+    // A repeated parameter arrives as an array; comparing the array would fall back
+    // silently and the reader would never learn why.
+    expect(parseMetric(["average", "points"])).toBe("average");
   });
 });
