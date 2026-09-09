@@ -5,11 +5,7 @@ import { teamMetrics } from "@/lib/domain/metrics";
 import { marketSummary } from "@/lib/domain/market";
 import {
   formatAverage,
-  formatAveragePrice,
-  formatBalance,
-  formatBiggestDeal,
   formatPointsPerMillion,
-  formatTraded,
   formatRecord,
   formatRegularity,
   formatRoundsPlayed,
@@ -20,6 +16,7 @@ import {
 import { requireSession } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { MetricGrid, type Metric } from "@/components/metric-grid";
+import { MarketMoney } from "@/components/market-money";
 import { MarketFeed } from "@/components/market-feed";
 
 export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
@@ -42,18 +39,6 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
 
   const summary = managerId === null ? null : marketSummary(market.operations, managerId);
   const playerName = (playerId: string) => market.playerNames.get(playerId);
-  const money: Metric[] =
-    summary === null
-      ? []
-      : [
-          { label: "Total bought", ...formatTraded(summary.bought) },
-          { label: "Total sold", ...formatTraded(summary.sold) },
-          { label: "Average buy", ...formatAveragePrice(summary.bought) },
-          { label: "Average sale", ...formatAveragePrice(summary.sold) },
-          { label: "Biggest buy", ...formatBiggestDeal(summary.bought, playerName) },
-          { label: "Biggest sale", ...formatBiggestDeal(summary.sold, playerName) },
-          { label: "Balance", ...formatBalance(summary.balance) },
-        ];
 
   const items: Metric[] = [
     { label: "Average", ...formatAverage(metrics.average) },
@@ -82,16 +67,16 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
         Their market
       </h2>
-      {managerId === null ? null : (
+      {summary === null ? null : (
         <>
-          <MetricGrid items={money} />
-          {/* The one caveat these seven figures need. The activity feed is a rolling
+          <MarketMoney summary={summary} nameOf={playerName} />
+          {/* The one caveat every figure above shares. The activity feed is a rolling
               seven-day window, so the log reaches back only as far as the first sweep
-              walked it — every total here is "since then", not "this season". Saying it
-              once under the grid beats a caption on each tile. */}
+              walked it — every total here is "since then", not "this season". Said once
+              under the table rather than in four captions. */}
           <p className="mt-2 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
-            Since the market log begins. Buys and sales include clause moves between
-            managers.
+            Since the market log begins. A clause is money moved, not a sale: being
+            charged for a player somebody took is counted apart from selling one.
           </p>
         </>
       )}

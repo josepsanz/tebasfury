@@ -138,8 +138,9 @@ describe("holdings", () => {
 describe("marketSummary", () => {
   const ME = 1;
   const THEM = 2;
+  const empty = { count: 0, total: 0, average: null, biggest: null };
 
-  it("adds up what a manager spent and took from the market", () => {
+  it("adds up what a manager spent on and took from the market", () => {
     const summary = marketSummary(
       [
         op({ id: "b1", activityType: 31, actorManagerId: ME, amount: 3_000_000 }),
@@ -150,15 +151,6 @@ describe("marketSummary", () => {
     );
     expect(summary.bought).toMatchObject({ count: 2, total: 4_000_000, average: 2_000_000 });
     expect(summary.sold).toMatchObject({ count: 1, total: 5_000_000, average: 5_000_000 });
-    expect(summary.balance).toBe(1_000_000);
-  });
-
-  it("reports a negative balance for a manager who spent more than they took", () => {
-    const summary = marketSummary(
-      [op({ id: "b", activityType: 31, actorManagerId: ME, amount: 9_000_000 })],
-      ME,
-    );
-    expect(summary.balance).toBe(-9_000_000);
   });
 
   it("names the biggest buy and the biggest sale, with the player", () => {
@@ -174,26 +166,57 @@ describe("marketSummary", () => {
     expect(summary.sold.biggest).toEqual({ playerId: "gone", amount: 2_000_000 });
   });
 
-  it("counts a clause move as a purchase by whoever ended up with the player", () => {
-    // Type 1 holds the single largest sum in the log. Leaving it out would show a manager
-    // who spent 124M on a clause as having spent nothing.
+  it("keeps a clause paid out of buys, on its own side", () => {
     const summary = marketSummary(
       [op({ id: "t", activityType: 1, actorManagerId: ME, counterpartyManagerId: THEM, amount: 7_000_000 })],
       ME,
     );
-    expect(summary.bought).toMatchObject({ count: 1, total: 7_000_000 });
-    expect(summary.sold.count).toBe(0);
+    expect(summary.clausesPaid).toMatchObject({ count: 1, total: 7_000_000 });
+    expect(summary.bought).toEqual(empty);
+    expect(summary.sold).toEqual(empty);
   });
 
-  it("counts the same clause move as money taken by the manager who was raided", () => {
-    // They did not choose to sell — which is why `holdings` refuses to call it a sale and
-    // never counts it against them — but they were paid, and the money is real.
+  it("does NOT count being clause-raided as a sale", () => {
+    // The distinction this shape exists for. Money came in, but they did not choose to
+    // sell — the same refusal `holdings` makes, so both now use the word the same way.
     const summary = marketSummary(
       [op({ id: "t", activityType: 1, actorManagerId: THEM, counterpartyManagerId: ME, amount: 7_000_000 })],
       ME,
     );
-    expect(summary.sold).toMatchObject({ count: 1, total: 7_000_000 });
-    expect(summary.bought.count).toBe(0);
+    expect(summary.clausesCharged).toMatchObject({ count: 1, total: 7_000_000 });
+    expect(summary.sold).toEqual(empty);
+    expect(summary.bought).toEqual(empty);
+  });
+
+  it("gives clauses the same three figures the market sides get", () => {
+    const summary = marketSummary(
+      [
+        op({ id: "t1", activityType: 1, actorManagerId: ME, counterpartyManagerId: THEM, playerId: "a", amount: 2_000_000 }),
+        op({ id: "t2", activityType: 1, actorManagerId: ME, counterpartyManagerId: THEM, playerId: "b", amount: 6_000_000 }),
+      ],
+      ME,
+    );
+    expect(summary.clausesPaid).toEqual({
+      count: 2,
+      total: 8_000_000,
+      average: 4_000_000,
+      biggest: { playerId: "b", amount: 6_000_000 },
+    });
+  });
+
+  it("aggregates all four sides into cash in, cash out and the difference", () => {
+    const summary = marketSummary(
+      [
+        op({ id: "b", activityType: 31, actorManagerId: ME, amount: 10_000_000 }),
+        op({ id: "s", activityType: 33, actorManagerId: ME, amount: 4_000_000 }),
+        op({ id: "cp", activityType: 1, actorManagerId: ME, counterpartyManagerId: THEM, amount: 5_000_000 }),
+        op({ id: "cc", activityType: 1, actorManagerId: THEM, counterpartyManagerId: ME, amount: 3_000_000 }),
+      ],
+      ME,
+    );
+    expect(summary.cashIn).toBe(7_000_000); // sold 4 + charged 3
+    expect(summary.cashOut).toBe(15_000_000); // bought 10 + paid 5
+    expect(summary.difference).toBe(-8_000_000);
   });
 
   it("ignores other managers' dealings entirely", () => {
@@ -202,15 +225,19 @@ describe("marketSummary", () => {
       ME,
     );
     expect(summary).toEqual({
-      bought: { count: 0, total: 0, average: null, biggest: null },
-      sold: { count: 0, total: 0, average: null, biggest: null },
-      balance: 0,
+      bought: empty,
+      sold: empty,
+      clausesPaid: empty,
+      clausesCharged: empty,
+      cashIn: 0,
+      cashOut: 0,
+      difference: 0,
     });
   });
 
-  it("ignores the types that carry no price", () => {
-    // Types 4, 7 and 9 have no amount in any row measured, and type 6 has one but is not
-    // an operation we can name. None of them may move a total or drag an average.
+  it("ignores the types that carry no price, and the one we cannot name", () => {
+    // Types 4, 7 and 9 have no amount in any row measured. Type 6 has one but is `other`,
+    // and pricing an operation we cannot name would put a number behind a guess.
     const summary = marketSummary(
       [
         op({ id: "x", activityType: 4, actorManagerId: ME, amount: null }),
@@ -219,8 +246,8 @@ describe("marketSummary", () => {
       ],
       ME,
     );
-    expect(summary.bought.count).toBe(0);
-    expect(summary.sold.count).toBe(0);
+    expect(summary.cashIn).toBe(0);
+    expect(summary.cashOut).toBe(0);
   });
 
   it("leaves an average unknown rather than nought when nothing was traded", () => {

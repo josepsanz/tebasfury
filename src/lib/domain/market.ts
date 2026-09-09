@@ -136,31 +136,36 @@ export type MoneySide = {
 };
 
 export type MarketSummary = {
+  /** Bought from the market. Money out. */
   bought: MoneySide;
+  /** Sold to the market — a choice, which is what makes it a sale. Money in. */
   sold: MoneySide;
-  /** Money in minus money out. Positive means this manager took more than they spent. */
-  balance: number;
+  /** Paid to take a player off another manager. Money out. */
+  clausesPaid: MoneySide;
+  /** Charged when a player was taken off them. Money IN, and not a sale. */
+  clausesCharged: MoneySide;
+
+  cashIn: number;
+  cashOut: number;
+  /** Cash in minus cash out. Positive means this manager took more than they spent. */
+  difference: number;
 };
 
 /**
  * What one manager's trading has cost and earned, as far back as the log reaches.
  *
- * **A transfer counts on both sides, and that is the one judgement here.** Types 31 and
- * 33 are dealings with the market and name no counterparty; type 1 is manager to
- * manager, always carries an amount, and holds the single largest sum in the log
- * (124M as of 2026-09-09). Leaving it out would show a manager who spent that on a
- * clause as having spent nothing.
+ * **Four sides, not two, because a clause payment is not a sale.** Being charged for a
+ * player somebody took off you is money in, but it is not selling: you did not choose.
+ * Folding it into "sold" would inflate a raided manager's sales with deals they never
+ * made, and would put this file at odds with `holdings` in the same breath — that
+ * function already refuses to call a clause loss a sale, because the five-day rule is
+ * about choosing to sell. Now money and fair play agree on the word.
  *
- * Its direction follows the one the fair-play slice already settled by evidence — in a
- * type-1 the ACTOR ends up holding the player — so the actor paid and the counterparty
- * was paid. Inference from a measured direction, not a documented fact, which is why the
- * page says buys and sales include clause moves rather than leaving a reader to assume
- * these are shop transactions only.
- *
- * Note this is deliberately NOT how `holdings` reads the same row: there a transfer is
- * an acquisition for the actor and NOT a sale by the counterparty, because the five-day
- * rule is about choosing to sell and being raided is not a choice. Money and fair play
- * ask different questions of one row, and both answers are right.
+ * The types were measured before any of this was designed: 31, 33 and 1 carry an amount
+ * in every row, 1 is the only manager-to-manager kind and always names a counterparty,
+ * and it holds the single largest sum in the log (124M as of 2026-09-09). Its direction
+ * follows the one the fair-play slice settled by evidence — in a type-1 the ACTOR ends up
+ * holding the player — so the actor paid the clause and the counterparty was charged it.
  *
  * Every kind is filtered for a non-null amount even though all three carry one in every
  * row measured: the column is nullable, and a summary that silently counted a null as
@@ -187,20 +192,24 @@ export function marketSummary(operations: MarketOperation[], managerId: number):
     };
   };
 
-  const bought = side(
-    priced.filter((o) => {
-      const kind = operationKind(o.activityType);
-      return (kind === "bought" || kind === "transfer") && o.actorManagerId === managerId;
-    }),
-  );
+  const of = (kind: OperationKind, role: "actor" | "counterparty") =>
+    side(
+      priced.filter(
+        (o) =>
+          operationKind(o.activityType) === kind &&
+          (role === "actor"
+            ? o.actorManagerId === managerId
+            : o.counterpartyManagerId === managerId),
+      ),
+    );
 
-  const sold = side(
-    priced.filter((o) => {
-      const kind = operationKind(o.activityType);
-      if (kind === "sold") return o.actorManagerId === managerId;
-      return kind === "transfer" && o.counterpartyManagerId === managerId;
-    }),
-  );
+  const bought = of("bought", "actor");
+  const sold = of("sold", "actor");
+  const clausesPaid = of("transfer", "actor");
+  const clausesCharged = of("transfer", "counterparty");
 
-  return { bought, sold, balance: sold.total - bought.total };
+  const cashIn = sold.total + clausesCharged.total;
+  const cashOut = bought.total + clausesPaid.total;
+
+  return { bought, sold, clausesPaid, clausesCharged, cashIn, cashOut, difference: cashIn - cashOut };
 }
