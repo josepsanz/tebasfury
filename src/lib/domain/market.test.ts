@@ -268,3 +268,75 @@ describe("marketSummary", () => {
     expect(Number.isInteger(summary.bought.average)).toBe(true);
   });
 });
+
+describe("holdings, what a player made or lost", () => {
+  const bought = (amount: number | null, when: string) =>
+    op({ id: `b-${when}`, activityType: 31, amount, occurredAt: at(when) });
+  const sold = (amount: number | null, when: string) =>
+    op({ id: `s-${when}`, activityType: 33, amount, occurredAt: at(when) });
+
+  it("prices a sale against what the player actually cost", () => {
+    const [holding] = holdings([
+      bought(2_000_000, "2026-09-01T10:00:00Z"),
+      sold(5_000_000, "2026-09-08T10:00:00Z"),
+    ]);
+    expect(holding).toMatchObject({
+      acquiredFor: 2_000_000,
+      releasedFor: 5_000_000,
+      profit: 3_000_000,
+    });
+  });
+
+  it("reports a loss as a negative, not as an absence", () => {
+    const [holding] = holdings([
+      bought(9_000_000, "2026-09-01T10:00:00Z"),
+      sold(4_000_000, "2026-09-08T10:00:00Z"),
+    ]);
+    expect(holding.profit).toBe(-5_000_000);
+  });
+
+  it("leaves the profit UNKNOWN when the purchase predates the log", () => {
+    // The distinction the whole field exists for: calling an unknowable profit nought
+    // would report a manager who doubled their money as having broken even. Same refusal
+    // `hours` already makes about a period it cannot measure.
+    const [holding] = holdings([sold(5_000_000, "2026-09-08T10:00:00Z")]);
+    expect(holding).toMatchObject({ acquiredAt: null, acquiredFor: null, profit: null });
+  });
+
+  it("prices a clause-bought player against the clause, not against nothing", () => {
+    // A transfer in is an acquisition too, and it always carries an amount.
+    const [holding] = holdings([
+      op({ id: "t", activityType: 1, amount: 7_000_000, occurredAt: at("2026-09-01T10:00:00Z") }),
+      sold(9_000_000, "2026-09-08T10:00:00Z"),
+    ]);
+    expect(holding.profit).toBe(2_000_000);
+  });
+
+  it("prices the SECOND holding against the second purchase, not the first", () => {
+    // A manager who buys, sells and re-buys has two independent holdings; pairing the
+    // second sale with the first purchase would invent a profit that never happened.
+    const all = holdings([
+      bought(1_000_000, "2026-09-01T10:00:00Z"),
+      sold(2_000_000, "2026-09-02T10:00:00Z"),
+      bought(8_000_000, "2026-09-03T10:00:00Z"),
+      sold(9_000_000, "2026-09-04T10:00:00Z"),
+    ]);
+    expect(all.map((h) => h.profit)).toEqual([1_000_000, 1_000_000]);
+  });
+
+  it("is unknown when a purchase carried no price", () => {
+    const [holding] = holdings([
+      bought(null, "2026-09-01T10:00:00Z"),
+      sold(5_000_000, "2026-09-08T10:00:00Z"),
+    ]);
+    expect(holding.profit).toBeNull();
+  });
+
+  it("breaks even at exactly zero, which is a number and not an absence", () => {
+    const [holding] = holdings([
+      bought(3_000_000, "2026-09-01T10:00:00Z"),
+      sold(3_000_000, "2026-09-08T10:00:00Z"),
+    ]);
+    expect(holding.profit).toBe(0);
+  });
+});

@@ -156,3 +156,55 @@ describe("MarketFeed links", () => {
     expect(html).not.toContain('href="/teams/99"');
   });
 });
+
+describe("MarketFeed, what a sale made", () => {
+  const buy = (amount: number) =>
+    op({ id: "buy", activityType: 31, amount, occurredAt: new Date("2026-09-01T10:00:00Z") });
+  const sell = (amount: number) =>
+    op({ id: "sell", activityType: 33, amount, occurredAt: new Date("2026-09-08T10:00:00Z") });
+
+  it("shows a gain in green, with an up arrow", () => {
+    const html = feed([sell(5_000_000), buy(2_000_000)]);
+    expect(html).toContain("▲ 3.0M");
+    expect(html).toContain("var(--board-gain)");
+  });
+
+  it("shows a loss in red, with a down arrow and no minus sign", () => {
+    // The arrow carries the direction; a "−" beside it would say it twice.
+    const html = feed([sell(4_000_000), buy(9_000_000)]);
+    expect(html).toContain("▼ 5.0M");
+    expect(html).toContain("var(--board-alert)");
+    expect(html).not.toContain("▼ −");
+  });
+
+  it("says nothing at all when the purchase predates the log", () => {
+    // Not "0" — an unknowable profit rendered as break-even would be a claim we cannot
+    // make, on the row where the reader is most likely to believe it.
+    const html = feed([sell(5_000_000)]);
+    expect(html).toContain("before this log began");
+    expect(html).not.toContain("▲");
+    expect(html).not.toContain("▼");
+  });
+
+  it("draws a break-even sale as a figure, with no arrow and no colour", () => {
+    const html = feed([sell(3_000_000), buy(3_000_000)]);
+    expect(html).toContain("3.0M");
+    expect(html).not.toContain("▲");
+    expect(html).not.toContain("▼");
+  });
+
+  it("keeps the five-day mark beside the money, not instead of it", () => {
+    const html = feed([
+      op({ id: "buy", activityType: 31, amount: 1_000_000, occurredAt: new Date("2026-09-03T15:02:00Z") }),
+      op({ id: "sell", activityType: 33, amount: 4_000_000, occurredAt: new Date("2026-09-07T14:59:00Z") }),
+    ]);
+    expect(html).toContain("inside five days");
+    expect(html).toContain("▲ 3.0M");
+  });
+
+  it("puts no money line on a purchase, which has made nothing yet", () => {
+    const html = feed([buy(2_000_000)]);
+    expect(html).not.toContain("▲");
+    expect(html).not.toContain("held");
+  });
+});

@@ -62,6 +62,19 @@ export type Holding = {
   hours: number | null;
   /** False when `hours` is null. Unknown is never a breach — and never a clean record. */
   breach: boolean;
+  /** What this manager paid to get the player, or null when that purchase is outside the log. */
+  acquiredFor: number | null;
+  /** What the sale fetched. Null only if the API reported no amount, which it never has. */
+  releasedFor: number | null;
+  /**
+   * Sale price minus purchase price, or null when either end is unknown.
+   *
+   * Null and not zero, and the distinction is the whole point: a player bought before the
+   * log began has an unknowable profit, and calling it nought would report a manager who
+   * doubled their money as having broken even. The same refusal `hours` already makes
+   * about a period it cannot measure.
+   */
+  profit: number | null;
 };
 
 const HOUR = 60 * 60 * 1000;
@@ -91,8 +104,12 @@ export function holdings(operations: MarketOperation[]): Holding[] {
     .filter((operation) => operation.playerId !== null)
     .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
 
-  /** The open acquisition per manager and player, keyed as `${managerId}:${playerId}`. */
-  const open = new Map<string, Date>();
+  /**
+   * The open acquisition per manager and player, keyed as `${managerId}:${playerId}`.
+   * Carries the price as well as the instant, so a sale can be priced against what the
+   * player actually cost rather than against nothing.
+   */
+  const open = new Map<string, { at: Date; amount: number | null }>();
   const result: Holding[] = [];
 
   for (const operation of ordered) {
@@ -101,14 +118,17 @@ export function holdings(operations: MarketOperation[]): Holding[] {
     const key = `${operation.actorManagerId}:${playerId}`;
 
     if (kind === "bought" || kind === "transfer") {
-      open.set(key, operation.occurredAt);
+      open.set(key, { at: operation.occurredAt, amount: operation.amount });
       continue;
     }
 
     if (kind !== "sold") continue;
 
-    const acquiredAt = open.get(key) ?? null;
+    const acquired = open.get(key) ?? null;
     open.delete(key);
+    const acquiredAt = acquired?.at ?? null;
+    const acquiredFor = acquired?.amount ?? null;
+    const releasedFor = operation.amount;
     const hours =
       acquiredAt === null
         ? null
@@ -120,6 +140,10 @@ export function holdings(operations: MarketOperation[]): Holding[] {
       releasedAt: operation.occurredAt,
       hours,
       breach: hours !== null && hours < HOLD_HOURS,
+      acquiredFor,
+      releasedFor,
+      profit:
+        acquiredFor === null || releasedFor === null ? null : releasedFor - acquiredFor,
     });
   }
 

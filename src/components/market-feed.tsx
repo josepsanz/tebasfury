@@ -158,16 +158,40 @@ export function MarketFeed({
                 ) : null}
               </span>
               {holding === undefined ? null : (
-                <span
-                  className="block text-[10.5px]"
-                  style={{
-                    color: holding.breach ? "var(--board-alert)" : "var(--board-ink-dim)",
-                  }}
-                >
-                  {holding.hours === null
-                    ? "held since before this log began"
-                    : `held ${(holding.hours / 24).toFixed(1)} days`}
-                  {holding.breach && " — inside five days"}
+                <span className="block text-[10.5px]">
+                  <span
+                    style={{
+                      color: holding.breach ? "var(--board-alert)" : "var(--board-ink-dim)",
+                    }}
+                  >
+                    {holding.hours === null
+                      ? "held since before this log began"
+                      : `held ${(holding.hours / 24).toFixed(1)} days`}
+                    {holding.breach && " — inside five days"}
+                  </span>
+                  {/* What the player made or lost: sale price minus purchase price.
+                      Absent, not nought, when the purchase predates the log — calling an
+                      unknowable profit zero would report a manager who doubled their money
+                      as having broken even. The arrow carries the direction and the colour
+                      repeats it, the same two words the portal uses everywhere. */}
+                  {holding.profit === null ? null : (
+                    <span
+                      className="tabular-nums"
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        color:
+                          holding.profit > 0
+                            ? "var(--board-gain)"
+                            : holding.profit < 0
+                              ? "var(--board-alert)"
+                              : "var(--board-ink-dim)",
+                      }}
+                    >
+                      {" · "}
+                      {holding.profit > 0 ? "▲ " : holding.profit < 0 ? "▼ " : ""}
+                      {formatMoney(Math.abs(holding.profit))}
+                    </span>
+                  )}
                 </span>
               )}
             </span>
