@@ -404,3 +404,59 @@ export function pointsTrend(points: { gameweek: number; points: number | null }[
       .map((p) => ({ x: p.gameweek, value: p.points })),
   );
 }
+
+/**
+ * The order a squad is read in, which is the order a team sheet is written in.
+ *
+ * A list, not an alphabetical sort: "Defender, Forward, Goalkeeper, Midfielder" is the
+ * order a computer would choose and nobody would. A position the API invents later falls
+ * to the end rather than being dropped — the catalogue's own habit with an unknown status.
+ */
+const POSITION_ORDER = ["Goalkeeper", "Defender", "Midfielder", "Forward"];
+
+export type SquadGroup = { position: string; players: CatalogueRow[]; value: number | null };
+
+/**
+ * One manager's squad, grouped by position.
+ *
+ * Filtered from the catalogue rather than read with a query of its own: ownership is
+ * already joined there, and a second read path would be a second thing to keep correct
+ * for a page that also wants each player's value and points — which the catalogue has and
+ * `squad_members` does not.
+ *
+ * A group's `value` is null when ANY player in it has no recorded value, not zero and not
+ * a partial sum. A total that silently omits an unpriced player reads as the squad being
+ * cheaper than it is, which is the same false-zero this file has had to fix twice.
+ */
+export function squadByPosition(rows: CatalogueRow[], teamId: string): SquadGroup[] {
+  const mine = rows.filter((row) => row.ownerTeamId === teamId);
+
+  const positions = [...new Set(mine.map((row) => row.position))].sort((a, b) => {
+    const left = POSITION_ORDER.indexOf(a);
+    const right = POSITION_ORDER.indexOf(b);
+    return (left === -1 ? 99 : left) - (right === -1 ? 99 : right) || a.localeCompare(b);
+  });
+
+  return positions.map((position) => {
+    const players = mine
+      .filter((row) => row.position === position)
+      // Dearest first, then by name so the order cannot wobble between renders.
+      .sort(
+        (a, b) => (b.currentValue ?? -1) - (a.currentValue ?? -1) || a.nickname.localeCompare(b.nickname),
+      );
+    return {
+      position,
+      players,
+      value: players.some((p) => p.currentValue === null)
+        ? null
+        : players.reduce((sum, p) => sum + (p.currentValue ?? 0), 0),
+    };
+  });
+}
+
+/** What the whole squad is worth, or null if any player in it has no recorded value. */
+export function squadValue(groups: SquadGroup[]): number | null {
+  return groups.some((g) => g.value === null)
+    ? null
+    : groups.reduce((sum, g) => sum + (g.value ?? 0), 0);
+}

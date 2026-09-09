@@ -10,6 +10,8 @@ import {
   parseCatalogueEntry,
   pointsPerMillion,
   pointsTrend,
+  squadByPosition,
+  squadValue,
   valueTrend,
   pointsSeries,
   sortCatalogue,
@@ -606,5 +608,77 @@ describe("pointsTrend", () => {
         { gameweek: 3, points: 12 },
       ]),
     ).toBeNull();
+  });
+});
+
+describe("squadByPosition", () => {
+  const p = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
+    id, nickname: id, position: "Midfielder", status: "ok",
+    currentValue: 1_000_000, seasonPoints: 0, averagePoints: null, gameweeksRecorded: 0,
+    ownerTeamId: "t1", ownerName: "Ada", clubName: null, ...over,
+  });
+
+  it("keeps only this manager's players", () => {
+    const groups = squadByPosition([p("mine"), p("theirs", { ownerTeamId: "t2" })], "t1");
+    expect(groups.flatMap((g) => g.players.map((x) => x.id))).toEqual(["mine"]);
+  });
+
+  it("reads in team-sheet order, not alphabetical", () => {
+    // "Defender, Forward, Goalkeeper, Midfielder" is the order a computer would choose
+    // and nobody would.
+    const groups = squadByPosition(
+      [p("f", { position: "Forward" }), p("g", { position: "Goalkeeper" }), p("d", { position: "Defender" })],
+      "t1",
+    );
+    expect(groups.map((g) => g.position)).toEqual(["Goalkeeper", "Defender", "Forward"]);
+  });
+
+  it("puts a position the API invents later at the end rather than dropping it", () => {
+    const groups = squadByPosition([p("x", { position: "Coach" }), p("g", { position: "Goalkeeper" })], "t1");
+    expect(groups.map((g) => g.position)).toEqual(["Goalkeeper", "Coach"]);
+  });
+
+  it("orders each group dearest first, then by name so it cannot wobble", () => {
+    const groups = squadByPosition(
+      [p("cheap", { currentValue: 1 }), p("zed", { currentValue: 9 }), p("abe", { currentValue: 9 })],
+      "t1",
+    );
+    expect(groups[0].players.map((x) => x.id)).toEqual(["abe", "zed", "cheap"]);
+  });
+
+  it("leaves a group's value UNKNOWN when a player in it has none", () => {
+    // A total that silently omits an unpriced player reads as the squad being cheaper
+    // than it is — the same false zero this file has had to fix twice.
+    const groups = squadByPosition([p("a"), p("b", { currentValue: null })], "t1");
+    expect(groups[0].value).toBeNull();
+  });
+
+  it("sums a group whose players all have a value", () => {
+    const groups = squadByPosition([p("a", { currentValue: 2 }), p("b", { currentValue: 3 })], "t1");
+    expect(groups[0].value).toBe(5);
+  });
+
+  it("is empty for a manager with nobody", () => {
+    expect(squadByPosition([], "t1")).toEqual([]);
+  });
+});
+
+describe("squadValue", () => {
+  it("adds the groups up", () => {
+    expect(squadValue([
+      { position: "Goalkeeper", players: [], value: 2 },
+      { position: "Forward", players: [], value: 3 },
+    ])).toBe(5);
+  });
+
+  it("is unknown when any group is", () => {
+    expect(squadValue([
+      { position: "Goalkeeper", players: [], value: 2 },
+      { position: "Forward", players: [], value: null },
+    ])).toBeNull();
+  });
+
+  it("is nought for a squad with no players, which is not the same as unknown", () => {
+    expect(squadValue([])).toBe(0);
   });
 });

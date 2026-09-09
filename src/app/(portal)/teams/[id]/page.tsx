@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { loadMarket, loadSnapshots } from "@/lib/db/queries";
+import { loadMarket, loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
 import { teamMetrics } from "@/lib/domain/metrics";
 import { marketSummary } from "@/lib/domain/market";
+import { buildCatalogue, squadByPosition, squadValue } from "@/lib/domain/players";
 import {
   formatAverage,
   formatPointsPerMillion,
@@ -17,6 +18,7 @@ import { requireSession } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { MetricGrid, type Metric } from "@/components/metric-grid";
 import { MarketMoney } from "@/components/market-money";
+import { SquadList } from "@/components/squad-list";
 import { MarketFeed } from "@/components/market-feed";
 
 export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +38,11 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   // note on why a per-manager filter must not be applied to the holding arithmetic.
   const market = await loadMarket(db);
   const managerId = market.managerIdByTeamId.get(id) ?? null;
+
+  // The catalogue, filtered — not a query of its own. Ownership is already joined there,
+  // and it carries each player's value and points, which `squad_members` does not.
+  const catalogue = await loadPlayerCatalogue(db);
+  const squad = squadByPosition(buildCatalogue(catalogue), id);
 
   const summary = managerId === null ? null : marketSummary(market.operations, managerId);
   const playerName = (playerId: string) => market.playerNames.get(playerId);
@@ -63,6 +70,18 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     <section className="mx-auto max-w-2xl">
       <PageHeader title={team.managerName} meta={formatRoundsPlayed(metrics.roundsPlayed)} />
       <MetricGrid items={items} />
+
+      <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
+        Their squad
+      </h2>
+      {/* What they hold now. The market log below is how it got that way — two different
+          questions, and neither derivable from the other: the log reaches back only to the
+          first sweep, and a squad has players who arrived before that. */}
+      <SquadList
+        groups={squad}
+        total={squadValue(squad)}
+        ownershipKnown={catalogue.ownershipKnown}
+      />
 
       <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
         Their market
