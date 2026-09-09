@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRecord, formatTrend } from "./metric-copy";
+import { formatAverage, formatRecord, formatTrend, formatWorstRecord } from "./metric-copy";
 
 describe("formatTrend", () => {
   it("carries its unit, so a reader can judge how big the movement is", () => {
@@ -31,5 +31,30 @@ describe("formatRecord", () => {
 
   it("says nothing has been played rather than showing a dash", () => {
     expect(formatRecord(null, nameOf)).toEqual({ value: "No rounds yet" });
+  });
+});
+
+describe("formatAverage", () => {
+  it("shows the figure as a plain string", () => {
+    expect(formatAverage(42.3)).toEqual({ value: "42.3" });
+  });
+
+  it("uses the same wording formatRecord uses for nothing played yet", () => {
+    expect(formatAverage(null)).toEqual({ value: "No rounds yet" });
+  });
+});
+
+describe("formatWorstRecord", () => {
+  const nameOf = (id: string) => (id === "t1" ? "Villaone" : id);
+
+  it("carries the same caption as formatRecord, plus why zeros don't count", () => {
+    expect(formatWorstRecord({ points: 12, gameweek: 4, teamId: "t1" }, nameOf)).toEqual({
+      value: "12",
+      note: "Villaone, GW4 · zeros excluded",
+    });
+  });
+
+  it("says nothing has been played rather than showing a dash", () => {
+    expect(formatWorstRecord(null, nameOf)).toEqual({ value: "No rounds yet" });
   });
 });

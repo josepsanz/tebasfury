@@ -1,5 +1,8 @@
 import type { RoundRecord, Trend } from "./metrics";
 
+/** The one wording for "nothing has been played yet" — shared so it is written once. */
+const NO_ROUNDS_YET = "No rounds yet";
+
 /**
  * A trend as a reader should see it: a direction, a size and a unit.
  *
@@ -20,6 +23,25 @@ export function formatRecord(
   record: RoundRecord,
   nameOf: (teamId: string) => string,
 ): { value: string; note?: string } {
-  if (record === null) return { value: "No rounds yet" };
+  if (record === null) return { value: NO_ROUNDS_YET };
   return { value: String(record.points), note: `${nameOf(record.teamId)}, GW${record.gameweek}` };
+}
+
+/** A league or team average, or the same "nothing yet" wording every other figure uses. */
+export function formatAverage(average: number | null): { value: string } {
+  return { value: average === null ? NO_ROUNDS_YET : String(average) };
+}
+
+/**
+ * The worst round, with the same caption a `formatRecord` for best round would carry,
+ * plus the reason a blank gameweek can never be it: zeros are missing lineups, not
+ * performances (Ruling 1), so the record-holder needs to know they were excluded.
+ */
+export function formatWorstRecord(
+  record: RoundRecord,
+  nameOf: (teamId: string) => string,
+): { value: string; note?: string } {
+  const base = formatRecord(record, nameOf);
+  if (record === null) return base;
+  return { ...base, note: `${base.note} · zeros excluded` };
 }
