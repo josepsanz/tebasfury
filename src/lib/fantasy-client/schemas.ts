@@ -184,3 +184,4 @@ export type CurrentWeek = z.infer<typeof currentWeekSchema>;
 export type League = z.infer<typeof leaguesSchema>[number];
 export type PlayerEntry = z.infer<typeof playerEntrySchema>;
 export type Squad = z.infer<typeof squadSchema>;
+export type ActivityEntry = z.infer<typeof activityEntrySchema>;

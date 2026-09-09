@@ -9,6 +9,7 @@ import {
   playersSchema,
   squadSchema,
   standingSchema,
+  type ActivityEntry,
   type CurrentWeek,
   type League,
   type PlayerEntry,
@@ -397,22 +398,55 @@ export type MarketOperationRow = {
 };
 
 /**
- * The league's market operations — a rolling seven-day window.
+ * How many pages of activity a single read will walk before giving up.
  *
- * It takes no useful parameters. The probe tried `?limit`, `?offset`, `?page`, `?size`
- * and `?from`; all five returned the identical ninety-four entries, so there is no
- * paging to add and no history to reach. Whatever is older than the window is gone.
+ * Two pages held the whole season when this was measured. The cap is not there to save
+ * requests: it is there so a response that never comes back empty cannot spin for ever.
+ * Reaching it is not an error and does not fail the sweep — the pages beyond it are the
+ * oldest ones, and every earlier sweep already wrote them.
+ */
+export const MAX_ACTIVITY_PAGES = 20;
+
+/**
+ * The league's market operations, the whole history the API still holds.
+ *
+ * A previous probe concluded there was none: it tried `?limit`, `?offset`, `?page`,
+ * `?size` and `?from`, all five returned the identical entries, and the docstring here
+ * said so — "no paging to add and no history to reach". That was wrong, and it was
+ * wrong in a way worth remembering: the paging is a PATH SEGMENT, not a query
+ * parameter. `/activity/0` is the recent window and `/activity/1` everything before it;
+ * measured on 2026-09-08 they held 105 and 318 entries, no id in both, reaching back to
+ * 11 August against a window that alone would have started on 2 September.
+ *
+ * So this walks pages until one comes back empty. Every sweep does it, which is what
+ * makes a backfill unnecessary: the first sweep after this ships collects the season,
+ * and an outage longer than the recent window heals itself on the next run instead of
+ * losing those days for good.
  */
 export async function getActivity(
   accessToken: string,
   leagueId: string,
 ): Promise<MarketOperationRow[]> {
-  const rows = await apiGet(
-    accessToken,
-    `/v1/competition/${COMPETITION}/leagues/${leagueId}/activity`,
-    activitySchema,
-  );
-  return rows.map((row) => ({
+  const operations: MarketOperationRow[] = [];
+
+  for (let page = 0; page < MAX_ACTIVITY_PAGES; page += 1) {
+    const rows = await apiGet(
+      accessToken,
+      `/v1/competition/${COMPETITION}/leagues/${leagueId}/activity/${page}`,
+      activitySchema,
+    );
+    // An empty page is how the history says it has ended. It is also what a league
+    // with no operations at all answers on page zero, and both mean the same thing
+    // here: there is nothing further back to ask for.
+    if (rows.length === 0) break;
+    operations.push(...rows.map(toMarketOperation));
+  }
+
+  return operations;
+}
+
+function toMarketOperation(row: ActivityEntry): MarketOperationRow {
+  return {
     id: row.id,
     activityType: row.activityTypeId,
     actorManagerId: row.user1Id,
@@ -421,7 +455,7 @@ export async function getActivity(
     amount: row.amount ?? null,
     weekNumber: row.weekNumber ?? null,
     occurredAt: new Date(row.createdAt),
-  }));
+  };
 }
 
 /** The narrow surface a sync run needs, in mapped rows rather than API entries. */
