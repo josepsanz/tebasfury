@@ -13,6 +13,24 @@ import {
   type SortKey,
 } from "@/lib/domain/players";
 import { OwnerLabel } from "@/components/owner-label";
+import { LockIcon } from "@/components/lock-icon";
+import type { ClauseStatus } from "@/lib/domain/market";
+
+/**
+ * How a clause state is drawn.
+ *
+ * One hue at two intensities for `takeable` and `soon`, because they are the same fact at
+ * two distances rather than two categories. Deliberately NOT the portal's amber, which
+ * means "your team" and nothing else — a colour that means two things means neither.
+ *
+ * The padlock on `locked` is the second channel: colour alone would fail a reader who
+ * cannot separate the greens from the grey.
+ */
+const CLAUSE_COLOUR: Record<ClauseStatus["state"], string> = {
+  takeable: "var(--board-gain)",
+  soon: "color-mix(in srgb, var(--board-gain) 55%, var(--board-ink-dim))",
+  locked: "var(--board-ink-dim)",
+};
 
 const PAGE = 60;
 
@@ -95,11 +113,21 @@ function Control({
 export function PlayerCatalogue({
   rows,
   ownershipKnown,
+  clauses,
   initialSort = "value",
   initialOwnership = "all",
 }: {
   rows: CatalogueRow[];
   ownershipKnown: boolean;
+  /**
+   * Player id to their clause state, worked out on the server.
+   *
+   * A plain record of already-formatted states rather than dates: this component renders
+   * eight hundred rows in the browser, and the date arithmetic — and the timezone the
+   * label needs — belong on one server render instead of in every one of them. A player
+   * absent from it is unowned, and an unowned player has no lock to report.
+   */
+  clauses?: Record<string, ClauseStatus>;
   initialSort?: SortKey;
   initialOwnership?: CatalogueFilter["ownership"];
 }) {
@@ -195,16 +223,36 @@ export function PlayerCatalogue({
       </div>
 
       <ol>
-        {page.map((row) => (
+        {page.map((row) => {
+          const clause = clauses?.[row.id];
+          return (
           <li key={row.id} style={{ borderColor: "var(--board-line)" }} className="border-b">
             <Link
               href={`/players/${row.id}`}
               className="grid grid-cols-[1fr_84px] items-center gap-3 px-2 py-[6px]"
             >
               <span className="min-w-0">
-                <span className="block truncate text-[13px]">{row.nickname}</span>
+                <span
+                  className="block truncate text-[13px]"
+                  style={{ color: clause ? CLAUSE_COLOUR[clause.state] : undefined }}
+                  title={clause?.label}
+                >
+                  {clause?.state === "locked" ? (
+                    <>
+                      <LockIcon />{" "}
+                    </>
+                  ) : null}
+                  {row.nickname}
+                </span>
                 <span className="block truncate text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
                   {clubOrPosition(row)} · <OwnerLabel ownerName={row.ownerName} ownershipKnown={ownershipKnown} />
+                  {/* Said in words as well as in colour: the hue answers "can I take
+                      this" at a glance, the words answer "when" without a hover. Only a
+                      lock gets words — writing "takeable" beside most of a catalogue
+                      would be noise. */}
+                  {clause === undefined || clause.state === "takeable" ? null : (
+                    <span style={{ color: CLAUSE_COLOUR[clause.state] }}> · {clause.label}</span>
+                  )}
                   {statusLabel(row.status) === null ? null : (
                     <span style={{ color: "var(--board-alert)" }}>
                       {" "}
@@ -230,7 +278,8 @@ export function PlayerCatalogue({
               </span>
             </Link>
           </li>
-        ))}
+          );
+        })}
       </ol>
 
       {total === 0 && (

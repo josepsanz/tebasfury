@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CatalogueRow } from "@/lib/domain/players";
+import type { ClauseStatus } from "@/lib/domain/market";
 import { paginateCatalogue, PlayerCatalogue } from "./player-catalogue";
 
 const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
@@ -174,5 +175,47 @@ describe("paginateCatalogue", () => {
     );
     expect(total).toBe(6);
     expect(page).toHaveLength(3);
+  });
+});
+
+/** One player, rendered with whatever clause states the case needs. */
+const catalogue = ({ clauses }: { clauses?: Record<string, ClauseStatus> }) =>
+  renderToStaticMarkup(
+    <PlayerCatalogue rows={[row("p1", { nickname: "Ada" })]} ownershipKnown clauses={clauses} />,
+  );
+
+describe("PlayerCatalogue, clause state", () => {
+  const takeable = { state: "takeable" as const, label: "takeable" };
+  const soon = { state: "soon" as const, label: "free in 8 hours" };
+  const locked = { state: "locked" as const, label: "locked until 14 Sept" };
+
+  it("says when a lock lifts, in words and not only in colour", () => {
+    const html = catalogue({ clauses: { p1: locked } });
+    expect(html).toContain("locked until 14 Sept");
+  });
+
+  it("draws a padlock only on a locked player, so colour is not the only channel", () => {
+    // A reader who cannot separate the greens from the grey still sees a padlock or none.
+    expect(catalogue({ clauses: { p1: locked } })).toContain("<svg");
+    expect(catalogue({ clauses: { p1: takeable } })).not.toContain("<svg");
+    expect(catalogue({ clauses: { p1: soon } })).not.toContain("<svg");
+  });
+
+  it("writes no words beside a takeable player, which would be most of the catalogue", () => {
+    const html = catalogue({ clauses: { p1: takeable } });
+    expect(html).not.toContain("takeable<");
+  });
+
+  it("never spends the portal's amber on a clause state", () => {
+    // Amber means "your team" and nothing else; a colour meaning two things means neither.
+    for (const clause of [takeable, soon, locked]) {
+      expect(catalogue({ clauses: { p1: clause } })).not.toContain("--board-you");
+    }
+  });
+
+  it("leaves a player with no clause state alone", () => {
+    const html = catalogue({});
+    expect(html).not.toContain("locked until");
+    expect(html).not.toContain("<svg");
   });
 });

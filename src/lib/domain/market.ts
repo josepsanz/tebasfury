@@ -357,3 +357,47 @@ export function clauseBoard(
       return a.protectedUntil.getTime() - b.protectedUntil.getTime();
     });
 }
+
+/**
+ * A clause lock as a reader needs it: which of three states, and the words for it.
+ *
+ * `takeable` and `soon` are the same fact at two distances, not two categories, so the
+ * view draws them in one hue at two intensities rather than in two colours — and neither
+ * of them is the portal's amber, which means "your team" and nothing else.
+ *
+ * The threshold between them is a day because that is the unit a manager acts on: a lock
+ * lifting tonight is worth waiting up for, one lifting on Friday is a note in the calendar.
+ */
+export type ClauseState = "takeable" | "soon" | "locked";
+
+export type ClauseStatus = { state: ClauseState; label: string };
+
+const SOON_MS = 24 * HOUR;
+
+/**
+ * The state and the wording, decided together and on the server.
+ *
+ * Formatting here rather than in the view keeps the date arithmetic out of a client
+ * component that renders eight hundred rows, and makes the wording testable without
+ * rendering anything. The view's whole job is then colour and a padlock.
+ */
+export function clauseStatus(protectedUntil: Date | null, now: Date): ClauseStatus {
+  if (protectedUntil === null || protectedUntil <= now) {
+    return { state: "takeable", label: "takeable" };
+  }
+
+  const ms = protectedUntil.getTime() - now.getTime();
+  if (ms < SOON_MS) {
+    const hours = Math.max(1, Math.round(ms / HOUR));
+    return { state: "soon", label: `free in ${hours} ${hours === 1 ? "hour" : "hours"}` };
+  }
+
+  return {
+    state: "locked",
+    label: `locked until ${new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Madrid",
+      day: "2-digit",
+      month: "short",
+    }).format(protectedUntil)}`,
+  };
+}

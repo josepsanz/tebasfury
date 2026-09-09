@@ -3,6 +3,7 @@ import {
   CLAUSE_PROTECTION_DAYS,
   clauseBoard,
   clauseProtection,
+  clauseStatus,
   holdings,
   marketSummary,
   operationKind,
@@ -481,5 +482,58 @@ describe("clauseBoard", () => {
     const rows = [...squad];
     clauseBoard(operations, rows, now);
     expect(rows.map((r) => r.playerId)).toEqual(squad.map((r) => r.playerId));
+  });
+});
+
+describe("clauseStatus", () => {
+  const now = at("2026-09-09T12:00:00Z");
+
+  it("calls an unprotected player takeable", () => {
+    expect(clauseStatus(null, now)).toEqual({ state: "takeable", label: "takeable" });
+  });
+
+  it("counts a lock that has already lifted as takeable, not as locked", () => {
+    expect(clauseStatus(at("2026-09-09T11:00:00Z"), now).state).toBe("takeable");
+  });
+
+  it("treats the exact instant of lifting as lifted", () => {
+    expect(clauseStatus(now, now).state).toBe("takeable");
+  });
+
+  it("says how many hours are left inside the last day", () => {
+    // A day is the unit a manager acts on: a lock lifting tonight is worth waiting up
+    // for, one lifting on Friday is a note in the calendar.
+    expect(clauseStatus(at("2026-09-09T20:00:00Z"), now)).toEqual({
+      state: "soon",
+      label: "free in 8 hours",
+    });
+  });
+
+  it("says one hour, not 1 hours", () => {
+    expect(clauseStatus(at("2026-09-09T13:00:00Z"), now).label).toBe("free in 1 hour");
+  });
+
+  it("never rounds the last minutes down to zero hours", () => {
+    // "free in 0 hours" reads as a bug; the player is still locked.
+    const status = clauseStatus(at("2026-09-09T12:10:00Z"), now);
+    expect(status.state).toBe("soon");
+    expect(status.label).toBe("free in 1 hour");
+  });
+
+  it("is locked, with a date, beyond a day", () => {
+    expect(clauseStatus(at("2026-09-14T12:00:00Z"), now)).toEqual({
+      state: "locked",
+      label: "locked until 14 Sept",
+    });
+  });
+
+  it("puts the boundary at exactly a day on the locked side", () => {
+    expect(clauseStatus(at("2026-09-10T12:00:00Z"), now).state).toBe("locked");
+    expect(clauseStatus(at("2026-09-10T11:59:00Z"), now).state).toBe("soon");
+  });
+
+  it("dates the lock in the league's own timezone, not the machine's", () => {
+    // 23:30 UTC is already the next day in Madrid, and the reader lives in Madrid.
+    expect(clauseStatus(at("2026-09-14T23:30:00Z"), now).label).toBe("locked until 15 Sept");
   });
 });
