@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/page-header";
 import { MetricGrid, type Metric } from "@/components/metric-grid";
 import { MarketMoney } from "@/components/market-money";
 import { SquadList } from "@/components/squad-list";
+import { PitchIcon } from "@/components/pitch-icon";
 import { MarketFeed } from "@/components/market-feed";
 
 export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
@@ -94,11 +95,20 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         {/* The only way in to the lineup page. It belongs beside the squad because the
             two answer neighbouring questions — what they hold, and what they could field
             with it — and the nav bar is already at its width at 375px. */}
+        {/* An icon, so the label's job moves to `aria-label` — without it the control
+            would announce as "link" and nothing else. `title` gives the same words to a
+            sighted reader on hover, since a pitch pictogram is only obvious once you have
+            been told. The border and the padding are the touch target: a 20px icon is
+            about half what a thumb needs, and this codebase has already had to fix one
+            link that was hard to hit. */}
         <Link
           href={`/teams/${id}/lineup`}
-          className="normal-case tracking-normal underline underline-offset-4"
+          aria-label="Best lineup"
+          title="Best lineup"
+          className="-my-1 flex items-center border px-2 py-1 transition-colors"
+          style={{ borderColor: "var(--board-line)" }}
         >
-          best lineup →
+          <PitchIcon />
         </Link>
       </h2>
       {/* What they hold now. The market log below is how it got that way — two different
