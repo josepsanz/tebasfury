@@ -28,3 +28,20 @@ export function formatSyncedAt(at: Date, now: Date): string {
   if (leagueDay(at) === leagueDay(now)) return time;
   return `${parts(at, { day: "2-digit", month: "short" })} ${time}`;
 }
+
+/**
+ * A day and a time in the league's timezone, for a deadline a reader has to act before.
+ *
+ * The hour is not decoration here: a fair-play hold that lifts "14 Sept" is useless to
+ * somebody deciding whether to wait up for it. The same reasoning the clause board's
+ * countdown already follows.
+ */
+export function formatLeagueMoment(at: Date): string {
+  return parts(at, {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

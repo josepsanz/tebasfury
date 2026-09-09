@@ -131,3 +131,53 @@ describe("SquadList, the buyout clause", () => {
     expect(html).toContain("2.0M at today");
   });
 });
+
+describe("SquadList, the five-day fair-play hold", () => {
+  const locked = { state: "locked" as const, label: "locked until 20 Sept", shielded: false };
+
+  const squad = (holds?: Record<string, Date>) => {
+    const groups = squadByPosition([p("Ada"), p("Bo")], "t1");
+    return renderToStaticMarkup(
+      <SquadList
+        groups={groups}
+        total={squadValue(groups)}
+        ownershipKnown
+        clauses={{ Ada: locked, Bo: locked }}
+        holds={holds}
+      />,
+    );
+  };
+
+  it("marks a held player with an icon and no words of its own", () => {
+    // Asked for as an icon and nothing else: the row says it in a shape, and the tooltip
+    // and accessible name carry the date.
+    const html = squad({ Ada: new Date("2026-09-14T19:15:00Z") });
+    expect(html).toContain("Cannot be sold until");
+    expect(html).toContain("14 Sept");
+    // The date belongs to the mark — its tooltip and its accessible name — and never to
+    // the row's visible text, which is what "only an icon" was asked for.
+    const visible = html.replace(/<title>.*?<\/title>/g, "").replace(/<[^>]*>/g, "");
+    expect(visible).not.toContain("Cannot be sold");
+  });
+
+  it("explains the icon once beneath the squad rather than beside every row", () => {
+    const html = squad({ Ada: new Date("2026-09-14T19:15:00Z") });
+    expect(html).toContain("1 player was signed less than five days ago");
+  });
+
+  it("counts only the held, and says nothing at all when none are", () => {
+    const two = squad({
+      Ada: new Date("2026-09-14T19:15:00Z"),
+      Bo: new Date("2026-09-13T10:00:00Z"),
+    });
+    expect(two).toContain("2 players were signed less than five days ago");
+    // A manager with nothing held is not told about a rule that is not biting them.
+    expect(squad()).not.toContain("cannot be sold yet");
+  });
+
+  it("ignores a hold for a player who is not in this squad", () => {
+    expect(squad({ someone_else: new Date("2026-09-14T19:15:00Z") })).not.toContain(
+      "cannot be sold yet",
+    );
+  });
+});

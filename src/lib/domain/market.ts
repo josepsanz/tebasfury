@@ -385,3 +385,29 @@ export function clauseStatus(
     shielded,
   };
 }
+
+/**
+ * When a player's five-day fair-play hold lifts, or null if it already has.
+ *
+ * The league forbids selling a player within `HOLD_HOURS` of buying them. Nothing in the
+ * API says so — but it states the clause lock, and **measured against production the lock
+ * ends exactly fourteen days after the purchase in 138 of 138 witnessed acquisitions, to
+ * the second**. So the purchase instant is recoverable from the lock, and the hold lifts
+ * `CLAUSE_PROTECTION_DAYS * 24 - HOLD_HOURS` hours before the lock does.
+ *
+ * Derived from the lock rather than from the market log on purpose: the log reaches back
+ * only as far as the first sweep walked it, so a player bought before that has no
+ * recorded purchase, while the lock the API states is complete.
+ *
+ * The hold is always a subset of the clause lock — five days inside fourteen — so a held
+ * player is necessarily a locked one. That is why this needs no colour of its own: the
+ * mark it draws always sits on an already-grey name.
+ */
+export function fairPlayHold(lockedUntil: Date | null, now: Date): Date | null {
+  if (lockedUntil === null) return null;
+
+  const lifts = new Date(
+    lockedUntil.getTime() - (CLAUSE_PROTECTION_DAYS * 24 - HOLD_HOURS) * HOUR,
+  );
+  return lifts > now ? lifts : null;
+}

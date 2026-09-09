@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatSyncedAt } from "./clock";
+import { formatLeagueMoment, formatSyncedAt } from "./clock";
 
 describe("formatSyncedAt", () => {
   it("gives just the hour when the sync happened today", () => {
@@ -24,5 +24,19 @@ describe("formatSyncedAt", () => {
     const at = new Date("2026-09-08T23:30:00Z");
     const now = new Date("2026-09-09T05:00:00Z");
     expect(formatSyncedAt(at, now)).toBe("01:30");
+  });
+});
+
+describe("formatLeagueMoment", () => {
+  it("names the day and the hour in Spain, not in UTC", () => {
+    // 19:15Z in September is 21:15 in Madrid. A deadline given in the wrong timezone is
+    // worse than none: it is two hours of false confidence.
+    expect(formatLeagueMoment(new Date("2026-09-14T19:15:00Z"))).toBe("Mon 14 Sept, 21:15");
+  });
+
+  it("keeps the hour, because a date alone cannot be waited up for", () => {
+    expect(formatLeagueMoment(new Date("2026-09-14T23:40:00Z"))).toContain("01:40");
+    // And it rolls to the next day in Madrid, which is the point of formatting there.
+    expect(formatLeagueMoment(new Date("2026-09-14T23:40:00Z"))).toContain("15 Sept");
   });
 });

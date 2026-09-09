@@ -44,10 +44,18 @@ export const CLAUSE_COLOUR: Record<ClauseStatus["state"], string> = {
  */
 export function ClauseName({
   clause,
+  after,
   children,
 }: {
   /** Undefined for a player nobody holds — no colour, no marks. */
   clause?: ClauseStatus;
+  /**
+   * A further mark for the caller's own question, drawn after the clause marks and given
+   * the same protection from truncation. The squad page's fair-play hourglass is the one
+   * user of it: keeping the slot here means no caller has to rebuild this row's shape and
+   * get the `truncate` wrong a second time.
+   */
+  after?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -69,6 +77,7 @@ export function ClauseName({
           <ShieldIcon />
         </span>
       ) : null}
+      {after === undefined ? null : <span className="shrink-0">{after}</span>}
     </span>
   );
 }

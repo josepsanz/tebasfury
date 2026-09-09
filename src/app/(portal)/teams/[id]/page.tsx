@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadMarket, loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
 import { teamMetrics } from "@/lib/domain/metrics";
-import { clauseStatus, marketSummary, type ClauseStatus } from "@/lib/domain/market";
+import {
+  clauseStatus,
+  fairPlayHold,
+  marketSummary,
+  type ClauseStatus,
+} from "@/lib/domain/market";
 import { buildCatalogue, squadByPosition, squadValue } from "@/lib/domain/players";
 import {
   formatAverage,
@@ -52,12 +57,18 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   // league's timezone lands in one render.
   const now = new Date();
   const clauses: Record<string, ClauseStatus> = {};
+  // Who their owner cannot sell yet — the other half of the same purchase, and asked only
+  // here. The catalogue wants to know who can be taken; a squad is also read by the person
+  // deciding what to move on.
+  const holds: Record<string, Date> = {};
   for (const group of squad) {
     for (const player of group.players) {
       clauses[player.id] = clauseStatus(
         { lockedUntil: player.clauseLockedUntil, shielded: player.shielded },
         now,
       );
+      const hold = fairPlayHold(player.clauseLockedUntil, now);
+      if (hold !== null) holds[player.id] = hold;
     }
   }
 
@@ -120,6 +131,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         total={squadValue(squad)}
         ownershipKnown={catalogue.ownershipKnown}
         clauses={clauses}
+        holds={holds}
       />
 
       <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>

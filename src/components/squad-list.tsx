@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { clubOrPosition, formatMoney, statusLabel, type SquadGroup } from "@/lib/domain/players";
 import { ClauseName, ClauseNote } from "@/components/clause-marks";
+import { HoldIcon } from "@/components/hold-icon";
+import { formatLeagueMoment } from "@/lib/domain/clock";
 import type { ClauseStatus } from "@/lib/domain/market";
 
 /**
@@ -19,6 +21,7 @@ export function SquadList({
   total,
   ownershipKnown,
   clauses,
+  holds,
 }: {
   groups: SquadGroup[];
   total: number | null;
@@ -34,6 +37,14 @@ export function SquadList({
    * single name — no marks is a fair thing to say when nothing is known.
    */
   clauses?: Record<string, ClauseStatus>;
+  /**
+   * Player id to when their five-day fair-play hold lifts. Absent means it already has.
+   *
+   * A squad page's own question, which is why it is a separate prop rather than another
+   * field on the clause state: the catalogue asks whether a player can be TAKEN, and this
+   * asks whether their owner can SELL. Only one page has a reason to draw it.
+   */
+  holds?: Record<string, Date>;
 }) {
   if (!ownershipKnown) {
     return (
@@ -53,6 +64,10 @@ export function SquadList({
   }
 
   const count = groups.reduce((sum, group) => sum + group.players.length, 0);
+  const held = groups.reduce(
+    (sum, group) => sum + group.players.filter((player) => holds?.[player.id]).length,
+    0,
+  );
 
   return (
     <>
@@ -90,6 +105,7 @@ export function SquadList({
               {group.players.map((player) => {
                 const label = statusLabel(player.status);
                 const clause = clauses?.[player.id];
+                const hold = holds?.[player.id];
                 return (
                   <li
                     key={player.id}
@@ -102,7 +118,14 @@ export function SquadList({
                         one would have put a padlock inside a truncating span — the exact
                         bug this codebase has already fixed once. */}
                     <span className="min-w-0">
-                      <ClauseName clause={clause}>
+                      <ClauseName
+                        clause={clause}
+                        after={
+                          hold === undefined ? undefined : (
+                            <HoldIcon label={`Cannot be sold until ${formatLeagueMoment(hold)}`} />
+                          )
+                        }
+                      >
                         <Link
                           href={`/players/${player.id}`}
                           className="underline decoration-[var(--board-line)] underline-offset-4"
@@ -153,6 +176,23 @@ export function SquadList({
           </div>
         ))}
       </div>
+
+      {/* The hourglass explained once, under the list, rather than in a word beside every
+          row it marks — which is what "only an icon" has to mean if it is to stay
+          readable. Drawn only when the squad actually has one, so a manager with nothing
+          held is not told about a rule that is not biting them. */}
+      {held === 0 ? null : (
+        <p
+          className="mt-2 flex items-baseline gap-1.5 px-2 text-[10.5px]"
+          style={{ color: "var(--board-ink-dim)" }}
+        >
+          <HoldIcon />
+          <span>
+            {held} {held === 1 ? "player was" : "players were"} signed less than five days
+            ago and cannot be sold yet.
+          </span>
+        </p>
+      )}
     </>
   );
 }

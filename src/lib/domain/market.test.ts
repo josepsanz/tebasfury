@@ -3,6 +3,7 @@ import {
   CLAUSE_PROTECTION_DAYS,
   clauseBoard,
   clauseStatus,
+  fairPlayHold,
   holdings,
   marketSummary,
   operationKind,
@@ -529,5 +530,39 @@ describe("clauseStatus and the shield", () => {
     const status = clauseStatus({ lockedUntil: null, shielded: true }, now);
     expect(status.label).toBe("shielded");
     expect(status.label).not.toMatch(/hour|until/);
+  });
+});
+
+describe("fairPlayHold", () => {
+  const at = (iso: string) => new Date(iso);
+
+  it("lifts five days after the purchase the clause lock dates", () => {
+    // Bought 2026-09-01T12:00Z, so the lock ends fourteen days later and the hold five.
+    const lock = at("2026-09-15T12:00:00Z");
+    expect(fairPlayHold(lock, at("2026-09-02T12:00:00Z"))).toEqual(at("2026-09-06T12:00:00Z"));
+  });
+
+  it("is over once the fifth day has passed, long before the clause lock ends", () => {
+    const lock = at("2026-09-15T12:00:00Z");
+    // Day six: still unraidable for another eight days, but sellable.
+    expect(fairPlayHold(lock, at("2026-09-07T12:00:00Z"))).toBeNull();
+  });
+
+  it("holds right up to the instant it lifts, and not past it", () => {
+    const lock = at("2026-09-15T12:00:00Z");
+    expect(fairPlayHold(lock, at("2026-09-06T11:59:59Z"))).not.toBeNull();
+    expect(fairPlayHold(lock, at("2026-09-06T12:00:00Z"))).toBeNull();
+  });
+
+  it("says nothing about a player the API gave no lock for", () => {
+    expect(fairPlayHold(null, at("2026-09-02T12:00:00Z"))).toBeNull();
+  });
+
+  it("is always inside the clause lock, so a held player is a locked one", () => {
+    // The property the icon depends on: it never has to stand alone on a green name.
+    const lock = at("2026-09-15T12:00:00Z");
+    const now = at("2026-09-03T12:00:00Z");
+    expect(fairPlayHold(lock, now)).not.toBeNull();
+    expect(clauseStatus({ lockedUntil: lock, shielded: false }, now).state).toBe("locked");
   });
 });
