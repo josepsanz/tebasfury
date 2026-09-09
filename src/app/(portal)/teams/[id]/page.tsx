@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { loadSnapshots } from "@/lib/db/queries";
+import { loadMarket, loadSnapshots } from "@/lib/db/queries";
 import { teamMetrics } from "@/lib/domain/metrics";
 import {
   formatAverage,
@@ -15,6 +15,7 @@ import {
 import { requireSession } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { MetricGrid, type Metric } from "@/components/metric-grid";
+import { MarketFeed } from "@/components/market-feed";
 
 export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
   await requireSession();
@@ -28,6 +29,11 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   if (!team) notFound();
 
   const metrics = teamMetrics(snapshots, id);
+
+  // The whole market, filtered inside the feed rather than before it — see MarketFeed's
+  // note on why a per-manager filter must not be applied to the holding arithmetic.
+  const market = await loadMarket(db);
+  const managerId = market.managerIdByTeamId.get(id) ?? null;
 
   const items: Metric[] = [
     { label: "Average", ...formatAverage(metrics.average) },
@@ -52,6 +58,24 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
     <section className="mx-auto max-w-2xl">
       <PageHeader title={team.managerName} meta={formatRoundsPlayed(metrics.roundsPlayed)} />
       <MetricGrid items={items} />
+
+      <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
+        Their market
+      </h2>
+      {managerId === null ? (
+        // The team exists — it was found in `teams` above — but the market has no
+        // manager id for it, which means no sweep has read the market yet.
+        <p className="mt-6 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
+          Nothing in the market log yet.
+        </p>
+      ) : (
+        <MarketFeed
+          operations={market.operations}
+          managerNames={market.managerNames}
+          playerNames={market.playerNames}
+          focus={{ managerId }}
+        />
+      )}
     </section>
   );
 }

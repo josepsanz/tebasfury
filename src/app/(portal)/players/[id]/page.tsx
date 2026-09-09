@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { loadPlayer } from "@/lib/db/queries";
+import { loadMarket, loadPlayer } from "@/lib/db/queries";
 import { formatMoney, pointsSeries, statusLabel, valueSeries } from "@/lib/domain/players";
 import { requireSession } from "@/lib/auth/guards";
 import { PlayerCharts } from "@/components/player-charts";
 import { OwnerLabel } from "@/components/owner-label";
+import { MarketFeed } from "@/components/market-feed";
 
 export default async function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   // The guard runs before the lookup: an anonymous visitor must not be able to tell an
@@ -13,6 +14,12 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const detail = await loadPlayer(db, id);
   if (detail === null) notFound();
+
+  // The WHOLE market, deliberately, then filtered inside the feed. This player's own
+  // rows are not enough to date a sale: the purchase that starts the holding is in the
+  // same list but not in the filtered slice, and filtering first would report a broken
+  // rule as unknowable.
+  const market = await loadMarket(db);
 
   const { player, owner, ownershipKnown, lastSweep } = detail;
   const values = valueSeries(detail.values);
@@ -64,6 +71,16 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
       <div className="mt-10">
         <PlayerCharts points={points} values={values} />
       </div>
+
+      <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
+        Through these hands
+      </h2>
+      <MarketFeed
+        operations={market.operations}
+        managerNames={market.managerNames}
+        playerNames={market.playerNames}
+        focus={{ playerId: player.id }}
+      />
 
       <p className="mt-10 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
         {lastSweep ? `Last swept ${lastSweep.toISOString()}` : "Never swept"}

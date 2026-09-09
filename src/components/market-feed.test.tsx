@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MarketOperation } from "@/lib/domain/market";
-import { MarketFeed } from "./market-feed";
+import { MarketFeed, type MarketFocus } from "./market-feed";
 
 const op = (over: Partial<MarketOperation> = {}): MarketOperation => ({
   id: "op1",
@@ -14,12 +14,13 @@ const op = (over: Partial<MarketOperation> = {}): MarketOperation => ({
   ...over,
 });
 
-const feed = (operations: MarketOperation[]) =>
+const feed = (operations: MarketOperation[], focus: MarketFocus = null) =>
   renderToStaticMarkup(
     <MarketFeed
       operations={operations}
       managerNames={new Map([[1, "Ada"], [2, "Bruno"]])}
-      playerNames={new Map([["p1", "F. Garcés"]])}
+      playerNames={new Map([["p1", "F. Garcés"], ["p2", "Otxoa"]])}
+      focus={focus}
     />,
   );
 
@@ -62,5 +63,58 @@ describe("MarketFeed", () => {
     const html = feed([op({ actorManagerId: 99, playerId: "p9" })]);
     expect(html).toContain("99");
     expect(html).toContain("p9");
+  });
+});
+
+describe("MarketFeed, focused", () => {
+  it("draws only the focused player's rows", () => {
+    const html = feed(
+      [op({ id: "a", playerId: "p1" }), op({ id: "b", playerId: "p2" })],
+      { playerId: "p1" },
+    );
+    expect(html).toContain("F. Garcés");
+    expect(html).not.toContain("Otxoa");
+  });
+
+  it("draws a manager's own moves", () => {
+    const html = feed(
+      [op({ id: "a", actorManagerId: 1 }), op({ id: "b", actorManagerId: 2, playerId: "p2" })],
+      { managerId: 1 },
+    );
+    expect(html).toContain("Ada");
+    expect(html).not.toContain("Otxoa");
+  });
+
+  it("counts a manager as involved when a player was taken FROM them", () => {
+    // A clause raid read from the losing side is part of that manager's story, and
+    // arguably the part they would most want to point at. Actor-only would hide it.
+    const html = feed(
+      [op({ id: "t", activityType: 1, actorManagerId: 2, counterpartyManagerId: 1 })],
+      { managerId: 1 },
+    );
+    expect(html).toContain("F. Garcés");
+  });
+
+  it("still dates a holding from a purchase outside the focus", () => {
+    // The trap this whole shape exists to avoid. The sale and its purchase are both in
+    // the list handed over; the focus hides neither from the arithmetic, only from the
+    // drawing. Filtering before the component would leave this row claiming the period
+    // was unknowable — reporting a broken rule as a shrug.
+    const html = feed(
+      [
+        op({ id: "sell", activityType: 33, playerId: "p1", occurredAt: new Date("2026-09-07T14:59:00Z") }),
+        op({ id: "buy", activityType: 31, playerId: "p1", occurredAt: new Date("2026-09-03T15:02:00Z") }),
+        op({ id: "noise", activityType: 31, playerId: "p2", occurredAt: new Date("2026-09-01T10:00:00Z") }),
+      ],
+      { playerId: "p1" },
+    );
+    expect(html).toContain("inside five days");
+    expect(html).not.toContain("before this log began");
+  });
+
+  it("says something different when a focused feed is empty", () => {
+    const html = feed([op({ playerId: "p2" })], { playerId: "p1" });
+    expect(html).toContain("reaches back only as far as the first sweep");
+    expect(html).not.toContain("next sweep captures");
   });
 });

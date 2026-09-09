@@ -312,6 +312,12 @@ export type MarketData = {
   managerNames: Map<number, string>;
   playerNames: Map<string, string>;
   /**
+   * Team id to manager id. The market keys everything by the API's `managerId`, while
+   * every page that links to a manager holds their `teams.id` — so a per-manager feed
+   * needs the translation, and it is a column on a query already being run.
+   */
+  managerIdByTeamId: Map<string, number>;
+  /**
    * When this log first captured anything. Older operations exist in the world and
    * cannot be recovered — the API's window is seven days — so this is the date before
    * which a holding period is unknowable rather than clean.
@@ -323,7 +329,9 @@ export type MarketData = {
 export async function loadMarket(db: Db): Promise<MarketData> {
   const [operationRows, teamRows, playerRows] = await Promise.all([
     db.select().from(marketOperations).orderBy(desc(marketOperations.occurredAt)),
-    db.select({ managerId: teams.managerId, managerName: teams.managerName }).from(teams),
+    db
+      .select({ id: teams.id, managerId: teams.managerId, managerName: teams.managerName })
+      .from(teams),
     db.select({ id: playersTable.id, nickname: playersTable.nickname }).from(playersTable),
   ]);
 
@@ -339,6 +347,7 @@ export async function loadMarket(db: Db): Promise<MarketData> {
     })),
     managerNames: new Map(teamRows.map((t) => [t.managerId, t.managerName])),
     playerNames: new Map(playerRows.map((p) => [p.id, p.nickname])),
+    managerIdByTeamId: new Map(teamRows.map((t) => [t.id, t.managerId])),
     logBegan: operationRows.reduce<Date | null>(
       (earliest, row) =>
         earliest === null || row.firstSeenAt < earliest ? row.firstSeenAt : earliest,

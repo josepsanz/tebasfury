@@ -14,6 +14,15 @@ const madrid = (at: Date, opts: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", ...opts }).format(at);
 
 /**
+ * Which slice of the market to draw. Null draws the lot.
+ *
+ * A manager's own history includes operations where they are the COUNTERPARTY, not only
+ * the actor: a player taken off them by a clause is part of their story, and arguably
+ * the part they would most want to point at.
+ */
+export type MarketFocus = { playerId: string } | { managerId: number } | null;
+
+/**
  * The league's market, newest first, with sales inside five days marked.
  *
  * Holding periods are computed from the whole operation list rather than per row,
@@ -22,15 +31,24 @@ const madrid = (at: Date, opts: Intl.DateTimeFormatOptions) =>
  * point: the third is most of the first week and must not read as either of the others.
  *
  * An operation whose kind is `other` is not drawn at all. Ruling 8.
+ *
+ * **`focus` narrows what is DRAWN, never what is computed.** Callers must hand over the
+ * whole operation list and let this filter afterwards. Filtering first would be the one
+ * mistake this component exists to prevent: a sale's holding period depends on a
+ * purchase that a per-player or per-manager filter may well have excluded, and the row
+ * would silently fall back to "held since before this log began" — reporting a rule as
+ * unknowable when the answer was in the data all along.
  */
 export function MarketFeed({
   operations,
   managerNames,
   playerNames,
+  focus = null,
 }: {
   operations: MarketOperation[];
   managerNames: Map<number, string>;
   playerNames: Map<string, string>;
+  focus?: MarketFocus;
 }) {
   const periodOf = new Map(
     holdings(operations).map((holding) => [
@@ -43,14 +61,28 @@ export function MarketFeed({
     id === null ? null : (managerNames.get(id) ?? String(id));
   const player = (id: string | null) => (id === null ? null : (playerNames.get(id) ?? id));
 
+  const inFocus = (operation: MarketOperation) => {
+    if (focus === null) return true;
+    if ("playerId" in focus) return operation.playerId === focus.playerId;
+    return (
+      operation.actorManagerId === focus.managerId ||
+      operation.counterpartyManagerId === focus.managerId
+    );
+  };
+
   const drawn = operations.filter(
-    (operation) => operationKind(operation.activityType) !== "other" && operation.playerId !== null,
+    (operation) =>
+      operationKind(operation.activityType) !== "other" &&
+      operation.playerId !== null &&
+      inFocus(operation),
   );
 
   if (drawn.length === 0) {
     return (
-      <p className="mt-6" style={{ color: "var(--board-ink-dim)" }}>
-        No market movements yet. The next sweep captures the last seven days.
+      <p className="mt-6 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
+        {focus === null
+          ? "No market movements yet. The next sweep captures the last seven days."
+          : "Nothing in the market log, which reaches back only as far as the first sweep."}
       </p>
     );
   }
