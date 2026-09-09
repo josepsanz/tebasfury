@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed } from "next/font/google";
+import { Barlow, IBM_Plex_Mono } from "next/font/google";
 import { AppNav } from "@/components/app-nav";
 import "./globals.css";
 
@@ -9,10 +9,16 @@ const barlow = Barlow({
   weight: ["400", "500"],
 });
 
-const barlowCondensed = Barlow_Condensed({
-  variable: "--font-barlow-condensed",
+/**
+ * The figure face. Every number a reader compares against another number — points,
+ * values, deltas, ranks — is set in it, because columns of figures only line up when
+ * the digits are the same width. Text is never set in it: this is instrumentation, not
+ * a typewriter effect.
+ */
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
-  weight: ["200", "400"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -24,7 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${barlow.variable} ${barlowCondensed.variable} h-full antialiased`}
+      className={`${barlow.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <AppNav />

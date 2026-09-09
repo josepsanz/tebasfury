@@ -2,6 +2,18 @@ import { holdings, operationKind, type MarketOperation } from "@/lib/domain/mark
 import { formatMoney } from "@/lib/domain/players";
 
 /**
+ * The day and the hour an operation happened, in the league's own timezone.
+ *
+ * Explicitly Europe/Madrid rather than the machine's zone, so the server renders the
+ * same string the reader would have written down. It used to print the raw UTC
+ * timestamp, which put every night-time signing two hours earlier than the group
+ * remembers it — harmless to the five-day rule, which is computed from the instants
+ * themselves, and confusing to anyone reading the feed.
+ */
+const madrid = (at: Date, opts: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", ...opts }).format(at);
+
+/**
  * The league's market, newest first, with sales inside five days marked.
  *
  * Holding periods are computed from the whole operation list rather than per row,
@@ -44,7 +56,7 @@ export function MarketFeed({
   }
 
   return (
-    <ol className="mt-6">
+    <ol className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
       {drawn.map((operation) => {
         const kind = operationKind(operation.activityType);
         const holding =
@@ -58,10 +70,19 @@ export function MarketFeed({
           <li
             key={operation.id}
             style={{ borderColor: "var(--board-line)" }}
-            className="border-b py-[11px]"
+            className="grid grid-cols-[42px_1fr_auto] items-baseline gap-3 border-b px-2 py-[7px]"
           >
-            <span className="grid grid-cols-[1fr_auto] items-baseline gap-3">
-              <span className="min-w-0 text-[14.5px]">
+            <span
+              className="text-[10px] leading-[1.25] tabular-nums"
+              style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
+            >
+              {madrid(operation.occurredAt, { day: "2-digit", month: "2-digit" })}
+              <br />
+              {madrid(operation.occurredAt, { hour: "2-digit", minute: "2-digit" })}
+            </span>
+
+            <span className="min-w-0">
+              <span className="block text-[13px]">
                 {manager(operation.actorManagerId)}{" "}
                 {kind === "bought" ? "bought" : kind === "sold" ? "sold" : "received"}{" "}
                 {player(operation.playerId)}
@@ -69,26 +90,26 @@ export function MarketFeed({
                   ? ` from ${manager(operation.counterpartyManagerId)}`
                   : ""}
               </span>
-              <span
-                className="tabular-nums text-[14px]"
-                style={{ fontFamily: "var(--font-barlow-condensed)" }}
-              >
-                {operation.amount === null ? "" : formatMoney(operation.amount)}
-              </span>
-            </span>
-            <span className="mt-0.5 block text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-              {operation.occurredAt.toISOString().slice(0, 16).replace("T", " ")}
               {holding === undefined ? null : (
-                <>
-                  {" "}
-                  · {holding.hours === null
+                <span
+                  className="block text-[10.5px]"
+                  style={{
+                    color: holding.breach ? "var(--board-alert)" : "var(--board-ink-dim)",
+                  }}
+                >
+                  {holding.hours === null
                     ? "held since before this log began"
                     : `held ${(holding.hours / 24).toFixed(1)} days`}
-                  {holding.breach && (
-                    <span style={{ color: "var(--board-alert)" }}> — inside five days</span>
-                  )}
-                </>
+                  {holding.breach && " — inside five days"}
+                </span>
               )}
+            </span>
+
+            <span
+              className="text-right text-[13px] tabular-nums"
+              style={{ fontFamily: "var(--font-mono)" }}
+            >
+              {operation.amount === null ? "" : formatMoney(operation.amount)}
             </span>
           </li>
         );

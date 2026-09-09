@@ -1,27 +1,42 @@
 @import "tailwindcss";
 
 /*
- * The matchday-board direction is a single dark treatment, chosen on purpose:
- * this is read on a phone, in the evening, during a round. There is no
- * prefers-color-scheme block to maintain a light mode that was never designed.
+ * The terminal direction: this is a market that happens to be about football. Player
+ * values move daily, operations carry an hour and an amount, and a rule is measured in
+ * hours — so the portal reads like an analytics screen, not a magazine. Dark only, and
+ * moss rather than slate so the ground still belongs to a football league.
  */
 :root {
   color-scheme: dark;
 
-  --board-bg: #10120f;
-  --board-line: #26291f;
-  --board-ink: #f4f4ef;
-  --board-ink-dim: #8b8f82;
-  --board-gain: #4ade80;
-  --board-form: #4a5040;
-  --board-form-best: #86917a;
-  --board-alert: #ef8a76;
-  /* Ownership. Green is live points and the red is a broken credential, so an
-     unowned player — the one thing a catalogue is scanned for — needs its own. */
-  --board-free: #cbb26a;
-  --series-1: #3987e5;
-  --series-2: #d95926;
-  --series-3: #199e70;
+  --board-bg: #0d1411;
+  /* One step up from the ground: panel headers and the strip a table sits under. */
+  --board-panel: #131c17;
+  --board-line: #22322a;
+  --board-ink: #e8efe9;
+  --board-ink-dim: #86a292;
+
+  /*
+   * Amber says "you" and nothing else says it — your row, your team, your claim. It is
+   * deliberately not green or red, because those two are the market's own vocabulary
+   * and a reader must never have to work out which sense is in play.
+   */
+  --board-you: #d9a441;
+
+  /* Up and down. Lighter and more saturated than the ground, which is the whole reason
+     the mint is this bright: a green gain on a green field has to win. */
+  --board-gain: #4cc38a;
+  --board-alert: #e5714f;
+
+  /* A player nobody owns: neither good news nor bad, so neither green nor red. */
+  --board-free: #79a6c9;
+
+  --board-form: #2f4a3c;
+  --board-form-best: #4cc38a;
+
+  --series-1: #5aa9e6;
+  --series-2: #e5a14f;
+  --series-3: #b39ddb;
 }
 
 body {
@@ -68,14 +83,19 @@ body {
     opacity: 0.4;
   }
 
-  /* The one action a screen is about: filled, so it reads as the way forward. */
+  /*
+   * The one action a screen is about. Outlined in the market's own green rather than
+   * filled in white: on this ground a white slab reads as a lamp, and the eye goes to
+   * it before it goes to the figures, which is backwards for a screen whose whole job
+   * is the figures.
+   */
   .board-button-primary {
-    border-color: var(--board-ink);
-    color: var(--board-bg);
-    background: var(--board-ink);
+    border-color: var(--board-gain);
+    color: var(--board-gain);
+    background: var(--board-panel);
   }
 
   .board-button-primary:hover:not(:disabled) {
-    background: #ffffff;
+    background: color-mix(in srgb, var(--board-gain) 14%, var(--board-panel));
   }
 }

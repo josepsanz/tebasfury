@@ -119,8 +119,10 @@ export function PlayerCharts({ points, values }: { points: PointsPoint[]; values
                     domain={["auto", "auto"]}
                     tickFormatter={(v: number) => formatMoney(v)}
                   />
+                  {/* Straight segments: one reading per day, and the days between two sweeps
+                      hold no value at all — a curve would invent them. */}
                   <Line
-                    type="monotone"
+                    type="linear"
                     dataKey="value"
                     stroke="var(--series-1)"
                     strokeWidth={2}

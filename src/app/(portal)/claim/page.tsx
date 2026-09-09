@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { loadClaimBoard } from "@/lib/claims";
 import { decideAccess, requireSession } from "@/lib/auth/guards";
 import { ClaimList } from "@/components/claim-list";
+import { PageHeader } from "@/components/page-header";
 import { claim, release } from "./actions";
 
 export default async function ClaimPage() {
@@ -11,10 +12,11 @@ export default async function ClaimPage() {
 
   return (
     <section className="mx-auto max-w-2xl">
-      <h1 className="text-xl font-medium">Which team is yours?</h1>
-      <p className="mt-1 text-[11.5px]" style={{ color: "var(--board-ink-dim)" }}>
-        Pick your manager. Only you see the mark — nobody is told who claimed what.
-      </p>
+      <PageHeader
+        title="Which team is yours?"
+        note="Pick your manager. Only you see the mark — nobody is told who claimed what."
+        meta={`${rows.length} teams`}
+      />
 
       <ClaimList
         rows={rows}

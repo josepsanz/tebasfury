@@ -3,11 +3,12 @@ import { loadSnapshots } from "@/lib/db/queries";
 import { buildTable } from "@/lib/domain/standings";
 import { requireSession } from "@/lib/auth/guards";
 import { StandingsTable } from "@/components/standings-table";
+import { PageHeader } from "@/components/page-header";
 import { loadMyTeam } from "@/lib/claims";
 
 export default async function StandingsPage() {
   const session = await requireSession();
-  const { snapshots, teams, lastSync, currentGameweek, isLive } = await loadSnapshots(db);
+  const { snapshots, teams, isLive } = await loadSnapshots(db);
   const rows = buildTable(snapshots, teams);
   const myTeam = await loadMyTeam(db, { userId: session.user.id });
 
@@ -21,14 +22,7 @@ export default async function StandingsPage() {
 
   return (
     <section className="mx-auto max-w-2xl">
-      <h1 className="text-xl font-medium">Standings</h1>
-      <p className="mt-1 text-[11.5px] tracking-[0.1em]" style={{ color: "var(--board-ink-dim)" }}>
-        {currentGameweek === null
-          ? "NO GAMEWEEK SYNCED YET"
-          : isLive
-            ? `GAMEWEEK ${currentGameweek} · IN PLAY`
-            : `GAMEWEEK ${currentGameweek} · FINAL`}
-      </p>
+      <PageHeader title="Standings" meta={`${rows.length} teams`} />
 
       {rows.length === 0 ? (
         <p className="mt-6" style={{ color: "var(--board-ink-dim)" }}>
@@ -43,9 +37,6 @@ export default async function StandingsPage() {
         />
       )}
 
-      <p className="mt-6 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-        {lastSync ? `Last synced ${lastSync.toISOString()}` : "Never synced"}
-      </p>
     </section>
   );
 }

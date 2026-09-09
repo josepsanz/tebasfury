@@ -130,8 +130,12 @@ describe("PlayerCatalogue", () => {
     const html = renderToStaticMarkup(
       <PlayerCatalogue rows={[row("p1")]} ownershipKnown initialSort="perMillion" initialOwnership="free" />,
     );
-    expect(html).toContain('aria-pressed="true" class="rounded-full border px-3 py-1 text-[12px]" style="border-color:var(--board-ink-dim);color:var(--board-ink)">Best value for money');
-    expect(html).toContain('aria-pressed="true" class="rounded-full border px-3 py-1 text-[12px]" style="border-color:var(--board-ink-dim);color:var(--board-ink)">Free');
+    // Asserted through the control's own state rather than a copy of its markup: the
+    // previous version of this test pasted the pill's exact class and style strings, so
+    // restyling the control broke it while the behaviour it guards was untouched.
+    expect(html).toMatch(/<option value="perMillion"[^>]*selected/);
+    expect(html).toMatch(/<option value="free"[^>]*selected/);
+    expect(html).not.toMatch(/<option value="value"[^>]*selected/);
   });
 
 });

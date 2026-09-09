@@ -122,3 +122,26 @@ describe("the viewer's own row", () => {
     expect(html).not.toContain('aria-label="Your team"');
   });
 });
+
+describe("the table's own labels", () => {
+  const rows = buildTable(season, teams);
+
+  it("names its columns, so no figure is left to be guessed at", () => {
+    const html = renderToStaticMarkup(
+      <StandingsTable rows={rows} formByTeam={{}} isLive={false} myTeamId={null} />,
+    );
+    expect(html).toContain("Manager");
+    expect(html).toContain("Total");
+    // The fourth column changes meaning with the round, so its label has to follow.
+    expect(html).toContain("Form");
+    expect(html).not.toContain("Live");
+  });
+
+  it("renames the last column while a round is being played", () => {
+    const html = renderToStaticMarkup(
+      <StandingsTable rows={rows} formByTeam={{}} isLive myTeamId={null} />,
+    );
+    expect(html).toContain("Live");
+    expect(html).not.toContain("Form");
+  });
+});
