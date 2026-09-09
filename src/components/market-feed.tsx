@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { holdings, operationKind, type MarketOperation } from "@/lib/domain/market";
 import { formatMoney } from "@/lib/domain/players";
 
@@ -43,11 +44,14 @@ export function MarketFeed({
   operations,
   managerNames,
   playerNames,
+  teamIdByManagerId,
   focus = null,
 }: {
   operations: MarketOperation[];
   managerNames: Map<number, string>;
   playerNames: Map<string, string>;
+  /** Manager id to team id, so a name can link to its page. */
+  teamIdByManagerId: Map<number, string>;
   focus?: MarketFocus;
 }) {
   const periodOf = new Map(
@@ -57,9 +61,37 @@ export function MarketFeed({
     ]),
   );
 
-  const manager = (id: number | null) =>
-    id === null ? null : (managerNames.get(id) ?? String(id));
-  const player = (id: string | null) => (id === null ? null : (playerNames.get(id) ?? id));
+  const linkClass = "underline decoration-[var(--board-line)] underline-offset-4";
+
+  /**
+   * A manager's name, linked to their page unless this feed IS their page.
+   *
+   * A link to the page you are already on is a dead control that costs a tap to find
+   * out — so the focused subject renders as plain text, here and for the player below.
+   */
+  const manager = (id: number | null) => {
+    if (id === null) return null;
+    const name = managerNames.get(id) ?? String(id);
+    const teamId = teamIdByManagerId.get(id);
+    if (teamId === undefined) return name;
+    if (focus !== null && "managerId" in focus && focus.managerId === id) return name;
+    return (
+      <Link href={`/teams/${teamId}`} className={linkClass}>
+        {name}
+      </Link>
+    );
+  };
+
+  const player = (id: string | null) => {
+    if (id === null) return null;
+    const name = playerNames.get(id) ?? id;
+    if (focus !== null && "playerId" in focus && focus.playerId === id) return name;
+    return (
+      <Link href={`/players/${id}`} className={linkClass}>
+        {name}
+      </Link>
+    );
+  };
 
   const inFocus = (operation: MarketOperation) => {
     if (focus === null) return true;
@@ -118,9 +150,12 @@ export function MarketFeed({
                 {manager(operation.actorManagerId)}{" "}
                 {kind === "bought" ? "bought" : kind === "sold" ? "sold" : "received"}{" "}
                 {player(operation.playerId)}
-                {kind === "transfer" && operation.counterpartyManagerId !== null
-                  ? ` from ${manager(operation.counterpartyManagerId)}`
-                  : ""}
+                {/* As JSX, not interpolated into a template string: `manager` returns
+                    an element now, and a string template would render it as
+                    "[object Object]". */}
+                {kind === "transfer" && operation.counterpartyManagerId !== null ? (
+                  <> from {manager(operation.counterpartyManagerId)}</>
+                ) : null}
               </span>
               {holding === undefined ? null : (
                 <span

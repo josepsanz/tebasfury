@@ -20,6 +20,7 @@ const feed = (operations: MarketOperation[], focus: MarketFocus = null) =>
       operations={operations}
       managerNames={new Map([[1, "Ada"], [2, "Bruno"]])}
       playerNames={new Map([["p1", "F. Garcés"], ["p2", "Otxoa"]])}
+      teamIdByManagerId={new Map([[1, "t1"], [2, "t2"]])}
       focus={focus}
     />,
   );
@@ -116,5 +117,42 @@ describe("MarketFeed, focused", () => {
     const html = feed([op({ playerId: "p2" })], { playerId: "p1" });
     expect(html).toContain("reaches back only as far as the first sweep");
     expect(html).not.toContain("next sweep captures");
+  });
+});
+
+describe("MarketFeed links", () => {
+  it("links the manager to their page and the player to theirs", () => {
+    const html = feed([op()]);
+    expect(html).toContain('href="/teams/t1"');
+    expect(html).toContain('href="/players/p1"');
+  });
+
+  it("names the counterparty of a transfer as a link too", () => {
+    const html = feed([op({ activityType: 1, actorManagerId: 1, counterpartyManagerId: 2 })]);
+    expect(html).toContain('href="/teams/t2"');
+  });
+
+  it("does not link the player whose own page this is", () => {
+    // A link to the page you are already on is a dead control that costs a tap to find
+    // out. The manager beside it is still a link.
+    const html = feed([op()], { playerId: "p1" });
+    expect(html).not.toContain('href="/players/p1"');
+    expect(html).toContain("F. Garcés");
+    expect(html).toContain('href="/teams/t1"');
+  });
+
+  it("does not link the manager whose own page this is", () => {
+    const html = feed([op()], { managerId: 1 });
+    expect(html).not.toContain('href="/teams/t1"');
+    expect(html).toContain("Ada");
+    expect(html).toContain('href="/players/p1"');
+  });
+
+  it("still names a manager the teams table does not know, without a link", () => {
+    // `market_operations` is deliberately the target of no foreign key: an operation can
+    // name a manager who joined between standings syncs. It renders, unlinked.
+    const html = feed([op({ actorManagerId: 99 })]);
+    expect(html).toContain("99");
+    expect(html).not.toContain('href="/teams/99"');
   });
 });

@@ -12,6 +12,12 @@ import { useRouter } from "next/navigation";
  * The choice goes into the URL rather than into state, so a round is linkable — "look at
  * round 3" in the group chat is a link — and the back button works. The season is the
  * empty value because it is the default the page opens on.
+ *
+ * Newest round first, under the season total. By May the list is 38 entries and the one
+ * anybody wants is the one just played; ascending would put it at the bottom, behind a
+ * scroll, every week for nine months. The caller passes rounds oldest-first because that
+ * is what "rounds played" means everywhere else in the page — the reversal is a display
+ * decision and belongs here, not in a shared array the form bars also read.
  */
 export function RoundPicker({
   gameweeks,
@@ -40,7 +46,7 @@ export function RoundPicker({
         }}
       >
         <option value="">Season total</option>
-        {gameweeks.map((week) => (
+        {[...gameweeks].reverse().map((week) => (
           <option key={week} value={week}>
             Round {week}
           </option>

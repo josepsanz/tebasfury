@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { MoneySide } from "./market";
 import {
   formatAverage,
+  formatAveragePrice,
+  formatBalance,
+  formatBiggestDeal,
   formatPointsPerMillion,
+  formatTraded,
   formatRecord,
   formatRegularity,
   formatRoundsPlayed,
@@ -138,5 +143,54 @@ describe("formatRoundsPlayed", () => {
   it("uses the plural for zero and for more than one", () => {
     expect(formatRoundsPlayed(0)).toBe("0 rounds");
     expect(formatRoundsPlayed(4)).toBe("4 rounds");
+  });
+});
+
+describe("the market money wording", () => {
+  const side = (over: Partial<MoneySide> = {}): MoneySide => ({
+    count: 2,
+    total: 8_000_000,
+    average: 4_000_000,
+    biggest: { playerId: "p1", amount: 6_000_000 },
+    ...over,
+  });
+  const empty: MoneySide = { count: 0, total: 0, average: null, biggest: null };
+
+  it("puts the operation count in the caption, so a total can be read fairly", () => {
+    // 300M across seventeen buys and 300M across two are different seasons.
+    expect(formatTraded(side())).toEqual({ value: "8.0M", note: "2 operations" });
+  });
+
+  it("pluralises one operation correctly", () => {
+    expect(formatTraded(side({ count: 1 })).note).toBe("1 operation");
+  });
+
+  it("says nothing was traded rather than printing nought", () => {
+    expect(formatTraded(empty).value).toBe("Nothing yet");
+    expect(formatAveragePrice(empty).value).toBe("Nothing yet");
+    expect(formatBiggestDeal(empty, () => "x").value).toBe("Nothing yet");
+  });
+
+  it("names the player of the biggest deal", () => {
+    expect(formatBiggestDeal(side(), () => "F. Garcés")).toEqual({
+      value: "6.0M",
+      note: "F. Garcés",
+    });
+  });
+
+  it("keeps the figure when the catalogue has never seen that player", () => {
+    // The market log is the target of no foreign key on purpose, so an operation can
+    // name a player no other table knows. The money is still true.
+    expect(formatBiggestDeal(side(), () => undefined)).toEqual({ value: "6.0M", note: undefined });
+  });
+
+  it("signs and colours the balance, because the direction is the whole content", () => {
+    expect(formatBalance(3_000_000)).toEqual({ value: "+3.0M", tone: "up" });
+    expect(formatBalance(-3_000_000)).toEqual({ value: "−3.0M", tone: "down" });
+  });
+
+  it("leaves an exactly level balance uncoloured", () => {
+    // Neither made nor lost. Tinting it would make a reader look for a reason.
+    expect(formatBalance(0)).toEqual({ value: "0K" });
   });
 });

@@ -2,9 +2,14 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadMarket, loadSnapshots } from "@/lib/db/queries";
 import { teamMetrics } from "@/lib/domain/metrics";
+import { marketSummary } from "@/lib/domain/market";
 import {
   formatAverage,
+  formatAveragePrice,
+  formatBalance,
+  formatBiggestDeal,
   formatPointsPerMillion,
+  formatTraded,
   formatRecord,
   formatRegularity,
   formatRoundsPlayed,
@@ -35,6 +40,21 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   const market = await loadMarket(db);
   const managerId = market.managerIdByTeamId.get(id) ?? null;
 
+  const summary = managerId === null ? null : marketSummary(market.operations, managerId);
+  const playerName = (playerId: string) => market.playerNames.get(playerId);
+  const money: Metric[] =
+    summary === null
+      ? []
+      : [
+          { label: "Total bought", ...formatTraded(summary.bought) },
+          { label: "Total sold", ...formatTraded(summary.sold) },
+          { label: "Average buy", ...formatAveragePrice(summary.bought) },
+          { label: "Average sale", ...formatAveragePrice(summary.sold) },
+          { label: "Biggest buy", ...formatBiggestDeal(summary.bought, playerName) },
+          { label: "Biggest sale", ...formatBiggestDeal(summary.sold, playerName) },
+          { label: "Balance", ...formatBalance(summary.balance) },
+        ];
+
   const items: Metric[] = [
     { label: "Average", ...formatAverage(metrics.average) },
     { label: "Trend", ...formatTrend(metrics.trend) },
@@ -62,6 +82,19 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
       <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
         Their market
       </h2>
+      {managerId === null ? null : (
+        <>
+          <MetricGrid items={money} />
+          {/* The one caveat these seven figures need. The activity feed is a rolling
+              seven-day window, so the log reaches back only as far as the first sweep
+              walked it — every total here is "since then", not "this season". Saying it
+              once under the grid beats a caption on each tile. */}
+          <p className="mt-2 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
+            Since the market log begins. Buys and sales include clause moves between
+            managers.
+          </p>
+        </>
+      )}
       {managerId === null ? (
         // The team exists — it was found in `teams` above — but the market has no
         // manager id for it, which means no sweep has read the market yet.
@@ -73,6 +106,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
           operations={market.operations}
           managerNames={market.managerNames}
           playerNames={market.playerNames}
+        teamIdByManagerId={market.teamIdByManagerId}
           focus={{ managerId }}
         />
       )}

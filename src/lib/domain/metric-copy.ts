@@ -1,4 +1,6 @@
+import type { MoneySide } from "./market";
 import type { RoundRecord, Streak, Trend } from "./metrics";
+import { formatMoney } from "./players";
 
 /** The one wording for "nothing has been played yet" — shared so it is written once. */
 const NO_ROUNDS_YET = "No rounds yet";
@@ -85,4 +87,58 @@ export function formatStreak(
 /** How many rounds a team has played, correctly pluralised — "1 round", not "1 rounds". */
 export function formatRoundsPlayed(rounds: number): string {
   return `${rounds} ${rounds === 1 ? "round" : "rounds"}`;
+}
+
+/** The one wording for "the log has nothing to say about this yet". */
+const NOTHING_TRADED = "Nothing yet";
+
+/**
+ * One side of a manager's trading — the total, with how many operations made it.
+ *
+ * The count is in the caption because the total alone invites a comparison it cannot
+ * support: 300M across seventeen buys and 300M across two are different seasons.
+ */
+export function formatTraded(side: MoneySide): { value: string; note?: string } {
+  if (side.count === 0) return { value: NOTHING_TRADED };
+  return {
+    value: formatMoney(side.total),
+    note: `${side.count} ${side.count === 1 ? "operation" : "operations"}`,
+  };
+}
+
+/** The mean price of one side. Unknown, not nought, when nothing was traded. */
+export function formatAveragePrice(side: MoneySide): { value: string } {
+  return { value: side.average === null ? NOTHING_TRADED : formatMoney(side.average) };
+}
+
+/**
+ * The largest single operation on one side, and who it was for.
+ *
+ * `nameOf` may return nothing for a player the catalogue has not swept: the market log
+ * is deliberately the target of no foreign key, so an operation can name a player no
+ * other table knows. The figure still stands on its own, so the caption is dropped
+ * rather than the tile.
+ */
+export function formatBiggestDeal(
+  side: MoneySide,
+  nameOf: (playerId: string) => string | undefined,
+): { value: string; note?: string } {
+  if (side.biggest === null) return { value: NOTHING_TRADED };
+  return { value: formatMoney(side.biggest.amount), note: nameOf(side.biggest.playerId) };
+}
+
+/**
+ * Money in minus money out.
+ *
+ * Signed and coloured, because the direction is the whole content: green is money taken,
+ * red is money spent, the same two meanings those colours carry everywhere else in the
+ * portal. A balance of exactly zero gets no colour — it is neither, and tinting it would
+ * make a reader look for a reason.
+ */
+export function formatBalance(balance: number): { value: string; tone?: "up" | "down" } {
+  if (balance === 0) return { value: formatMoney(0) };
+  return {
+    value: `${balance > 0 ? "+" : "−"}${formatMoney(Math.abs(balance))}`,
+    tone: balance > 0 ? "up" : "down",
+  };
 }

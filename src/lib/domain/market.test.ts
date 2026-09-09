@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   holdings,
+  marketSummary,
   operationKind,
   HOLD_HOURS,
   type MarketOperation,
@@ -131,5 +132,112 @@ describe("holdings", () => {
     ]);
     expect(result).toHaveLength(1);
     expect(result[0].hours).toBe(144);
+  });
+});
+
+describe("marketSummary", () => {
+  const ME = 1;
+  const THEM = 2;
+
+  it("adds up what a manager spent and took from the market", () => {
+    const summary = marketSummary(
+      [
+        op({ id: "b1", activityType: 31, actorManagerId: ME, amount: 3_000_000 }),
+        op({ id: "b2", activityType: 31, actorManagerId: ME, amount: 1_000_000 }),
+        op({ id: "s1", activityType: 33, actorManagerId: ME, amount: 5_000_000 }),
+      ],
+      ME,
+    );
+    expect(summary.bought).toMatchObject({ count: 2, total: 4_000_000, average: 2_000_000 });
+    expect(summary.sold).toMatchObject({ count: 1, total: 5_000_000, average: 5_000_000 });
+    expect(summary.balance).toBe(1_000_000);
+  });
+
+  it("reports a negative balance for a manager who spent more than they took", () => {
+    const summary = marketSummary(
+      [op({ id: "b", activityType: 31, actorManagerId: ME, amount: 9_000_000 })],
+      ME,
+    );
+    expect(summary.balance).toBe(-9_000_000);
+  });
+
+  it("names the biggest buy and the biggest sale, with the player", () => {
+    const summary = marketSummary(
+      [
+        op({ id: "b1", activityType: 31, actorManagerId: ME, playerId: "small", amount: 1_000_000 }),
+        op({ id: "b2", activityType: 31, actorManagerId: ME, playerId: "big", amount: 8_000_000 }),
+        op({ id: "s1", activityType: 33, actorManagerId: ME, playerId: "gone", amount: 2_000_000 }),
+      ],
+      ME,
+    );
+    expect(summary.bought.biggest).toEqual({ playerId: "big", amount: 8_000_000 });
+    expect(summary.sold.biggest).toEqual({ playerId: "gone", amount: 2_000_000 });
+  });
+
+  it("counts a clause move as a purchase by whoever ended up with the player", () => {
+    // Type 1 holds the single largest sum in the log. Leaving it out would show a manager
+    // who spent 124M on a clause as having spent nothing.
+    const summary = marketSummary(
+      [op({ id: "t", activityType: 1, actorManagerId: ME, counterpartyManagerId: THEM, amount: 7_000_000 })],
+      ME,
+    );
+    expect(summary.bought).toMatchObject({ count: 1, total: 7_000_000 });
+    expect(summary.sold.count).toBe(0);
+  });
+
+  it("counts the same clause move as money taken by the manager who was raided", () => {
+    // They did not choose to sell — which is why `holdings` refuses to call it a sale and
+    // never counts it against them — but they were paid, and the money is real.
+    const summary = marketSummary(
+      [op({ id: "t", activityType: 1, actorManagerId: THEM, counterpartyManagerId: ME, amount: 7_000_000 })],
+      ME,
+    );
+    expect(summary.sold).toMatchObject({ count: 1, total: 7_000_000 });
+    expect(summary.bought.count).toBe(0);
+  });
+
+  it("ignores other managers' dealings entirely", () => {
+    const summary = marketSummary(
+      [op({ id: "b", activityType: 31, actorManagerId: THEM, amount: 9_000_000 })],
+      ME,
+    );
+    expect(summary).toEqual({
+      bought: { count: 0, total: 0, average: null, biggest: null },
+      sold: { count: 0, total: 0, average: null, biggest: null },
+      balance: 0,
+    });
+  });
+
+  it("ignores the types that carry no price", () => {
+    // Types 4, 7 and 9 have no amount in any row measured, and type 6 has one but is not
+    // an operation we can name. None of them may move a total or drag an average.
+    const summary = marketSummary(
+      [
+        op({ id: "x", activityType: 4, actorManagerId: ME, amount: null }),
+        op({ id: "y", activityType: 9, actorManagerId: ME, amount: null }),
+        op({ id: "z", activityType: 6, actorManagerId: ME, amount: 4_000_000 }),
+      ],
+      ME,
+    );
+    expect(summary.bought.count).toBe(0);
+    expect(summary.sold.count).toBe(0);
+  });
+
+  it("leaves an average unknown rather than nought when nothing was traded", () => {
+    // A mean of no operations is not zero, and a zero here would read as "bought a player
+    // for nothing" rather than "bought nobody".
+    expect(marketSummary([], ME).bought.average).toBeNull();
+  });
+
+  it("rounds an average to whole money, since that is what the page prints", () => {
+    const summary = marketSummary(
+      [
+        op({ id: "b1", activityType: 31, actorManagerId: ME, amount: 1_000_000 }),
+        op({ id: "b2", activityType: 31, actorManagerId: ME, amount: 1_000_001 }),
+        op({ id: "b3", activityType: 31, actorManagerId: ME, amount: 1_000_001 }),
+      ],
+      ME,
+    );
+    expect(Number.isInteger(summary.bought.average)).toBe(true);
   });
 });

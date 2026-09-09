@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/page-header";
 
 export default async function MarketPage() {
   await requireSession();
-  const { operations, managerNames, playerNames, logBegan } = await loadMarket(db);
+  const { operations, managerNames, playerNames, teamIdByManagerId, logBegan } =
+    await loadMarket(db);
 
   return (
     <section className="mx-auto max-w-2xl">
@@ -16,7 +17,8 @@ export default async function MarketPage() {
         meta={`${operations.length} operations`}
       />
 
-      <MarketFeed operations={operations} managerNames={managerNames} playerNames={playerNames} />
+      <MarketFeed operations={operations} managerNames={managerNames} playerNames={playerNames}
+        teamIdByManagerId={teamIdByManagerId} />
 
       <p className="mt-6 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
         {logBegan === null

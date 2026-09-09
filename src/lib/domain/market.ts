@@ -125,3 +125,82 @@ export function holdings(operations: MarketOperation[]): Holding[] {
 
   return result;
 }
+
+export type MoneySide = {
+  count: number;
+  total: number;
+  /** Null when nothing is counted: a mean of no operations is not zero. */
+  average: number | null;
+  /** The single largest, or null when nothing is counted. */
+  biggest: { playerId: string; amount: number } | null;
+};
+
+export type MarketSummary = {
+  bought: MoneySide;
+  sold: MoneySide;
+  /** Money in minus money out. Positive means this manager took more than they spent. */
+  balance: number;
+};
+
+/**
+ * What one manager's trading has cost and earned, as far back as the log reaches.
+ *
+ * **A transfer counts on both sides, and that is the one judgement here.** Types 31 and
+ * 33 are dealings with the market and name no counterparty; type 1 is manager to
+ * manager, always carries an amount, and holds the single largest sum in the log
+ * (124M as of 2026-09-09). Leaving it out would show a manager who spent that on a
+ * clause as having spent nothing.
+ *
+ * Its direction follows the one the fair-play slice already settled by evidence — in a
+ * type-1 the ACTOR ends up holding the player — so the actor paid and the counterparty
+ * was paid. Inference from a measured direction, not a documented fact, which is why the
+ * page says buys and sales include clause moves rather than leaving a reader to assume
+ * these are shop transactions only.
+ *
+ * Note this is deliberately NOT how `holdings` reads the same row: there a transfer is
+ * an acquisition for the actor and NOT a sale by the counterparty, because the five-day
+ * rule is about choosing to sell and being raided is not a choice. Money and fair play
+ * ask different questions of one row, and both answers are right.
+ *
+ * Every kind is filtered for a non-null amount even though all three carry one in every
+ * row measured: the column is nullable, and a summary that silently counted a null as
+ * zero would drag an average down with an operation it could not price.
+ */
+export function marketSummary(operations: MarketOperation[], managerId: number): MarketSummary {
+  const priced = operations.filter(
+    (o): o is MarketOperation & { amount: number; playerId: string } =>
+      o.amount !== null && o.playerId !== null,
+  );
+
+  const side = (rows: typeof priced): MoneySide => {
+    const total = rows.reduce((sum, o) => sum + o.amount, 0);
+    return {
+      count: rows.length,
+      total,
+      average: rows.length === 0 ? null : Math.round(total / rows.length),
+      biggest:
+        rows.length === 0
+          ? null
+          : (({ playerId, amount }) => ({ playerId, amount }))(
+              rows.reduce((best, o) => (o.amount > best.amount ? o : best), rows[0]),
+            ),
+    };
+  };
+
+  const bought = side(
+    priced.filter((o) => {
+      const kind = operationKind(o.activityType);
+      return (kind === "bought" || kind === "transfer") && o.actorManagerId === managerId;
+    }),
+  );
+
+  const sold = side(
+    priced.filter((o) => {
+      const kind = operationKind(o.activityType);
+      if (kind === "sold") return o.actorManagerId === managerId;
+      return kind === "transfer" && o.counterpartyManagerId === managerId;
+    }),
+  );
+
+  return { bought, sold, balance: sold.total - bought.total };
+}

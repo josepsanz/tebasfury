@@ -79,6 +79,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
         operations={market.operations}
         managerNames={market.managerNames}
         playerNames={market.playerNames}
+        teamIdByManagerId={market.teamIdByManagerId}
         focus={{ playerId: player.id }}
       />
 
