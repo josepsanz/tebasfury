@@ -75,10 +75,57 @@ In the project's settings on Vercel (**Settings → Environment Variables**), de
 | `QSTASH_TOKEN` | Upstash console → **QStash** → the token, which publishes each next sync |
 | `QSTASH_CURRENT_SIGNING_KEY` | Upstash console → **QStash** → the current signing key. `/api/sync` verifies every incoming call against it |
 | `QSTASH_NEXT_SIGNING_KEY` | Upstash console → **QStash** → the next signing key, used while Upstash rotates the pair |
+| `ADMIN_EMAIL` | The owner's own Google address. **Always admitted**, whatever the allowlist says |
+| `LEAGUE_ALLOWLIST` | Comma-separated Google addresses of everyone else who may sign in. Optional — see below |
 
-**All ten are required.** `getEnv()` validates the whole schema when the module
+**All eleven of the above except `LEAGUE_ALLOWLIST` are required.** `getEnv()` validates the whole schema when the module
 loads, so a missing one is not a degraded feature: every route answers 500 until it
 is set. The error names what is missing.
+
+### Who may sign in
+
+**Google does not gate this portal, and cannot be made to.** TebasFury asks only for
+`openid email profile`, which Google classes as non-sensitive, so the OAuth consent
+screen's test-user list does not apply even while the screen is in Testing. This was
+proven on 2026-09-09: an account absent from the test users, holding no IAM role, with
+its Google grant revoked and its portal row deleted, still signed in from a clean
+incognito window. `ADMIN_EMAIL` and `LEAGUE_ALLOWLIST` are the only thing keeping the
+league private.
+
+- **An unset or empty `LEAGUE_ALLOWLIST` admits `ADMIN_EMAIL` and nobody else.** That is
+  deliberate: a variable missed on a new deployment target must not silently reopen the
+  portal. Deploying before setting it locks the league out until it is set.
+- **`ADMIN_EMAIL` is separate on purpose.** A typo in the allowlist would otherwise lock
+  out the one person who could correct it, and the portal has no other door.
+- **Put both owner addresses in `LEAGUE_ALLOWLIST`.** `ADMIN_EMAIL` covers the admin
+  account; the second account, the one used to see the portal as the league will, is
+  turned away without an entry of its own.
+- **Changing a Vercel variable needs a redeploy to take effect.** Adding a friend needs
+  no commit and no code change, but it does need **Deployments → ⋯ → Redeploy**. An
+  address added without that redeploy does nothing, and the friend stays locked out.
+- **Gmail dots are not interchangeable here.** Google treats `j.oan@gmail.com` and
+  `joan@gmail.com` as one account; this list does not. **If somebody is turned away and
+  swears they are on the list, compare the dots first** — then capitalisation, which
+  does not matter, and stray spaces, which are stripped.
+
+A refused visitor gets no session and no portal page: they land back on `/login` with a
+short message saying the league is private. An ordinary sign-in failure lands on the
+same page with a different message, so "did not complete" and "private league" mean
+different things and only the second one is about the list.
+
+### Removing somebody from the league
+
+Taking an address out of `LEAGUE_ALLOWLIST` stops them signing in **again**; it does not
+end the session they already hold, which runs for seven days. To cut it now, delete
+their row from the `user` table:
+
+```sql
+DELETE FROM "user" WHERE email = '<address>';
+```
+
+`session.user_id` is `ON DELETE CASCADE`, so their sessions go with the row, and
+`teams.user_id` is `ON DELETE SET NULL`, so any team they had claimed is released rather
+than orphaned. Remove them from the variable too, or they will simply sign in again.
 
 A first deploy also needs the LaLiga credential bootstrapped by hand before anything
 can sync — see step 7. No environment variable holds it: the refresh token rotates on

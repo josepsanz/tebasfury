@@ -7,6 +7,7 @@ const valid = {
   BETTER_AUTH_URL: "http://localhost:3000",
   GOOGLE_CLIENT_ID: "google-client-id",
   GOOGLE_CLIENT_SECRET: "google-client-secret",
+  ADMIN_EMAIL: "owner@example.com",
   CREDENTIALS_KEY: Buffer.alloc(32).toString("base64"),
   LALIGA_LEAGUE_ID: "018012894",
   QSTASH_TOKEN: "qstash-token",
