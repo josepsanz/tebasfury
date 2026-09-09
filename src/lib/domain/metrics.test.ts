@@ -33,6 +33,42 @@ describe("teamMetrics", () => {
     expect(m.best?.gameweek).toBe(1);
   });
 
+  it("gives a record to the first gameweek that set it, when two are equal (worst too)", () => {
+    const m = teamMetrics([snap("a", 1, 50), snap("a", 2, 50)], "a");
+    expect(m.worst?.gameweek).toBe(1);
+  });
+
+  it("reads the season in gameweek order, however the rows arrive", () => {
+    // Gameweeks: 1=50, 2=10 (value 100M), 3=20, 4=30, 5=50 (value 200M).
+    // The array below lists them out of order — nothing here is ascending by gameweek.
+    //
+    // Best (tie-break): gameweeks 1 and 5 both scored 50. Sorted by gameweek, the
+    // reduce starts at gameweek 1 and gameweek 5's equal 50 never replaces it, so the
+    // record stays gameweek 1. Without the sort, the reduce would start at gameweek 5
+    // (first in this array) and never be displaced by gameweek 1 appearing later — the
+    // wrong answer would be gameweek 5.
+    //
+    // Trend: the true last three BY GAMEWEEK are 3, 4, 5 (points 20, 30, 50), whose
+    // least-squares slope is 15. The last three array ELEMENTS are gameweeks 4, 3, 2
+    // (points 30, 20, 10), whose slope is 10 — a different, wrong answer, confirmed by
+    // hand: (4,30),(3,20),(2,10) has mean (3,20) and slope (1*10 + 0*0 + -1*-10) / (1+0+1) = 10.
+    //
+    // Points per million: the latest GAMEWEEK with a value is 5 (200,000,000), giving
+    // 160/200 = 0.8. The last ARRAY element with a value is gameweek 2 (100,000,000),
+    // which would wrongly give 160/100 = 1.6.
+    const rows = [
+      snap("a", 5, 50, { teamValue: 200_000_000 }),
+      snap("a", 1, 50),
+      snap("a", 4, 30),
+      snap("a", 3, 20),
+      snap("a", 2, 10, { teamValue: 100_000_000 }),
+    ];
+    const m = teamMetrics(rows, "a");
+    expect(m.best).toEqual({ points: 50, gameweek: 1, teamId: "a" });
+    expect(m.trend).toEqual({ slope: 15, rising: true });
+    expect(m.pointsPerMillion).toBe(0.8);
+  });
+
   it("has no trend until three rounds have been played", () => {
     expect(teamMetrics([snap("a", 1, 40), snap("a", 2, 61)], "a").trend).toBeNull();
   });
