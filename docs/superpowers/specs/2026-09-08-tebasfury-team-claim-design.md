@@ -267,18 +267,17 @@ manual checks below, and by nothing else.
 - **`nextWeek` and `previousWeek` are in the week response and unread.** The probe found
   them; the calendar the next slice needs may be simpler for it.
 
-## The visual checks — not yet performed
+## The visual checks — performed 2026-09-09, all clean
 
-Checks 35–40 below remain unperformed as of this slice's implementation. Every one of
-them needs a signed-in session, and the automated suites deliberately never sign in — the
-Vitest suite never opens a browser, and the Playwright suite stops at the redirect, by
-design — so no agent working from this codebase can load any of these three pages as a
-claimed manager, an unclaimed one, or an admin. The same gap covers more than the visual
-polish: it covers the claim and release flow itself. `/claim`'s only automated coverage
-is that an anonymous visitor gets redirected to `/login`; nobody and nothing has
-exercised what happens after that redirect — clicking Claim, seeing the row flip, an
-admin releasing a row, any of it. These checks are the owner's to walk, at 320px and
-375px, signed in, once with a claimed team and once without, and once as an admin.
+Walked by the owner on 2026-09-09, signed in, at 320px and 375px, with both accounts —
+the admin (`jsanz83@gmail.com`) and the unclaimed `user` account, which is what the rest
+of the league will see. All six read correctly and nothing needed changing.
+
+The gap they were written to cover is now closed by a person rather than by a test, and
+it is worth being clear that it stays closed only for this state of the code: `/claim`'s
+only automated coverage is still that an anonymous visitor is redirected to `/login`, so
+the claim and release flow has no regression net. The next slice to touch that page walks
+these six again.
 
 On `/claim`:
 

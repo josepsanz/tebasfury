@@ -261,17 +261,18 @@ other page, the signed-in path has no automated coverage.
 - **Records are season-wide and unlabelled by season.** The moment a second season exists,
   every record on these pages silently becomes "this season" without saying so.
 
-## The visual checks — not yet performed
+## The visual checks — performed 2026-09-09, all clean
 
-Checks 41–45 below remain unperformed. Every one of them needs a signed-in session, and
-the automated suites deliberately never sign in — the Vitest suite never opens a browser,
-and the Playwright suite stops at the redirect, by design — so no agent working from this
-codebase can load the home page or a team page as a signed-in manager. The same gap covers
-more than the League panel and the standings link: it covers the team page as a whole.
-`/teams/[id]`'s only automated coverage is that an anonymous visitor is redirected to
-`/login`; nobody has yet seen it render real figures. These checks are the owner's to
-walk, at 320px and 375px, including one team with fewer than three rounds played, so that
-several of its figures show their unavailable reasons instead of numbers.
+Walked by the owner on 2026-09-09, signed in, at 320px and 375px. All five read
+correctly and nothing needed changing.
+
+One qualification, so the record is not read as more than it is: check 43 asked for a
+team with fewer than three rounds played, and with five gameweeks in the table no such
+team exists — every manager has a trend and a regularity. So the page was judged with
+most of its figures populated, and the state where three of seven show their unavailable
+reason has still not been seen. It will appear on its own at the start of next season,
+and `Points per million` is the one metric that can show it today, on a team whose
+gameweeks recorded no squad value.
 
 41. The League panel at 320px: four figures with captions in two columns, and the longest
     manager name in a caption. Does a caption wrap under its figure or collide with the
