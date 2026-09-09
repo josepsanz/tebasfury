@@ -24,6 +24,7 @@ export function NavLinks({ canTriggerSync }: { canTriggerSync: boolean }) {
     { href: "/progress", label: "Progress" },
     { href: "/players", label: "Players" },
     { href: "/market", label: "Market" },
+    { href: "/necroporra", label: "Necroporra" },
     ...(canTriggerSync ? [{ href: "/admin/sync", label: "Sync" }] : []),
   ];
 

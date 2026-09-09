@@ -2,6 +2,7 @@ import { eq, lt } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import { gameweeks, rawSyncPayloads, syncRuns, teamGameweekStats, teams } from "@/lib/db/schema";
+import { openRound } from "@/lib/necroporra";
 import type { FantasyClient, Gameweek, StandingRow } from "@/lib/fantasy-client";
 import { describeFailure } from "./failure";
 import { decideNextRun } from "./next-run";
@@ -44,6 +45,18 @@ export async function runSync(deps: {
 
   try {
     const week = await client.getCurrentWeek();
+
+    // The Necroporra's round, opened from data this run already has. Deliberately here
+    // rather than on a chain of its own: a second scheduled chain is a second thing that
+    // can silently die, and this one already runs at least daily. `openRound` is
+    // idempotent and refuses to reopen a round that has closed.
+    //
+    // Before the standings work below, and outside it: a week whose standings are not
+    // yet worth recording is exactly the week whose poll needs to be open. Ordered so
+    // that a failure to open the poll cannot cost us a sync — it throws into the same
+    // catch, which marks the run failed and lets the chain retry, and the standings
+    // upserts are idempotent anyway.
+    await openRound(db, { gameweek: week.number, closesAt: week.opensAt, now });
 
     const existing = await db.select().from(teamGameweekStats);
     const settled = new Set(

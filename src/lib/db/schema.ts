@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -11,6 +11,7 @@ import {
   jsonb,
   primaryKey,
   date,
+  check,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -372,5 +373,72 @@ export const marketOperations = pgTable(
     // The feed reads newest-first. A b-tree is scanned backwards for a DESC order, so
     // one ascending index serves both this and the "how far back do we reach" read.
     index("market_operations_occurred_at_idx").on(table.occurredAt),
+  ],
+);
+
+/**
+ * One week of the Necroporra: name the two teams you think finish the round last.
+ *
+ * Holds the deadline and nothing else. Who actually finished last is arithmetic over
+ * `team_gameweek_stats`, computed on read — the same refusal that keeps a violations
+ * table out of the fair-play slice, and for the same reason: a stored verdict can
+ * outlive the rule that produced it, while a computed one is corrected for free by the
+ * next sync that corrects the standings.
+ *
+ * The deadline is the exception because it is the one thing NOT derivable from what we
+ * store. It is the round's own opening time, which the API reports three days ahead on
+ * `week/current` — and which cannot live on `gameweeks.opensAt`, because `runSync`
+ * writes a `gameweeks` row only once a week has been PLAYED. That is load-bearing:
+ * `loadLeagueStatus` takes `max(gameweeks.number)` as the gameweek the whole portal
+ * says it is showing, and naming a round the moment the API does would move that figure
+ * to a week with no scores in it.
+ *
+ * So `gameweek` deliberately references nothing. Two cadences that must not be able to
+ * fail each other — the same independence `player_gameweek_points` documents.
+ */
+export const necroporraRounds = pgTable("necroporra_rounds", {
+  gameweek: integer("gameweek").primaryKey(),
+  /** When voting shuts: the round's own kickoff, as the API reported it. */
+  closesAt: timestamp("closes_at", { withTimezone: true }).notNull(),
+  openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * One voter's pair for one round.
+ *
+ * **Two columns, not two rows**, and that is a deliberate trade. Neon's HTTP driver has
+ * no transactions, so replacing a pair as delete-then-insert has a window in which the
+ * voter holds nothing — and the failure lands on the person who was mid-change. A pair
+ * in one row makes a change a single `onConflictDoUpdate`: atomic without a transaction,
+ * the same reasoning that made a team claim one conditional `UPDATE`.
+ *
+ * It also makes "at most two votes" a fact of the schema rather than a rule somebody has
+ * to remember to enforce. The cost is that a rule change to three votes would be a
+ * migration; the rules are settled, and this is what the no-transactions constraint buys.
+ *
+ * `secondTeamId` is nullable so a voter may name one team and mean it. Both columns
+ * `set null` on a deleted team, which loses a vote rather than the row — the same choice
+ * `teams.userId` makes about a deleted user.
+ */
+export const necroporraVotes = pgTable(
+  "necroporra_votes",
+  {
+    gameweek: integer("gameweek").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    firstTeamId: text("first_team_id").references(() => teams.id, { onDelete: "set null" }),
+    secondTeamId: text("second_team_id").references(() => teams.id, { onDelete: "set null" }),
+    castAt: timestamp("cast_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.gameweek, table.userId] }),
+    // Naming the same team twice is one vote wearing two hats, and would read on the
+    // page as a voter who had used both picks. Checked here as well as in the domain:
+    // the domain protects the person, this protects the table.
+    check(
+      "necroporra_votes_distinct_teams",
+      sql`${table.firstTeamId} is null or ${table.secondTeamId} is null or ${table.firstTeamId} <> ${table.secondTeamId}`,
+    ),
   ],
 );

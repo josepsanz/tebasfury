@@ -157,6 +157,28 @@ production: `pg_indexes` reports `teams_user_id_unique` as a plain unique index 
 since Postgres treats NULLs as distinct. It went in ahead of the team-claim slice's deploy,
 so that slice can ship without a migration step of its own.
 
+### `0010` is NOT yet applied, and it must go in BEFORE the code
+
+`0010` adds `necroporra_rounds` and `necroporra_votes`. Both are new tables; it drops
+nothing and alters nothing.
+
+**Order matters here more than it has for any previous migration.** The Necroporra's
+round is opened by `runSync`, from the `week/current` response it already fetches — so
+`runSync` now writes to `necroporra_rounds` on **every run**. Deploy the code before
+applying `0010` and every standings sync fails, not just the Necroporra page.
+
+The chain survives it: the failure is caught, the run is recorded `failed`, and
+`runAndSchedule` still books a successor, so syncing resumes on its own once the
+migration lands. But the standings would go stale until it does, and the admin history
+would fill with failures.
+
+```bash
+DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
+```
+
+Applying it early is safe: two empty tables nothing reads until the code that reads them
+is live.
+
 ## 5. Redeploy and verify
 
 The code is already on GitHub, so there is nothing to push. Trigger a new build from

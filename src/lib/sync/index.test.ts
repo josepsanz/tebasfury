@@ -1,7 +1,14 @@
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
-import { gameweeks, rawSyncPayloads, syncRuns, teamGameweekStats, teams } from "@/lib/db/schema";
+import {
+  gameweeks,
+  necroporraRounds,
+  rawSyncPayloads,
+  syncRuns,
+  teamGameweekStats,
+  teams,
+} from "@/lib/db/schema";
 import {
   CredentialError,
   CREDENTIAL_ERROR_NAME,
@@ -85,6 +92,35 @@ describe("runSync", () => {
     // `rawSyncPayloads` ids are derived from `runId`, and most tests reuse "r1"/"r2",
     // so leftover rows from an earlier test would collide on the primary key.
     await h.db.delete(rawSyncPayloads);
+    await h.db.delete(necroporraRounds);
+  });
+
+  describe("the Necroporra's round", () => {
+    it("is opened for the week the API calls current, closing at its kickoff", async () => {
+      // No chain of its own: this sync already runs at least daily and already has the
+      // kickoff in hand, three days ahead of it.
+      const client = fakeClient({ number: 5, opensAt: new Date("2026-09-11T19:00:00Z") }, {});
+      await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+
+      const [round] = await h.db.select().from(necroporraRounds);
+      expect(round).toMatchObject({
+        gameweek: 5,
+        closesAt: new Date("2026-09-11T19:00:00Z"),
+      });
+    });
+
+    it("is opened for a week whose standings are not worth recording yet", async () => {
+      // The whole point. A week nobody has played is exactly the week whose poll must be
+      // open, and `runSync` deliberately writes no `gameweeks` row for it.
+      const client = fakeClient(
+        { number: 5, isLive: false, closesAt: new Date("2026-09-15T01:00:00Z") },
+        {},
+      );
+      await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+
+      expect(await h.db.select().from(gameweeks)).toHaveLength(0);
+      expect(await h.db.select().from(necroporraRounds)).toHaveLength(1);
+    });
   });
 
   it("backfills every gameweek from an empty database", async () => {
