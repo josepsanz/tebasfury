@@ -93,7 +93,7 @@ export function OpportunityBoard({
                   <span className="text-right">
                     <span
                       className="block text-[20px] font-normal tabular-nums leading-none"
-                      style={{ fontFamily: "var(--font-barlow-condensed)" }}
+                      style={{ fontFamily: "var(--font-mono)" }}
                     >
                       {value}
                     </span>

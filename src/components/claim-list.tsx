@@ -99,7 +99,7 @@ export function ClaimList({
                   action={(formData) => run(releaseAction, formData)}
                   className="flex items-center gap-3"
                 >
-                  <span className="text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
+                  <span className="text-[11px]" style={{ color: "var(--board-you)" }}>
                     Yours
                   </span>
                   <SubmitButton pending={pending}>Release</SubmitButton>

@@ -111,6 +111,41 @@ const toRecord = (row: typeof playersTable.$inferSelect): PlayerRecord => ({
 });
 
 /**
+ * What the status bar says: which gameweek the portal is showing, whether it is being
+ * played right now, and how old the table in front of the reader is.
+ *
+ * Deliberately its own read rather than a slice of `loadSnapshots`: this runs on every
+ * page, including ones that have nothing to do with the standings, and `loadSnapshots`
+ * pulls every snapshot of the season to answer it.
+ *
+ * `lastSync` counts only the STANDINGS cadence. The daily player sweep succeeds later
+ * and more often, and reporting it here would tell a reader the table was refreshed
+ * four hours ago when the table has not moved since one in the morning.
+ */
+export type LeagueStatus = { gameweek: number | null; isLive: boolean; lastSync: Date | null };
+
+export async function loadLeagueStatus(db: Db): Promise<LeagueStatus> {
+  const [week] = await db
+    .select({ number: gameweeks.number, isLive: gameweeks.isLive })
+    .from(gameweeks)
+    .orderBy(desc(gameweeks.number))
+    .limit(1);
+
+  const [sync] = await db
+    .select({ finishedAt: syncRuns.finishedAt })
+    .from(syncRuns)
+    .where(and(eq(syncRuns.status, "succeeded"), notLike(syncRuns.trigger, "players-%")))
+    .orderBy(desc(syncRuns.finishedAt))
+    .limit(1);
+
+  return {
+    gameweek: week?.number ?? null,
+    isLive: week?.isLive ?? false,
+    lastSync: sync?.finishedAt ?? null,
+  };
+}
+
+/**
  * When the player cadence last succeeded — shared by the catalogue and the player-detail
  * read so the query is written once. A daily sweep writes no gameweek snapshot, so this
  * is deliberately separate from `loadSnapshots`'s own last-sync read.

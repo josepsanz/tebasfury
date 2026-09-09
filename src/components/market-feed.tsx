@@ -71,7 +71,7 @@ export function MarketFeed({
               </span>
               <span
                 className="tabular-nums text-[14px]"
-                style={{ fontFamily: "var(--font-barlow-condensed)" }}
+                style={{ fontFamily: "var(--font-mono)" }}
               >
                 {operation.amount === null ? "" : formatMoney(operation.amount)}
               </span>

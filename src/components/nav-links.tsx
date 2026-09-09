@@ -11,10 +11,10 @@ import { usePathname } from "next/navigation";
  * the server for the session, so this is the smallest piece that has to ship to the
  * browser.
  *
- * `flex-wrap` is load-bearing, not defensive. At 375px these labels come to roughly 340
- * of the 347 pixels available, so the row fits with two per cent to spare — and a
- * seventh destination, or a reader whose system text is a size larger, would otherwise
- * lose a destination off the edge with nothing to show that it happened.
+ * `flex-wrap` is load-bearing, not defensive. These labels come to roughly the width
+ * available at 375px, so the row fits with little to spare — and a seventh destination,
+ * or a reader whose system text is a size larger, would otherwise lose a destination
+ * off the edge with nothing to show that it happened.
  */
 export function NavLinks({ canTriggerSync }: { canTriggerSync: boolean }) {
   const pathname = usePathname();
@@ -29,7 +29,7 @@ export function NavLinks({ canTriggerSync }: { canTriggerSync: boolean }) {
 
   return (
     <div
-      className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b px-6 py-2 text-[13.5px]"
+      className="flex flex-wrap items-center border-b px-4 text-[12.5px]"
       style={{ borderColor: "var(--board-line)" }}
     >
       {destinations.map(({ href, label }) => {
@@ -40,7 +40,13 @@ export function NavLinks({ canTriggerSync }: { canTriggerSync: boolean }) {
             key={href}
             href={href}
             aria-current={current ? "page" : undefined}
-            style={{ color: current ? "var(--board-ink)" : "var(--board-ink-dim)" }}
+            className="px-2 py-2"
+            style={{
+              color: current ? "var(--board-ink)" : "var(--board-ink-dim)",
+              // The tab marker is ink, never the amber: amber is reserved for marking
+              // the reader's own team, and a colour that means two things means neither.
+              boxShadow: current ? "inset 0 -2px 0 var(--board-ink)" : undefined,
+            }}
           >
             {label}
           </Link>

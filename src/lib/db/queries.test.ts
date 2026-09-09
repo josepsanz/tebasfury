@@ -12,7 +12,7 @@ import {
   teamGameweekStats,
   teams,
 } from "./schema";
-import { loadMarket, loadPlayer, loadPlayerCatalogue, loadSnapshots } from "./queries";
+import { loadLeagueStatus, loadMarket, loadPlayer, loadPlayerCatalogue, loadSnapshots } from "./queries";
 import { buildCatalogue } from "@/lib/domain/players";
 
 describe("loadSnapshots", () => {
@@ -289,5 +289,62 @@ describe("loadMarket", () => {
     // "why does this sale show an unknown holding period", and Ruling 5 needs it.
     const { logBegan } = await loadMarket(h.db);
     expect(logBegan).toBeInstanceOf(Date);
+  });
+});
+
+describe("loadLeagueStatus", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("says nothing is known before the first sync, rather than inventing a gameweek", async () => {
+    expect(await loadLeagueStatus(h.db)).toEqual({
+      gameweek: null,
+      isLive: false,
+      lastSync: null,
+    });
+  });
+
+  it("reports the latest gameweek, whether it is in play, and when standings last synced", async () => {
+    await h.db.insert(gameweeks).values([
+      { number: 4, isLive: false },
+      { number: 5, isLive: true },
+    ]);
+    await h.db.insert(syncRuns).values([
+      {
+        id: "st-1",
+        trigger: "schedule",
+        status: "succeeded",
+        startedAt: new Date("2026-09-09T01:00:00Z"),
+        finishedAt: new Date("2026-09-09T01:00:04Z"),
+      },
+      // A later PLAYER sweep must not be mistaken for the standings clock: the status
+      // bar is telling a reader how fresh the table in front of them is.
+      {
+        id: "pl-1",
+        trigger: "players-schedule",
+        status: "succeeded",
+        startedAt: new Date("2026-09-09T04:00:00Z"),
+        finishedAt: new Date("2026-09-09T04:00:20Z"),
+      },
+      // A failed run is not a sync.
+      {
+        id: "st-2",
+        trigger: "schedule",
+        status: "failed",
+        startedAt: new Date("2026-09-09T05:00:00Z"),
+        finishedAt: new Date("2026-09-09T05:00:01Z"),
+      },
+    ]);
+
+    expect(await loadLeagueStatus(h.db)).toEqual({
+      gameweek: 5,
+      isLive: true,
+      lastSync: new Date("2026-09-09T01:00:04Z"),
+    });
   });
 });

@@ -38,7 +38,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
         <span>
           <span
             className="block text-[27px] font-extralight leading-none tabular-nums"
-            style={{ fontFamily: "var(--font-barlow-condensed)" }}
+            style={{ fontFamily: "var(--font-mono)" }}
           >
             {currentValue === null ? "—" : formatMoney(currentValue)}
           </span>
@@ -49,7 +49,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
         <span>
           <span
             className="block text-[27px] font-extralight leading-none tabular-nums"
-            style={{ fontFamily: "var(--font-barlow-condensed)" }}
+            style={{ fontFamily: "var(--font-mono)" }}
           >
             {seasonPoints}
           </span>
