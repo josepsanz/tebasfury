@@ -60,8 +60,21 @@ export type Holding = {
   releasedAt: Date;
   /** Null whenever `acquiredAt` is: an unknown period is not a number. */
   hours: number | null;
-  /** False when `hours` is null. Unknown is never a breach — and never a clean record. */
+  /**
+   * False when `hours` is null. Unknown is never a breach — and never a clean record.
+   *
+   * ALWAYS false for an involuntary holding. See `voluntary`.
+   */
   breach: boolean;
+  /**
+   * True when this manager chose to sell; false when a player was taken by clause.
+   *
+   * The five-day rule is about CHOOSING to sell, so an involuntary end can never be a
+   * breach — pointing the public log at the manager who was raided is backwards from what
+   * the rule discourages (Ruling 3). Both kinds are reported because both moved money;
+   * only one of them can be an accusation.
+   */
+  voluntary: boolean;
   /** What this manager paid to get the player, or null when that purchase is outside the log. */
   acquiredFor: number | null;
   /** What the sale fetched. Null only if the API reported no amount, which it never has. */
@@ -82,11 +95,22 @@ const HOUR = 60 * 60 * 1000;
 /**
  * Every completed holding the operations describe, oldest sale first.
  *
- * A holding ends only at a VOLUNTARY sale — a manager choosing to sell to the market.
- * Losing a player to a clause is one row describing two things, and read from the
- * losing side it is not a sale: they did not choose. Counting it would point the public
- * log at the manager who was raided, which is backwards from what the rule discourages.
- * See Ruling 3.
+ * A holding ends either at a voluntary sale or at a clause that took the player away, and
+ * `voluntary` says which. **Only a voluntary sale can be a breach.** Losing a player to a
+ * clause is one row describing two things, and read from the losing side it is not a sale:
+ * they did not choose, so counting it against them would point the public log at the
+ * manager who was raided, which is backwards from what the rule discourages (Ruling 3).
+ *
+ * The involuntary end is reported anyway because it moved real money — the raided manager
+ * was paid the clause — and because closing it is a correctness fix in its own right: left
+ * open, that player's acquisition would still be sitting in the map if the same manager
+ * ever bought them back, and the next sale would be priced against a purchase two owners
+ * ago.
+ *
+ * Worth knowing, and the reason the `voluntary` guard is belt-and-braces rather than
+ * load-bearing: LaLiga gives a bought player **15 days of anti-clause protection**, so a
+ * raid cannot land inside the five-day window in the first place. The guard stays because
+ * the rule should not depend on a league setting this code cannot see and does not read.
  *
  * A holding begins at the most recent prior acquisition of that player by that
  * manager, which is either a purchase or a received transfer. Most recent, not first:
@@ -117,34 +141,48 @@ export function holdings(operations: MarketOperation[]): Holding[] {
     const playerId = operation.playerId as string;
     const key = `${operation.actorManagerId}:${playerId}`;
 
+    /** Ends one manager's holding of this player, pricing it against what they paid. */
+    const close = (managerId: number, voluntary: boolean) => {
+      const at = `${managerId}:${playerId}`;
+      const acquired = open.get(at) ?? null;
+      open.delete(at);
+      const acquiredAt = acquired?.at ?? null;
+      const acquiredFor = acquired?.amount ?? null;
+      const releasedFor = operation.amount;
+      const hours =
+        acquiredAt === null
+          ? null
+          : (operation.occurredAt.getTime() - acquiredAt.getTime()) / HOUR;
+      result.push({
+        managerId,
+        playerId,
+        acquiredAt,
+        releasedAt: operation.occurredAt,
+        hours,
+        // The one line that keeps the fair-play rule honest.
+        breach: voluntary && hours !== null && hours < HOLD_HOURS,
+        voluntary,
+        acquiredFor,
+        releasedFor,
+        profit:
+          acquiredFor === null || releasedFor === null ? null : releasedFor - acquiredFor,
+      });
+    };
+
     if (kind === "bought" || kind === "transfer") {
+      // A clause is one row describing two moves: the counterparty loses the player and
+      // is paid for them, and the actor acquires them. Both happen at this instant, and
+      // the loss is closed BEFORE the acquisition is opened so that a manager clausing a
+      // player back off the person who took them cannot collide on the same key.
+      if (kind === "transfer" && operation.counterpartyManagerId !== null) {
+        close(operation.counterpartyManagerId, false);
+      }
       open.set(key, { at: operation.occurredAt, amount: operation.amount });
       continue;
     }
 
     if (kind !== "sold") continue;
-
-    const acquired = open.get(key) ?? null;
-    open.delete(key);
-    const acquiredAt = acquired?.at ?? null;
-    const acquiredFor = acquired?.amount ?? null;
-    const releasedFor = operation.amount;
-    const hours =
-      acquiredAt === null
-        ? null
-        : (operation.occurredAt.getTime() - acquiredAt.getTime()) / HOUR;
-    result.push({
-      managerId: operation.actorManagerId,
-      playerId,
-      acquiredAt,
-      releasedAt: operation.occurredAt,
-      hours,
-      breach: hours !== null && hours < HOLD_HOURS,
-      acquiredFor,
-      releasedFor,
-      profit:
-        acquiredFor === null || releasedFor === null ? null : releasedFor - acquiredFor,
-    });
+    close(operation.actorManagerId, true);
   }
 
   return result;

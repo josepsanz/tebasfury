@@ -67,26 +67,37 @@ describe("holdings", () => {
   });
 
   it("starts the clock when a player arrives by clause", () => {
-    // Ruling 3, the receiving side: a transfer IS an acquisition for its actor.
-    const [holding] = holdings([
+    // Ruling 3, the receiving side: a transfer IS an acquisition for its actor. Selected
+    // by manager rather than taken as the first result, because the same transfer now
+    // also closes the COUNTERPARTY's holding — see the test below.
+    const holding = holdings([
       op({ id: "in", activityType: 1, counterpartyManagerId: 2, occurredAt: at("2026-09-06T00:00:00Z") }),
       op({ id: "sell", activityType: 33, occurredAt: at("2026-09-07T00:00:00Z") }),
-    ]);
-    expect(holding.hours).toBe(24);
-    expect(holding.breach).toBe(true);
+    ]).find((h) => h.managerId === 1 && h.voluntary);
+    expect(holding?.hours).toBe(24);
+    expect(holding?.breach).toBe(true);
   });
 
   it("never counts a clause raid against the manager who lost the player", () => {
-    // Ruling 3, the other side, and the one that matters most: manager 2 bought the
-    // player an hour before manager 1 paid the clause. Manager 2 did not sell — they
-    // were raided — so no holding of theirs ends here, and nothing about them is a
-    // breach. Counting it would point the public log at the victim.
+    // Ruling 3, the other side. They did not sell — they were raided — so this can never
+    // be a breach; counting it would point the public log at the victim.
+    //
+    // **The input here cannot occur in the real game**, and that is deliberate: a bought
+    // player carries 15 days of anti-clause protection, so a raid can never land inside
+    // the five-day window at all. This asserts the guard holds anyway, because the rule
+    // should not depend on a league setting this code cannot see and does not read.
+    //
+    // The holding IS now reported, which it was not before: the raid moved real money and
+    // the money view needs it. `voluntary` is what keeps the two apart, and `breach` is
+    // the assertion that matters — false even with the player held one hour.
     const result = holdings([
       op({ id: "buy2", activityType: 31, actorManagerId: 2, occurredAt: at("2026-09-01T10:00:00Z") }),
       op({ id: "raid", activityType: 1, actorManagerId: 1, counterpartyManagerId: 2, occurredAt: at("2026-09-01T11:00:00Z") }),
     ]);
-    expect(result.filter((h) => h.managerId === 2)).toEqual([]);
     expect(result.filter((h) => h.breach)).toEqual([]);
+
+    const raided = result.find((h) => h.managerId === 2);
+    expect(raided).toMatchObject({ voluntary: false, breach: false, hours: 1 });
   });
 
   it("reports an unknown holding period when the purchase predates the log", () => {

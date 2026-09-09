@@ -208,3 +208,58 @@ describe("MarketFeed, what a sale made", () => {
     expect(html).not.toContain("held");
   });
 });
+
+describe("MarketFeed, what a clause cost the manager who lost the player", () => {
+  const boughtBy2 = op({
+    id: "buy2",
+    activityType: 31,
+    actorManagerId: 2,
+    amount: 3_000_000,
+    occurredAt: new Date("2026-08-01T10:00:00Z"),
+  });
+  const raid = op({
+    id: "raid",
+    activityType: 1,
+    actorManagerId: 1,
+    counterpartyManagerId: 2,
+    amount: 8_000_000,
+    occurredAt: new Date("2026-09-01T10:00:00Z"),
+  });
+
+  it("shows what the raided manager made, named so it is not read as the raider's", () => {
+    // The row says "Ada received F. Garcés from Bruno"; the figure below is Bruno's.
+    const html = feed([raid, boughtBy2]);
+    expect(html).toContain("Bruno");
+    expect(html).toContain("▲ 5.0M");
+  });
+
+  it("passes no five-day verdict on a clause, because they did not choose to sell", () => {
+    const html = feed([raid, boughtBy2]);
+    expect(html).not.toContain("inside five days");
+    expect(html).not.toContain("held");
+  });
+
+  it("says nothing when the raided manager's purchase predates the log", () => {
+    const html = feed([raid]);
+    expect(html).not.toContain("▲");
+    expect(html).not.toContain("▼");
+  });
+
+  it("still starts the raider's own clock, so their later sale is priced", () => {
+    const html = feed([
+      boughtBy2,
+      raid,
+      op({
+        id: "resold",
+        activityType: 33,
+        actorManagerId: 1,
+        amount: 11_000_000,
+        occurredAt: new Date("2026-09-20T10:00:00Z"),
+      }),
+    ]);
+    // The raider paid 8M and sold for 11M.
+    expect(html).toContain("▲ 3.0M");
+    // And the victim's own 5M is still on the clause row.
+    expect(html).toContain("▲ 5.0M");
+  });
+});

@@ -64,6 +64,30 @@ export function MarketFeed({
   const linkClass = "underline decoration-[var(--board-line)] underline-offset-4";
 
   /**
+   * What a holding made or lost. Nothing at all when the purchase predates the log —
+   * calling an unknowable profit nought would report a manager who doubled their money
+   * as having broken even.
+   */
+  const Profit = ({ value }: { value: number | null }) =>
+    value === null ? null : (
+      <span
+        className="tabular-nums"
+        style={{
+          fontFamily: "var(--font-mono)",
+          color:
+            value > 0
+              ? "var(--board-gain)"
+              : value < 0
+                ? "var(--board-alert)"
+                : "var(--board-ink-dim)",
+        }}
+      >
+        {value > 0 ? "▲ " : value < 0 ? "▼ " : ""}
+        {formatMoney(Math.abs(value))}
+      </span>
+    );
+
+  /**
    * A manager's name, linked to their page unless this feed IS their page.
    *
    * A link to the page you are already on is a dead control that costs a tap to find
@@ -130,6 +154,16 @@ export function MarketFeed({
               )
             : undefined;
 
+        // A clause is one row describing two moves, and this is the losing side of it:
+        // the counterparty gave the player up and was paid for them. Its holding is
+        // involuntary, so it carries money and never a five-day verdict.
+        const lost =
+          kind === "transfer" && operation.counterpartyManagerId !== null
+            ? periodOf.get(
+                `${operation.counterpartyManagerId}:${operation.playerId}:${operation.occurredAt.getTime()}`,
+              )
+            : undefined;
+
         return (
           <li
             key={operation.id}
@@ -169,29 +203,24 @@ export function MarketFeed({
                       : `held ${(holding.hours / 24).toFixed(1)} days`}
                     {holding.breach && " — inside five days"}
                   </span>
-                  {/* What the player made or lost: sale price minus purchase price.
-                      Absent, not nought, when the purchase predates the log — calling an
-                      unknowable profit zero would report a manager who doubled their money
-                      as having broken even. The arrow carries the direction and the colour
-                      repeats it, the same two words the portal uses everywhere. */}
                   {holding.profit === null ? null : (
-                    <span
-                      className="tabular-nums"
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        color:
-                          holding.profit > 0
-                            ? "var(--board-gain)"
-                            : holding.profit < 0
-                              ? "var(--board-alert)"
-                              : "var(--board-ink-dim)",
-                      }}
-                    >
+                    <>
                       {" · "}
-                      {holding.profit > 0 ? "▲ " : holding.profit < 0 ? "▼ " : ""}
-                      {formatMoney(Math.abs(holding.profit))}
-                    </span>
+                      <Profit value={holding.profit} />
+                    </>
                   )}
+                </span>
+              )}
+
+              {/* The clause seen from the side that lost the player. Named, because this
+                  row is written from the receiver's side and an unlabelled figure here
+                  would read as the receiver's. No holding period and no five-day mark:
+                  they did not choose to sell. */}
+              {lost === undefined || lost.profit === null ? null : (
+                <span className="block text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
+                  {managerNames.get(operation.counterpartyManagerId as number) ??
+                    operation.counterpartyManagerId}{" "}
+                  <Profit value={lost.profit} />
                 </span>
               )}
             </span>
