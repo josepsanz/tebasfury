@@ -314,6 +314,41 @@ describe("pointsSeries", () => {
   it("is empty before anything has been swept", () => {
     expect(pointsSeries([])).toEqual([]);
   });
+
+  it("runs to the season's last gameweek, so two players' charts share an axis", () => {
+    // Measured 2026-09-09: LaLiga plays some fixtures early, so a Celta or Real Sociedad
+    // player had gameweek 6 recorded while gameweek 5 had not been played by anybody.
+    // Deriving the axis per player gave those 47 a six-wide chart and everyone else a
+    // four-wide one — two charts on the same screen that could not be compared.
+    const series = pointsSeries([{ gameweek: 1, points: 7 }], 4);
+    expect(series).toEqual([
+      { gameweek: 1, points: 7 },
+      { gameweek: 2, points: null },
+      { gameweek: 3, points: null },
+      { gameweek: 4, points: null },
+    ]);
+  });
+
+  it("still reaches a gameweek played ahead of the season's last, rather than hiding it", () => {
+    // The early fixture is true. Truncating the axis to the league's own last week would
+    // discard a real score, which is the one thing worse than an uneven axis.
+    const series = pointsSeries([{ gameweek: 6, points: 13 }], 4);
+    expect(series.map((p) => p.gameweek)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(series.at(-1)).toEqual({ gameweek: 6, points: 13 });
+  });
+
+  it("falls back to the player's own last gameweek when no season figure is given", () => {
+    expect(pointsSeries([{ gameweek: 2, points: 3 }])).toEqual([
+      { gameweek: 1, points: null },
+      { gameweek: 2, points: 3 },
+    ]);
+  });
+
+  it("is still empty when the season has a length but the player has no rows", () => {
+    // An axis with no series on it is a chart that says nothing; the page shows its
+    // "nothing recorded" state instead, and that decision stays with the caller.
+    expect(pointsSeries([], 4)).toEqual([]);
+  });
 });
 
 describe("pointsPerMillion", () => {

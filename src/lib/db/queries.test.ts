@@ -159,9 +159,16 @@ describe("loadPlayer", () => {
       { playerId: "p1", takenOn: "2026-09-06", value: 11_000_000 },
       { playerId: "p1", takenOn: "2026-09-07", value: 12_000_000 },
     ]);
+    await h.db.insert(players).values({
+      id: "p2", nickname: "Early", position: "Defender",
+      realTeamId: "rt2", status: "ok",
+    });
     await h.db.insert(playerGameweekPoints).values([
       { playerId: "p1", gameweek: 1, points: 12 },
       { playerId: "p1", gameweek: 2, points: 28 },
+      // A fixture played ahead of the rest of the round, which LaLiga really does. This
+      // player's week 4 is the season's furthest, and it belongs to somebody else.
+      { playerId: "p2", gameweek: 4, points: 9 },
     ]);
     await h.db.insert(squadMembers).values({ teamId: "t1", playerId: "p1" });
     await h.db.insert(syncRuns).values({
@@ -192,6 +199,14 @@ describe("loadPlayer", () => {
 
   it("returns null for a player nobody has ever swept", async () => {
     expect(await loadPlayer(h.db, "nope")).toBeNull();
+  });
+
+  it("reports the season's furthest gameweek, not this player's", async () => {
+    // The figure that keeps two players' charts on one axis. Reading it from p1's own
+    // rows would give 2, and p1's chart would be two weeks wide while p2's was four.
+    const detail = await loadPlayer(h.db, "p1");
+    expect(detail?.points).toHaveLength(2);
+    expect(detail?.seasonLastGameweek).toBe(4);
   });
 });
 

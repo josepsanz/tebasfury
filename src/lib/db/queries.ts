@@ -232,13 +232,23 @@ export type PlayerDetail = {
    */
   ownershipKnown: boolean;
   lastSweep: Date | null;
+  /**
+   * The furthest gameweek ANY player has points for — the axis every player's chart is
+   * drawn against, so two of them can be compared. Deliberately taken from the points
+   * table rather than from `gameweeks`: LaLiga plays some fixtures early, and on
+   * 2026-09-09 the points table already held a gameweek 6 that `gameweeks` did not, so
+   * the standings' idea of "now" would have truncated a score that had really happened.
+   *
+   * Null before anything has been swept.
+   */
+  seasonLastGameweek: number | null;
 };
 
 export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail | null> {
   const [row] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
   if (!row) return null;
 
-  const [values, points, owners, clubRows, anyOwnership, lastSweep] = await Promise.all([
+  const [values, points, owners, clubRows, anyOwnership, lastSweep, furthest] = await Promise.all([
     db
       .select({ takenOn: playerValueSnapshots.takenOn, value: playerValueSnapshots.value })
       .from(playerValueSnapshots)
@@ -269,6 +279,13 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
     // which is a `limit(1)` on the whole table, not a lookup keyed by playerId.
     db.select({ teamId: squadMembers.teamId }).from(squadMembers).limit(1),
     loadLastPlayerSweep(db),
+    // Global, and one row: the shared axis is a property of the season, not of this
+    // player. Indexed by the primary key's second column, so it is a cheap read.
+    db
+      .select({ gameweek: playerGameweekPoints.gameweek })
+      .from(playerGameweekPoints)
+      .orderBy(desc(playerGameweekPoints.gameweek))
+      .limit(1),
   ]);
 
   return {
@@ -279,6 +296,7 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
     club: clubRows[0] ?? null,
     ownershipKnown: anyOwnership.length > 0,
     lastSweep,
+    seasonLastGameweek: furthest[0]?.gameweek ?? null,
   };
 }
 

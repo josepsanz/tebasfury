@@ -239,14 +239,29 @@ export function valueSeries(values: ValuePoint[]): ValuePoint[] {
 }
 
 /**
- * One entry per gameweek from the first to the last recorded.
+ * One entry per gameweek from the first to the last of the season.
  *
  * A gameweek with no row is `null`, not `0`: nothing was recorded, and nought points is
  * a different statement about a player's season.
+ *
+ * `seasonLastGameweek` is what keeps two players' charts comparable. Deriving the axis
+ * from the player's own rows alone was wrong in a way only live data showed: LaLiga
+ * plays some fixtures early, so on 2026-09-09 the 47 Celta and Real Sociedad players had
+ * a gameweek 6 nobody else had — and gameweek 5 had not been played at all. They got a
+ * six-wide chart with a hole in it while everyone else got a four-wide one, and two
+ * charts on the same screen meant different things by the same width.
+ *
+ * The axis still stretches past the season figure when a player has a row beyond it,
+ * because that early score is true and truncating the axis would discard it. The
+ * argument is optional so a caller with no season figure keeps the old behaviour rather
+ * than silently getting a one-week chart.
  */
-export function pointsSeries(points: GameweekPoints[]): { gameweek: number; points: number | null }[] {
+export function pointsSeries(
+  points: GameweekPoints[],
+  seasonLastGameweek?: number,
+): { gameweek: number; points: number | null }[] {
   if (points.length === 0) return [];
-  const last = Math.max(...points.map((p) => p.gameweek));
+  const last = Math.max(...points.map((p) => p.gameweek), seasonLastGameweek ?? 0);
   const at = new Map(points.map((p) => [p.gameweek, p.points]));
   return Array.from({ length: last }, (_, i) => ({
     gameweek: i + 1,

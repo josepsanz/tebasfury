@@ -16,7 +16,9 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
 
   const { player, owner, ownershipKnown, lastSweep } = detail;
   const values = valueSeries(detail.values);
-  const points = pointsSeries(detail.points);
+  // The season's furthest gameweek, not this player's: two players' charts have to be
+  // drawn against the same axis to be worth putting on the same screen.
+  const points = pointsSeries(detail.points, detail.seasonLastGameweek ?? undefined);
   const seasonPoints = detail.points.reduce((sum, p) => sum + p.points, 0);
   const currentValue = values.at(-1)?.value ?? null;
   const label = statusLabel(player.status);
