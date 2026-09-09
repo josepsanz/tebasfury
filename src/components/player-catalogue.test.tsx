@@ -219,3 +219,36 @@ describe("PlayerCatalogue, clause state", () => {
     expect(html).not.toContain("<svg");
   });
 });
+
+describe("PlayerCatalogue, where the padlock sits", () => {
+  const locked = { state: "locked" as const, label: "locked until 14 Sept" };
+
+  it("puts the padlock after the name, so every name starts at the same x", () => {
+    // A catalogue is scanned down its left edge; an icon in front of some rows makes
+    // that edge ragged.
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[row("p1", { nickname: "Ada" })]}
+        ownershipKnown
+        clauses={{ p1: locked }}
+      />,
+    );
+    expect(html.indexOf("Ada")).toBeLessThan(html.indexOf("<svg"));
+  });
+
+  it("keeps the padlock outside the truncating span, so a long name cannot eat it", () => {
+    // The defect this guards against is one this codebase has already had to fix once:
+    // a marker placed inside a `truncate` is cut off by a long name.
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[row("p1", { nickname: "A preposterously long footballer name indeed" })]}
+        ownershipKnown
+        clauses={{ p1: locked }}
+      />,
+    );
+    const truncated = html.slice(html.indexOf('class="truncate"'), html.indexOf("<svg"));
+    // The lock is a sibling of the truncating span, never a child of it.
+    expect(truncated).toContain("</span>");
+    expect(html).toContain("shrink-0");
+  });
+});

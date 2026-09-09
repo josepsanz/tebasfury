@@ -232,17 +232,26 @@ export function PlayerCatalogue({
               className="grid grid-cols-[1fr_84px] items-center gap-3 px-2 py-[6px]"
             >
               <span className="min-w-0">
+                {/* The padlock sits AFTER the name and OUTSIDE the truncating span, which
+                    is the same shape `StandingsTable` uses for its "you" marker and for
+                    the same reason: a marker inside a `truncate` is cut off by a long
+                    name, which this codebase has already had to fix once. `min-w-0` on
+                    the row lets the name shrink; `shrink-0` on the lock keeps it whole.
+
+                    After rather than before so every name starts at the same x — a
+                    catalogue is scanned down its left edge, and an icon in front of some
+                    rows makes that edge ragged. */}
                 <span
-                  className="block truncate text-[13px]"
+                  className="flex items-baseline gap-1.5 min-w-0 text-[13px]"
                   style={{ color: clause ? CLAUSE_COLOUR[clause.state] : undefined }}
                   title={clause?.label}
                 >
+                  <span className="truncate">{row.nickname}</span>
                   {clause?.state === "locked" ? (
-                    <>
-                      <LockIcon />{" "}
-                    </>
+                    <span className="shrink-0">
+                      <LockIcon />
+                    </span>
                   ) : null}
-                  {row.nickname}
                 </span>
                 <span className="block truncate text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
                   {clubOrPosition(row)} · <OwnerLabel ownerName={row.ownerName} ownershipKnown={ownershipKnown} />
