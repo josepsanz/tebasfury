@@ -316,7 +316,7 @@ function ChartBlock({
             {unpinned.map((team) => (
               <Line
                 key={team.id}
-                type="monotone"
+                type="linear"
                 dataKey={team.id}
                 stroke="var(--board-ink-dim)"
                 strokeOpacity={0.22}
@@ -334,7 +334,7 @@ function ChartBlock({
               return (
                 <Line
                   key={teamId}
-                  type="monotone"
+                  type="linear"
                   dataKey={teamId}
                   stroke={colour}
                   strokeWidth={2}
