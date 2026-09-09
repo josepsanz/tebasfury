@@ -53,29 +53,42 @@ const OWNERSHIP: { key: "all" | "owned" | "free"; label: string }[] = [
   { key: "free", label: "Free" },
 ];
 
-/** The pill treatment the progress view already uses for pinning managers. */
-function Pill({
-  active,
-  onClick,
+/**
+ * One labelled control. A select rather than a row of pills, and the reason is the row
+ * itself: thirteen pills wrapped onto two lines and pushed the first player under the
+ * fold on a phone, and every new filter made it worse. Three selects hold the same
+ * choices in one line, name the axis they act on ("Sort", not five loose adjectives),
+ * and cost nothing to extend when the club filter finally lands.
+ */
+function Control({
+  label,
+  value,
+  onChange,
   children,
 }: {
-  active: boolean;
-  onClick: () => void;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className="rounded-full border px-3 py-1 text-[12px]"
-      style={{
-        borderColor: active ? "var(--board-ink-dim)" : "var(--board-line)",
-        color: active ? "var(--board-ink)" : "var(--board-ink-dim)",
-      }}
-    >
-      {children}
-    </button>
+    <label className="flex min-w-0 flex-1 flex-col gap-[3px]">
+      <span className="text-[9.5px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full border px-2 py-[5px] text-[12px]"
+        style={{
+          background: "var(--board-panel)",
+          borderColor: "var(--board-line)",
+          color: "var(--board-ink)",
+        }}
+      >
+        {children}
+      </select>
+    </label>
   );
 }
 
@@ -120,55 +133,77 @@ export function PlayerCatalogue({
         }}
         placeholder="Search a player"
         aria-label="Search a player"
-        className="w-full rounded-md border px-3 py-2 text-[14px]"
-        style={{ background: "transparent", color: "var(--board-ink)" }}
+        className="w-full border px-2 py-[6px] text-[13px]"
+        style={{
+          background: "var(--board-panel)",
+          borderColor: "var(--board-line)",
+          color: "var(--board-ink)",
+        }}
       />
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {POSITIONS.map((name) => (
-          <Pill
-            key={name}
-            active={position === name}
-            onClick={() => {
-              setPosition(position === name ? null : name);
-              setShown(PAGE);
-            }}
-          >
-            {name}
-          </Pill>
-        ))}
+      <div className="mt-2 flex items-end gap-2">
+        <Control
+          label="Position"
+          value={position ?? "all"}
+          onChange={(next) => {
+            setPosition(next === "all" ? null : next);
+            setShown(PAGE);
+          }}
+        >
+          <option value="all">All positions</option>
+          {POSITIONS.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </Control>
+
+        <Control
+          label="Owner"
+          value={ownership}
+          onChange={(next) => {
+            setOwnership(next as CatalogueFilter["ownership"]);
+            setShown(PAGE);
+          }}
+        >
+          {OWNERSHIP.map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.label}
+            </option>
+          ))}
+        </Control>
+
+        <Control label="Sort" value={sort} onChange={(next) => setSort(next as SortKey)}>
+          {SORTS.map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.label}
+            </option>
+          ))}
+        </Control>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-2">
-        {OWNERSHIP.map((option) => (
-          <Pill
-            key={option.key}
-            active={ownership === option.key}
-            onClick={() => {
-              setOwnership(option.key);
-              setShown(PAGE);
-            }}
-          >
-            {option.label}
-          </Pill>
-        ))}
-        {SORTS.map((option) => (
-          <Pill key={option.key} active={sort === option.key} onClick={() => setSort(option.key)}>
-            {option.label}
-          </Pill>
-        ))}
+      <div
+        className="mt-3 grid grid-cols-[1fr_84px] gap-3 border-y px-2 py-[5px] text-[10px] uppercase tracking-[0.06em]"
+        style={{
+          borderColor: "var(--board-line)",
+          background: "var(--board-panel)",
+          color: "var(--board-ink-dim)",
+        }}
+      >
+        <span>Player</span>
+        <span className="text-right">Value / pts</span>
       </div>
 
-      <ol className="mt-5">
+      <ol>
         {page.map((row) => (
           <li key={row.id} style={{ borderColor: "var(--board-line)" }} className="border-b">
             <Link
               href={`/players/${row.id}`}
-              className="grid grid-cols-[1fr_auto] items-center gap-3 py-[11px]"
+              className="grid grid-cols-[1fr_84px] items-center gap-3 px-2 py-[6px]"
             >
               <span className="min-w-0">
-                <span className="block truncate text-[14.5px]">{row.nickname}</span>
-                <span className="block truncate text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
+                <span className="block truncate text-[13px]">{row.nickname}</span>
+                <span className="block truncate text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
                   {clubOrPosition(row)} · <OwnerLabel ownerName={row.ownerName} ownershipKnown={ownershipKnown} />
                   {statusLabel(row.status) === null ? null : (
                     <span style={{ color: "var(--board-alert)" }}>
@@ -180,14 +215,17 @@ export function PlayerCatalogue({
               </span>
               <span className="text-right">
                 <span
-                  className="block text-[20px] font-normal tabular-nums leading-none"
+                  className="block text-[13px] tabular-nums leading-none"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   {row.currentValue === null ? "—" : formatMoney(row.currentValue)}
                 </span>
-                <span className="block text-[11px] tabular-nums" style={{ color: "var(--board-ink-dim)" }}>
-                  {row.seasonPoints} pts
-                  {row.averagePoints === null ? "" : ` · ${row.averagePoints.toFixed(1)} avg`}
+                <span
+                  className="block text-[10px] tabular-nums"
+                  style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
+                >
+                  {row.seasonPoints}
+                  {row.averagePoints === null ? "" : ` · ${row.averagePoints.toFixed(1)}`}
                 </span>
               </span>
             </Link>
