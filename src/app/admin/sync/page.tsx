@@ -21,7 +21,7 @@ export default async function SyncPage() {
   //
   // `lastPlayerSweep` is read here, not derived from `runs`: the standings chain can
   // log ten rows in under one busy weekend hour (see the doc comment on the query),
-  // so a daily sweep's own row is almost never among the ten most recent runs. It is
+  // so a player sweep's own row is almost never among the ten most recent runs. It is
   // the diagnostic `docs/deployment.md` step 8 actually depends on.
   const [hasCredential, runs, lastPlayerSweep, allowed] = await Promise.all([
     hasStoredCredential(db),
@@ -49,7 +49,8 @@ export default async function SyncPage() {
       <p className="mt-2" style={{ color: "var(--board-ink-dim)" }}>
         {hasCredential
           ? "A LaLiga credential is stored. Standings sync every few minutes while a " +
-            "round is live; players are swept once a day. Trigger either here to check."
+            "round is live; players and the market log are swept every six hours. Trigger " +
+            "either here to check."
           : "No LaLiga credential is stored yet, so nothing can sync. Paste a bootstrap refresh token below."}
       </p>
 

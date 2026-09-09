@@ -147,7 +147,7 @@ export async function loadLeagueStatus(db: Db): Promise<LeagueStatus> {
 
 /**
  * When the player cadence last succeeded — shared by the catalogue and the player-detail
- * read so the query is written once. A daily sweep writes no gameweek snapshot, so this
+ * read so the query is written once. A player sweep writes no gameweek snapshot, so this
  * is deliberately separate from `loadSnapshots`'s own last-sync read.
  */
 export async function loadLastPlayerSweep(db: Db): Promise<Date | null> {

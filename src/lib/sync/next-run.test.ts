@@ -58,8 +58,8 @@ describe("nextRunAfterFailure", () => {
 describe("the player sweep cadence", () => {
   const playerNow = new Date("2026-09-07T04:00:00Z");
 
-  it("comes back a day later", () => {
-    expect(nextPlayerSweep(playerNow).toISOString()).toBe("2026-09-08T04:00:00.000Z");
+  it("comes back six hours later", () => {
+    expect(nextPlayerSweep(playerNow).toISOString()).toBe("2026-09-07T10:00:00.000Z");
   });
 
   it("comes back sooner after a failure, but not fast enough to hammer", () => {
@@ -77,20 +77,25 @@ describe("isRedundantSweep", () => {
     expect(isRedundantSweep(null, sweepNow)).toBe(false);
   });
 
-  it("suppresses a sweep hours after another chain already swept today", () => {
-    expect(isRedundantSweep(hoursBefore(6), sweepNow)).toBe(true);
+  it("suppresses a sweep soon after another chain already swept", () => {
+    expect(isRedundantSweep(hoursBefore(2), sweepNow)).toBe(true);
   });
 
-  it("lets the surviving chain's own daily run through", () => {
-    const yesterday = new Date(sweepNow.getTime() - PLAYER_SWEEP_INTERVAL_MS);
-    expect(isRedundantSweep(yesterday, sweepNow)).toBe(false);
+  it("lets the surviving chain's own run through", () => {
+    // The property the whole pairing exists for: a chain booking itself at exactly the
+    // cadence must never land inside its own suppression window.
+    const lastTime = new Date(sweepNow.getTime() - PLAYER_SWEEP_INTERVAL_MS);
+    expect(isRedundantSweep(lastTime, sweepNow)).toBe(false);
   });
 
-  it("leaves hours of slack between the window and the daily cadence", () => {
+  it("keeps the window a clear fraction inside the cadence, whatever the cadence is", () => {
+    // Stated as a RATIO rather than a number of hours: the two constants moved together
+    // from 24h/20h to 6h/5h, and an absolute assertion would have passed the change while
+    // failing to protect the property. A window at or above the cadence would make every
+    // sweep suppress its own successor and stop the chain with no error anywhere.
     expect(SWEEP_COLLAPSE_WINDOW_MS).toBeLessThan(PLAYER_SWEEP_INTERVAL_MS);
-    expect(PLAYER_SWEEP_INTERVAL_MS - SWEEP_COLLAPSE_WINDOW_MS).toBeGreaterThanOrEqual(
-      4 * 60 * 60 * 1000,
-    );
+    const margin = PLAYER_SWEEP_INTERVAL_MS - SWEEP_COLLAPSE_WINDOW_MS;
+    expect(margin / PLAYER_SWEEP_INTERVAL_MS).toBeGreaterThanOrEqual(0.15);
   });
 
   it("runs again once the window has passed exactly", () => {

@@ -274,17 +274,17 @@ Pressing it again while the chain is alive does start a second chain — nothing
 a QStash message already in flight — but that chain no longer survives. A scheduled
 sweep that finds a successful one inside the last 20 hours stands down without booking
 a successor (`isRedundantSweep`), so the duplicate ends at its own next firing and one
-chain is left. The collapse takes a day; the cost until then is one extra sweep.
+chain is left. The collapse takes up to six hours; the cost until then is one extra sweep.
 
 Two presses within that same window are the case this does not cover: both open chains
-that fire roughly a day apart and each looks legitimate to the other. That is what
+that fire roughly a cadence apart and each looks legitimate to the other. That is what
 happened on 2026-09-07, and it is why the guard exists. Prefer the **last successful
 sweep** line for checking the chain is alive — it answers the question the button was
 being pressed to answer.
 
 If sweeps stop, `/admin/sync` names the moment: the **last successful sweep** line next
 to the buttons is the whole diagnostic (the run history table is not — the standings
-chain can log ten rows in under one busy weekend hour, pushing a daily sweep's own row
+chain can log ten rows in under one busy weekend hour, pushing a player sweep's own row
 off the bottom of its `limit(10)` almost immediately). If that line is more than a day
 old, press the button again — that is the whole recovery, the chain restarts from it.
 

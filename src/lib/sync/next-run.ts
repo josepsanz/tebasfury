@@ -38,16 +38,22 @@ export function nextRunAfterFailure(now: Date): Date {
   return new Date(now.getTime() + FAILURE_INTERVAL_MS);
 }
 
-export const PLAYER_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+export const PLAYER_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 export const PLAYER_FAILURE_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * When the next player sweep should run.
  *
- * A flat day. Nothing in the response says when values move, the API is unofficial and
- * undocumented, and the consensus among the projects using it is one full sweep a day.
- * There is no live window to chase: this is the slow half of the design, and the
- * ten-minute standings chain is unaffected by it.
+ * A flat six hours. It was a flat day until 2026-09-09; the market log is what moved it,
+ * because that log is captured by THIS chain and a daily sweep meant a signing could sit
+ * unseen for a day. Six hours is still a flat interval with no live window to chase —
+ * this is the slow half of the design, and the ten-minute standings chain is unaffected.
+ *
+ * The cost is small and was measured before the change: at four sweeps a day this chain
+ * publishes 4 QStash messages against the standings chain's 143 on a matchday, so it is
+ * about 2% of the traffic either way. What it does NOT buy is a finer value history —
+ * `player_value_snapshots` is keyed by DAY, so the extra sweeps correct the same row
+ * rather than adding points to the chart.
  */
 export function nextPlayerSweep(now: Date): Date {
   return new Date(now.getTime() + PLAYER_SWEEP_INTERVAL_MS);
@@ -68,12 +74,16 @@ export function nextPlayerSweepAfterFailure(now: Date): Date {
 /**
  * How recent a successful sweep has to be for another one to be redundant.
  *
- * Four hours short of the daily cadence, and the gap is the whole point: the
- * surviving chain books itself at exactly `PLAYER_SWEEP_INTERVAL_MS`, so it lands
- * outside this window and never suppresses itself, while QStash's delivery drift and
- * the sweep's own duration have room to move without closing that margin.
+ * **This must stay a fraction under `PLAYER_SWEEP_INTERVAL_MS`, and moving one without
+ * the other is how the whole chain dies.** The surviving chain books itself at exactly
+ * that interval, so the window has to sit inside it — a window equal to or longer than
+ * the cadence would make every sweep suppress its own successor, and the chain would
+ * stop with no error anywhere.
+ *
+ * An hour short of six, which is the same one-sixth margin the old 20-of-24 pair had:
+ * enough for QStash's delivery drift and the sweep's own ten seconds without closing it.
  */
-export const SWEEP_COLLAPSE_WINDOW_MS = 20 * 60 * 60 * 1000;
+export const SWEEP_COLLAPSE_WINDOW_MS = 5 * 60 * 60 * 1000;
 
 /**
  * Whether a scheduled sweep should stand down because another chain already swept.
