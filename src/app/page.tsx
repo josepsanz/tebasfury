@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { loadPlayerCatalogue } from "@/lib/db/queries";
+import { loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
+import { buildTable } from "@/lib/domain/standings";
 import {
   bestValueForMoney,
   buildCatalogue,
@@ -11,6 +12,7 @@ import { getSession } from "@/lib/auth/guards";
 import { OpportunityBoard } from "@/components/opportunity-board";
 import { loadMyTeam } from "@/lib/claims";
 import { ClaimLine } from "@/components/claim-line";
+import { KpiStrip, type Kpi } from "@/components/kpi-strip";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -37,6 +39,37 @@ export default async function HomePage() {
   const rows = buildCatalogue({ players, totals, values, ownership, clubs });
   const myTeam = await loadMyTeam(db, { userId: session.user.id });
 
+  // Cheap next to the catalogue read above: thirteen teams times the weeks played, which
+  // is sixty-five rows today and under five hundred by May.
+  const { snapshots, teams: teamRefs, isLive } = await loadSnapshots(db);
+  const mine = myTeam
+    ? buildTable(snapshots, teamRefs).find((row) => row.teamId === myTeam.teamId)
+    : undefined;
+
+  // Only for a manager who has claimed a team: without one there is no "your rank" to
+  // report, and inventing a league-wide figure here would answer a question nobody asked.
+  const kpis: Kpi[] = mine
+    ? [
+        {
+          label: "Your rank",
+          value: String(mine.position),
+          delta:
+            mine.previousPosition === null || mine.previousPosition === mine.position
+              ? undefined
+              : {
+                  text: String(Math.abs(mine.previousPosition - mine.position)),
+                  rising: mine.previousPosition > mine.position,
+                },
+        },
+        { label: "Total points", value: String(mine.cumulativePoints) },
+        ...(isLive && mine.livePoints !== null
+          ? [{ label: "Live points", value: String(mine.livePoints) }]
+          : mine.teamValue !== null
+            ? [{ label: "Squad value", value: formatMoney(mine.teamValue) }]
+            : []),
+      ]
+    : [];
+
   return (
     <section className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-semibold">TebasFury</h1>
@@ -45,6 +78,8 @@ export default async function HomePage() {
       </p>
 
       <ClaimLine myTeamName={myTeam?.managerName ?? null} />
+
+      <KpiStrip items={kpis} />
 
       <OpportunityBoard
         title="Best value for money"
