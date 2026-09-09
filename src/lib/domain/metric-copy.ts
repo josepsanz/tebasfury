@@ -18,13 +18,19 @@ export function formatTrend(trend: Trend): { value: string; tone?: "up" | "down"
     : { value: `▼ ${Math.abs(trend.slope)} pts/round`, tone: "down" };
 }
 
-/** A record, with whoever set it and when. */
+/**
+ * A record, with the round it was set in — and, where the caller supplies one, whoever
+ * set it. `nameOf` is optional so a page whose header already names its one subject (the
+ * team page) is not made to repeat it in every tile's caption; the home page, where the
+ * name IS the information, still passes one.
+ */
 export function formatRecord(
   record: RoundRecord,
-  nameOf: (teamId: string) => string,
+  nameOf?: (teamId: string) => string,
 ): { value: string; note?: string } {
   if (record === null) return { value: NO_ROUNDS_YET };
-  return { value: String(record.points), note: `${nameOf(record.teamId)}, GW${record.gameweek}` };
+  const note = nameOf ? `${nameOf(record.teamId)}, GW${record.gameweek}` : `GW${record.gameweek}`;
+  return { value: String(record.points), note };
 }
 
 /** A league or team average, or the same "nothing yet" wording every other figure uses. */
@@ -39,7 +45,7 @@ export function formatAverage(average: number | null): { value: string } {
  */
 export function formatWorstRecord(
   record: RoundRecord,
-  nameOf: (teamId: string) => string,
+  nameOf?: (teamId: string) => string,
 ): { value: string; note?: string } {
   const base = formatRecord(record, nameOf);
   if (record === null) return base;
@@ -74,4 +80,9 @@ export function formatStreak(
     value: `${streak.rounds} ${streak.rounds === 1 ? "round" : "rounds"} ${streak.above ? "above" : "below"}`,
     tone: streak.above ? "up" : "down",
   };
+}
+
+/** How many rounds a team has played, correctly pluralised — "1 round", not "1 rounds". */
+export function formatRoundsPlayed(rounds: number): string {
+  return `${rounds} ${rounds === 1 ? "round" : "rounds"}`;
 }

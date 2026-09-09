@@ -4,6 +4,7 @@ import {
   formatPointsPerMillion,
   formatRecord,
   formatRegularity,
+  formatRoundsPlayed,
   formatStreak,
   formatTrend,
   formatWorstRecord,
@@ -40,6 +41,15 @@ describe("formatRecord", () => {
   it("says nothing has been played rather than showing a dash", () => {
     expect(formatRecord(null, nameOf)).toEqual({ value: "No rounds yet" });
   });
+
+  it("captions with just the gameweek when no nameOf is given", () => {
+    // The team page's own header already says whose page this is (I3) — repeating the
+    // manager's name in every tile caption would be the boundary leaking back in.
+    expect(formatRecord({ points: 71, gameweek: 4, teamId: "t1" })).toEqual({
+      value: "71",
+      note: "GW4",
+    });
+  });
 });
 
 describe("formatAverage", () => {
@@ -64,6 +74,13 @@ describe("formatWorstRecord", () => {
 
   it("says nothing has been played rather than showing a dash", () => {
     expect(formatWorstRecord(null, nameOf)).toEqual({ value: "No rounds yet" });
+  });
+
+  it("captions with just the gameweek and the zero note when no nameOf is given", () => {
+    expect(formatWorstRecord({ points: 12, gameweek: 4, teamId: "t1" })).toEqual({
+      value: "12",
+      note: "GW4 · zeros excluded",
+    });
   });
 });
 
@@ -110,5 +127,16 @@ describe("formatStreak", () => {
       value: "3 rounds below",
       tone: "down",
     });
+  });
+});
+
+describe("formatRoundsPlayed", () => {
+  it("uses the singular for one round", () => {
+    expect(formatRoundsPlayed(1)).toBe("1 round");
+  });
+
+  it("uses the plural for zero and for more than one", () => {
+    expect(formatRoundsPlayed(0)).toBe("0 rounds");
+    expect(formatRoundsPlayed(4)).toBe("4 rounds");
   });
 });
