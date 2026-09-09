@@ -96,7 +96,7 @@ export default async function HomePage() {
         Management portal for our private LaLiga Fantasy league.
       </p>
 
-      <ClaimLine myTeamName={myTeam?.managerName ?? null} />
+      <ClaimLine myTeamName={myTeam?.managerName ?? null} myTeamId={myTeam?.teamId ?? null} />
 
       <KpiStrip items={kpis} />
 
