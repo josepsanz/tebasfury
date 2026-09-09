@@ -1,42 +1,64 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildSeries, type Snapshot, type TeamRef } from "@/lib/domain/standings";
-import { applyPin, formatTooltipValue, ProgressCharts } from "./progress-charts";
+import { applyPin, formatTooltipValue, ProgressCharts, type Pins } from "./progress-charts";
 
 describe("applyPin", () => {
-  it("keeps survivors' colours stable when one pinned manager is unpinned", () => {
-    // Colour is assigned by slot index (PINNED_COLOURS[pinned.indexOf(teamId)]),
-    // so a manager's slot must never move just because someone else unpinned.
-    let pinned: (string | null)[] = [null, null, null];
-    pinned = applyPin(pinned, "a");
-    pinned = applyPin(pinned, "b");
-    pinned = applyPin(pinned, "c");
-    pinned = applyPin(pinned, "a"); // unpin the first of the three
+  const empty = (): Pins => ({ slots: [null, null, null, null, null, null], order: [] });
+  const pinAll = (ids: string[]) => ids.reduce(applyPin, empty());
 
-    expect(pinned.indexOf("b")).toBe(1);
-    expect(pinned.indexOf("c")).toBe(2);
+  it("keeps survivors' colours stable when one pinned manager is unpinned", () => {
+    // Colour is assigned by slot index (PINNED_COLOURS[pinned.indexOf(teamId)]), so a
+    // manager's slot must never move just because someone else unpinned.
+    const pins = applyPin(pinAll(["a", "b", "c"]), "a");
+    expect(pins.slots.indexOf("b")).toBe(1);
+    expect(pins.slots.indexOf("c")).toBe(2);
   });
 
   it("refills the freed slot on the next pin, still without moving the others", () => {
-    let pinned: (string | null)[] = [null, null, null];
-    pinned = applyPin(pinned, "a");
-    pinned = applyPin(pinned, "b");
-    pinned = applyPin(pinned, "c");
-    pinned = applyPin(pinned, "a"); // free slot 0
-    pinned = applyPin(pinned, "d"); // takes slot 0
-
-    expect(pinned).toEqual(["d", "b", "c"]);
+    let pins = pinAll(["a", "b", "c"]);
+    pins = applyPin(pins, "a"); // free slot 0
+    pins = applyPin(pins, "d"); // takes slot 0
+    expect(pins.slots).toEqual(["d", "b", "c", null, null, null]);
   });
 
-  it("caps at three and leaves the slots untouched once full", () => {
-    let pinned: (string | null)[] = [null, null, null];
-    pinned = applyPin(pinned, "a");
-    pinned = applyPin(pinned, "b");
-    pinned = applyPin(pinned, "c");
-    const full = pinned;
-    pinned = applyPin(pinned, "d"); // no free slot
+  it("holds six at once, not three", () => {
+    const pins = pinAll(["a", "b", "c", "d", "e", "f"]);
+    expect(pins.slots).toEqual(["a", "b", "c", "d", "e", "f"]);
+  });
 
-    expect(pinned).toEqual(full);
+  it("drops the longest-pinned manager when a seventh is pinned", () => {
+    // Returning the slots unchanged — which is what this used to do at the cap — made a
+    // click on a seventh badge do nothing, which reads as a broken control.
+    const pins = applyPin(pinAll(["a", "b", "c", "d", "e", "f"]), "g");
+    expect(pins.slots).toEqual(["g", "b", "c", "d", "e", "f"]);
+    expect(pins.slots).not.toContain("a");
+  });
+
+  it("hands the evicted manager's colour to the newcomer and repaints nobody else", () => {
+    const before = pinAll(["a", "b", "c", "d", "e", "f"]);
+    const after = applyPin(before, "g");
+    expect(after.slots.indexOf("g")).toBe(before.slots.indexOf("a"));
+    for (const id of ["b", "c", "d", "e", "f"]) {
+      expect(after.slots.indexOf(id)).toBe(before.slots.indexOf(id));
+    }
+  });
+
+  it("evicts in pin order, not slot order, after an unpin has shuffled the slots", () => {
+    // The slots alone cannot say who has been up longest: a slot index is a colour, not
+    // a time. This is the case that would go wrong without the separate order list.
+    let pins = pinAll(["a", "b", "c", "d", "e", "f"]);
+    pins = applyPin(pins, "a"); // a leaves, freeing slot 0
+    pins = applyPin(pins, "g"); // g takes slot 0, but is now the NEWEST pin
+    pins = applyPin(pins, "h"); // full again — b is the oldest, not g
+    expect(pins.slots).not.toContain("b");
+    expect(pins.slots).toContain("g");
+  });
+
+  it("forgets an unpinned manager, so they are not evicted later while absent", () => {
+    let pins = pinAll(["a", "b"]);
+    pins = applyPin(pins, "a");
+    expect(pins.order).toEqual(["b"]);
   });
 });
 

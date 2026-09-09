@@ -37,6 +37,15 @@
   --series-1: #5aa9e6;
   --series-2: #e5a14f;
   --series-3: #b39ddb;
+  /* Three more, so six managers can be compared at once instead of three. Measured
+     against the dark surface rather than chosen by eye: all six clear 3:1 contrast and
+     the worst adjacent pair is ΔE 19.8 to normal vision. Six hues CANNOT be made
+     colourblind-safe in this space — the reserved green (up) and red (down) close off a
+     third of the wheel — so the chart carries dash patterns and end labels as well, and
+     colour is never the only channel. */
+  --series-4: #aabb5f;
+  --series-5: #e181b0;
+  --series-6: #50bdc9;
 }
 
 body {

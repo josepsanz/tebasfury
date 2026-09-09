@@ -1,3 +1,5 @@
+import { trendOverLastThree, type Trend } from "./metrics";
+
 export type PlayerRecord = {
   id: string;
   nickname: string;
@@ -359,4 +361,46 @@ export function parseCatalogueEntry(params: Record<string, string | string[] | u
     sort: SORT_KEYS.find((key) => key === one(params.sort)) ?? "value",
     ownership: OWNERSHIP_KEYS.find((key) => key === one(params.ownership)) ?? "all",
   };
+}
+
+/** Whole days between two `takenOn` dates, which is the x a value trend is measured over. */
+const daysBetween = (from: string, to: string) =>
+  Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+
+/**
+ * Which way a player's market value is going, in money per day.
+ *
+ * Measured in DAYS elapsed rather than in readings, because the two are not the same
+ * thing: value snapshots accumulate one per day only while the sweep runs, and a chain
+ * that missed a day leaves a gap. Counting readings would call a three-day rise a
+ * one-day one and treble the slope.
+ *
+ * The same least squares over the last three readings that the standings use for form,
+ * imported rather than copied — see `trendOverLastThree`. Fewer than three readings is
+ * null, not flat: a player swept twice has no direction yet.
+ */
+export function valueTrend(values: ValuePoint[]): Trend {
+  const ordered = valueSeries(values);
+  if (ordered.length === 0) return null;
+  const first = ordered[0].takenOn;
+  return trendOverLastThree(
+    ordered.map((v) => ({ x: daysBetween(first, v.takenOn), value: v.value })),
+    // Euros per day, so a decimal place would be noise on a figure formatted in millions.
+    { round: false },
+  );
+}
+
+/**
+ * Which way a player's scoring is going, in points per gameweek.
+ *
+ * Gameweeks with no row are dropped rather than read as nought: a player who did not
+ * feature did not score nothing, and a zero here would drag the slope down with a match
+ * that never happened — the same distinction `pointsSeries` draws with its gaps.
+ */
+export function pointsTrend(points: { gameweek: number; points: number | null }[]): Trend {
+  return trendOverLastThree(
+    points
+      .filter((p): p is { gameweek: number; points: number } => p.points !== null)
+      .map((p) => ({ x: p.gameweek, value: p.points })),
+  );
 }

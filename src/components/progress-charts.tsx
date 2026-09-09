@@ -14,7 +14,28 @@ import {
 import type { TooltipProps } from "recharts";
 import type { Series, TeamRef } from "@/lib/domain/standings";
 
-const PINNED_COLOURS = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
+const PINNED_COLOURS = [
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
+  "var(--series-6)",
+];
+
+/**
+ * A dash pattern per slot, and it is not decoration.
+ *
+ * Six hues cannot be made colourblind-safe against this surface: the portal reserves
+ * green for "up" and red for "down", which closes off a third of the wheel, and the
+ * remaining six come out at ΔE 3.9 for a deuteranope on their worst pair — measured, not
+ * guessed. So identity never rests on colour alone. The first three stay solid, which
+ * keeps the chart looking as it did, and the three new slots are dashed.
+ *
+ * The end labels are the other half of this: every pinned line is named at its right-hand
+ * end, so the strongest identity channel is text.
+ */
+const PINNED_DASHES = [undefined, undefined, undefined, "6 3", "2 3", "9 3 2 3"];
 
 type ChartSpec = {
   key: keyof Series;
@@ -34,35 +55,54 @@ const CHARTS: ChartSpec[] = [
   },
 ];
 
-// One slot per palette colour — that cap is the whole reason the palette is legal.
-const EMPTY_PINS: (string | null)[] = PINNED_COLOURS.map(() => null);
+export const EMPTY_PINS: (string | null)[] = PINNED_COLOURS.map(() => null);
 
 /**
- * A manager's colour is `PINNED_COLOURS[pinned.indexOf(teamId)]`, so the slot a
- * manager occupies must never move once assigned — pinning and unpinning must
- * not repaint the survivors. Modelling `pinned` as three fixed slots (rather
- * than a list that shifts on removal) is what makes that true: unpinning clears
- * a manager's own slot to `null` and leaves every other slot exactly where it
- * was. Extracted so this property can be unit tested directly.
+ * A manager's colour is `PINNED_COLOURS[pinned.indexOf(teamId)]`, so the slot a manager
+ * occupies must never move once assigned — pinning and unpinning must not repaint the
+ * survivors. Modelling `pinned` as fixed slots (rather than a list that shifts on
+ * removal) is what makes that true: unpinning clears a manager's own slot to `null` and
+ * leaves every other slot exactly where it was.
+ *
+ * **When every slot is taken, the longest-pinned manager gives theirs up.** Returning
+ * `current` unchanged — which is what this used to do — made a click on a seventh badge
+ * do nothing at all, which reads as a broken control rather than as a rule. Dropping the
+ * oldest is the same behaviour the Necroporra ballot has, and it means every badge on the
+ * page always responds.
+ *
+ * `order` is the pin order, oldest first — the slots alone cannot say who has been up
+ * longest, because a slot index is a colour and not a time. Extracted, with its state,
+ * so both properties can be unit tested directly.
  */
-export function applyPin(current: (string | null)[], teamId: string): (string | null)[] {
-  const slot = current.indexOf(teamId);
+export type Pins = { slots: (string | null)[]; order: string[] };
+
+export function applyPin(current: Pins, teamId: string): Pins {
+  const slot = current.slots.indexOf(teamId);
   if (slot !== -1) {
-    const next = [...current];
-    next[slot] = null;
-    return next;
+    const slots = [...current.slots];
+    slots[slot] = null;
+    return { slots, order: current.order.filter((id) => id !== teamId) };
   }
-  const free = current.indexOf(null);
-  if (free === -1) return current; // all three slots taken
-  const next = [...current];
-  next[free] = teamId;
-  return next;
+
+  const free = current.slots.indexOf(null);
+  if (free !== -1) {
+    const slots = [...current.slots];
+    slots[free] = teamId;
+    return { slots, order: [...current.order, teamId] };
+  }
+
+  // Full: the oldest pin yields its slot, and so its colour, to the newcomer.
+  const [oldest, ...rest] = current.order;
+  const slots = [...current.slots];
+  slots[slots.indexOf(oldest)] = teamId;
+  return { slots, order: [...rest, teamId] };
 }
 
 export function ProgressCharts({ series, teams }: { series: Series; teams: TeamRef[] }) {
-  const [pinned, setPinned] = useState<(string | null)[]>(EMPTY_PINS);
+  const [pins, setPins] = useState<Pins>({ slots: EMPTY_PINS, order: [] });
+  const pinned = pins.slots;
 
-  const toggle = (teamId: string) => setPinned((current) => applyPin(current, teamId));
+  const toggle = (teamId: string) => setPins((current) => applyPin(current, teamId));
 
   return (
     <div className="space-y-12">
@@ -88,7 +128,7 @@ export function ProgressCharts({ series, teams }: { series: Series; teams: TeamR
       </div>
       {pinned.every((id) => id !== null) && (
         <p className="-mt-8 text-[12px]" style={{ color: "var(--board-ink-dim)" }}>
-          Three at a time. Unpin one to compare someone else.
+          Six at a time. Pinning a seventh drops the one you pinned first.
         </p>
       )}
 
@@ -337,6 +377,7 @@ function ChartBlock({
                   type="linear"
                   dataKey={teamId}
                   stroke={colour}
+                  strokeDasharray={PINNED_DASHES[index]}
                   strokeWidth={2}
                   dot={{ r: 4, fill: colour, stroke: "var(--board-bg)", strokeWidth: 2 }}
                   isAnimationActive={false}

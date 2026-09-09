@@ -68,16 +68,32 @@ const mean = (values: number[]) =>
  * not rising — a flat run is flat.
  */
 function trendOf(series: { gameweek: number; value: number }[]): Trend {
-  const last = [...series].sort(byGameweek).slice(-3);
+  return trendOverLastThree(series.map((p) => ({ x: p.gameweek, value: p.value })));
+}
+
+/**
+ * The same least squares, over any x. Exported so a player's points and market value can
+ * be given a direction by the arithmetic the standings already use, rather than by a
+ * second copy of it that could drift — `x` is a gameweek here and a day elsewhere.
+ *
+ * `round1` is applied by the caller's own formatter where the unit is not points: a
+ * slope in euros per day rounded to one decimal would be nonsense.
+ */
+export function trendOverLastThree(
+  series: { x: number; value: number }[],
+  { round = true }: { round?: boolean } = {},
+): Trend {
+  const last = [...series].sort((a, b) => a.x - b.x).slice(-3);
   if (last.length < 3) return null;
 
-  const meanX = last.reduce((a, p) => a + p.gameweek, 0) / last.length;
+  const meanX = last.reduce((a, p) => a + p.x, 0) / last.length;
   const meanY = last.reduce((a, p) => a + p.value, 0) / last.length;
-  const top = last.reduce((a, p) => a + (p.gameweek - meanX) * (p.value - meanY), 0);
-  const bottom = last.reduce((a, p) => a + (p.gameweek - meanX) ** 2, 0);
+  const top = last.reduce((a, p) => a + (p.x - meanX) * (p.value - meanY), 0);
+  const bottom = last.reduce((a, p) => a + (p.x - meanX) ** 2, 0);
   if (bottom === 0) return null;
 
-  const slope = round1(top / bottom);
+  const raw = top / bottom;
+  const slope = round ? round1(raw) : Math.round(raw);
   return { slope, rising: slope > 0 };
 }
 

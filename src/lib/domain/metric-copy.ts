@@ -1,4 +1,5 @@
 import type { RoundRecord, Streak, Trend } from "./metrics";
+import { formatMoney } from "./players";
 
 /** The one wording for "nothing has been played yet" — shared so it is written once. */
 const NO_ROUNDS_YET = "No rounds yet";
@@ -87,3 +88,22 @@ export function formatRoundsPlayed(rounds: number): string {
   return `${rounds} ${rounds === 1 ? "round" : "rounds"}`;
 }
 
+
+/**
+ * Which way a player's market value is going, in money per day.
+ *
+ * The unit is the point, exactly as it is for a points trend: "▲ 480K/day" invites a
+ * judgement about whether that is a lot, while a bare arrow asserts a conclusion three
+ * readings cannot support.
+ *
+ * Fewer than three readings returns its own reason rather than a dash or a zero — a
+ * player swept twice has no direction yet, which is a different statement from flat.
+ */
+export function formatValueTrend(trend: Trend): { value: string; tone?: "up" | "down" } {
+  if (trend === null) return { value: "Needs another day" };
+  if (trend.slope === 0) return { value: "Flat" };
+
+  return trend.rising
+    ? { value: `▲ ${formatMoney(trend.slope)}/day`, tone: "up" }
+    : { value: `▼ ${formatMoney(Math.abs(trend.slope))}/day`, tone: "down" };
+}

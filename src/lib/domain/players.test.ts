@@ -9,6 +9,8 @@ import {
   ownerDisplay,
   parseCatalogueEntry,
   pointsPerMillion,
+  pointsTrend,
+  valueTrend,
   pointsSeries,
   sortCatalogue,
   statusLabel,
@@ -514,5 +516,95 @@ describe("parseCatalogueEntry", () => {
       sort: "value",
       ownership: "all",
     });
+  });
+});
+
+describe("valueTrend", () => {
+  const v = (takenOn: string, value: number) => ({ takenOn, value });
+
+  it("measures the slope in money per DAY, not per reading", () => {
+    // The distinction that matters: snapshots accumulate one per day only while the
+    // sweep runs, so a chain that missed a day leaves a gap. Counting readings would
+    // call this three-day rise a two-day one and inflate the slope by half.
+    const trend = valueTrend([
+      v("2026-09-01", 10_000_000),
+      v("2026-09-03", 12_000_000),
+      v("2026-09-05", 14_000_000),
+    ]);
+    expect(trend).toEqual({ slope: 1_000_000, rising: true });
+  });
+
+  it("reports a falling value as falling", () => {
+    const trend = valueTrend([
+      v("2026-09-01", 14_000_000),
+      v("2026-09-02", 13_000_000),
+      v("2026-09-03", 12_000_000),
+    ]);
+    expect(trend).toEqual({ slope: -1_000_000, rising: false });
+  });
+
+  it("is flat when the value has not moved, and flat is not rising", () => {
+    const trend = valueTrend([
+      v("2026-09-01", 10_000_000),
+      v("2026-09-02", 10_000_000),
+      v("2026-09-03", 10_000_000),
+    ]);
+    expect(trend).toEqual({ slope: 0, rising: false });
+  });
+
+  it("has no direction from fewer than three readings", () => {
+    // A player swept twice has no direction yet, which is not the same as flat.
+    expect(valueTrend([v("2026-09-01", 1), v("2026-09-02", 2)])).toBeNull();
+    expect(valueTrend([])).toBeNull();
+  });
+
+  it("reads the last three readings, not the first three", () => {
+    const trend = valueTrend([
+      v("2026-09-01", 1_000_000),
+      v("2026-09-02", 1_000_000),
+      v("2026-09-03", 1_000_000),
+      v("2026-09-04", 2_000_000),
+      v("2026-09-05", 3_000_000),
+    ]);
+    expect(trend?.rising).toBe(true);
+  });
+
+  it("does not depend on the caller's array order", () => {
+    const rows = [v("2026-09-03", 3), v("2026-09-01", 1), v("2026-09-02", 2)];
+    expect(valueTrend(rows)).toEqual(valueTrend([...rows].reverse()));
+  });
+});
+
+describe("pointsTrend", () => {
+  it("measures points per gameweek", () => {
+    expect(
+      pointsTrend([
+        { gameweek: 1, points: 2 },
+        { gameweek: 2, points: 4 },
+        { gameweek: 3, points: 6 },
+      ]),
+    ).toEqual({ slope: 2, rising: true });
+  });
+
+  it("drops a gameweek with no row rather than reading it as nought", () => {
+    // A player who did not feature did not score nothing, and a zero would drag the
+    // slope down with a match that never happened.
+    const withGap = pointsTrend([
+      { gameweek: 1, points: 10 },
+      { gameweek: 2, points: null },
+      { gameweek: 3, points: 10 },
+      { gameweek: 4, points: 10 },
+    ]);
+    expect(withGap).toEqual({ slope: 0, rising: false });
+  });
+
+  it("has no direction from fewer than three played gameweeks", () => {
+    expect(
+      pointsTrend([
+        { gameweek: 1, points: 10 },
+        { gameweek: 2, points: null },
+        { gameweek: 3, points: 12 },
+      ]),
+    ).toBeNull();
   });
 });

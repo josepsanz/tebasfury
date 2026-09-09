@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatAverage,
   formatPointsPerMillion,
+  formatValueTrend,
   formatRecord,
   formatRegularity,
   formatRoundsPlayed,
@@ -141,3 +142,25 @@ describe("formatRoundsPlayed", () => {
   });
 });
 
+
+describe("formatValueTrend", () => {
+  it("carries its unit, so a reader can judge how fast the value is moving", () => {
+    expect(formatValueTrend({ slope: 480_000, rising: true })).toEqual({
+      value: "▲ 480K/day",
+      tone: "up",
+    });
+    expect(formatValueTrend({ slope: -1_200_000, rising: false })).toEqual({
+      value: "▼ 1.2M/day",
+      tone: "down",
+    });
+  });
+
+  it("says a flat value is flat, with no colour", () => {
+    expect(formatValueTrend({ slope: 0, rising: false })).toEqual({ value: "Flat" });
+  });
+
+  it("gives its own reason rather than a dash when there is not enough history", () => {
+    // A player swept twice has no direction yet, which is a different statement from flat.
+    expect(formatValueTrend(null)).toEqual({ value: "Needs another day" });
+  });
+});
