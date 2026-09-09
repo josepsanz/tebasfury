@@ -86,7 +86,7 @@ describe("holdings", () => {
     // be a breach; counting it would point the public log at the victim.
     //
     // **The input here cannot occur in the real game**, and that is deliberate: a bought
-    // player carries 15 days of anti-clause protection, so a raid can never land inside
+    // player carries 14 days of anti-clause protection, so a raid can never land inside
     // the five-day window at all. This asserts the guard holds anyway, because the rule
     // should not depend on a league setting this code cannot see and does not read.
     //
@@ -360,19 +360,19 @@ describe("clauseProtection", () => {
   const THEM = 2;
   const now = at("2026-09-09T12:00:00Z");
 
-  it("locks a player for fifteen days after their owner buys them", () => {
+  it("locks a player for fourteen days after their owner buys them", () => {
     const until = clauseProtection(
       [op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-05T10:00:00Z") })],
       { managerId: ME, playerId: "p1", now },
     );
-    expect(until).toEqual(at("2026-09-20T10:00:00Z"));
+    expect(until).toEqual(at("2026-09-19T10:00:00Z"));
   });
 
   it("states the rule it enforces", () => {
-    expect(CLAUSE_PROTECTION_DAYS).toBe(15);
+    expect(CLAUSE_PROTECTION_DAYS).toBe(14);
   });
 
-  it("is null once the fifteen days have run", () => {
+  it("is null once the fourteen days have run", () => {
     const until = clauseProtection(
       [op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-20T10:00:00Z") })],
       { managerId: ME, playerId: "p1", now },
@@ -385,7 +385,7 @@ describe("clauseProtection", () => {
       [op({ id: "t", activityType: 1, actorManagerId: ME, counterpartyManagerId: THEM, occurredAt: at("2026-09-08T10:00:00Z") })],
       { managerId: ME, playerId: "p1", now },
     );
-    expect(until).toEqual(at("2026-09-23T10:00:00Z"));
+    expect(until).toEqual(at("2026-09-22T10:00:00Z"));
   });
 
   it("restarts the clock for the new owner when a player changes hands", () => {
@@ -396,7 +396,7 @@ describe("clauseProtection", () => {
       op({ id: "new", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-08T10:00:00Z") }),
     ];
     expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toEqual(
-      at("2026-09-23T10:00:00Z"),
+      at("2026-09-22T10:00:00Z"),
     );
     expect(clauseProtection(operations, { managerId: THEM, playerId: "p1", now })).toBeNull();
   });
@@ -407,7 +407,7 @@ describe("clauseProtection", () => {
       op({ id: "again", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-07T10:00:00Z") }),
     ];
     expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toEqual(
-      at("2026-09-22T10:00:00Z"),
+      at("2026-09-21T10:00:00Z"),
     );
   });
 
@@ -435,9 +435,9 @@ describe("clauseProtection", () => {
 
   it("treats the instant the lock lifts as lifted, not as one last second of cover", () => {
     const operations = [
-      op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-25T12:00:00Z") }),
+      op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-26T12:00:00Z") }),
     ];
-    // Exactly fifteen days later.
+    // `now` is exactly fourteen days after the purchase, to the millisecond.
     expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toBeNull();
   });
 });
@@ -451,7 +451,7 @@ describe("clauseBoard", () => {
   ];
   const operations = [
     op({ id: "a", activityType: 31, actorManagerId: 1, playerId: "locked-late", occurredAt: at("2026-09-08T10:00:00Z") }),
-    op({ id: "b", activityType: 31, actorManagerId: 2, playerId: "locked-soon", occurredAt: at("2026-08-26T10:00:00Z") }),
+    op({ id: "b", activityType: 31, actorManagerId: 2, playerId: "locked-soon", occurredAt: at("2026-08-27T10:00:00Z") }),
   ];
 
   it("puts the takeable first, then the soonest to free up", () => {

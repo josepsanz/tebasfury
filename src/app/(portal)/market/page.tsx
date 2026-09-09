@@ -54,7 +54,7 @@ export default async function MarketPage() {
         Clause protection
       </h2>
       <p className="mt-1 text-[12px]" style={{ color: "var(--board-ink-dim)" }}>
-        A bought player cannot be taken by clause for fifteen days. Their owner may still
+        A bought player cannot be taken by clause for fourteen days. Their owner may still
         sell by agreement — the lock stops a raid, not a trade.
       </p>
       <ClauseBoard

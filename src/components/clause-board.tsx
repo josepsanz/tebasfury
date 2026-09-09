@@ -5,7 +5,7 @@ import { formatMoney, type CatalogueRow } from "@/lib/domain/players";
 /**
  * Who can be taken by clause, and who frees up next.
  *
- * The league gives a bought player fifteen days nobody can raid them in. The owner may
+ * The league gives a bought player fourteen days nobody can raid them in. The owner may
  * still sell by agreement — the lock stops a theft, not a trade — so this board answers
  * one question only: who is takeable, and when.
  *
@@ -159,7 +159,7 @@ export function ClauseBoard({
       </h3>
       {free.length === 0 ? (
         <p className="mt-2 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
-          Every held player is inside their fifteen days.
+          Every held player is inside their fourteen days.
         </p>
       ) : (
         <>
@@ -195,7 +195,7 @@ export function ClauseBoard({
       {/* The one thing that could make this board wrong, said where it is acted on. */}
       <p className="mt-4 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
         A player the log never saw arrive is read as takeable, which is sound only while the
-        log reaches back further than the fifteen days
+        log reaches back further than the fourteen days
         {logBegan === null ? "" : ` — it starts ${logBegan.toISOString().slice(0, 10)}`}. A
         week-long gap in the sweep could hide an acquisition and show a locked player as
         free.

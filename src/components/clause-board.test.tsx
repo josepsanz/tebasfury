@@ -100,6 +100,6 @@ describe("ClauseBoard", () => {
 
   it("says so when everybody is locked", () => {
     const html = render([locked("a", "2026-09-20T10:00:00Z")], [player("a")]);
-    expect(html).toContain("Every held player is inside their fifteen days");
+    expect(html).toContain("Every held player is inside their fourteen days");
   });
 });

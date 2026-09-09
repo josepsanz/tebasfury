@@ -108,7 +108,7 @@ const HOUR = 60 * 60 * 1000;
  * ago.
  *
  * Worth knowing, and the reason the `voluntary` guard is belt-and-braces rather than
- * load-bearing: LaLiga gives a bought player **15 days of anti-clause protection**, so a
+ * load-bearing: LaLiga gives a bought player **14 days of anti-clause protection**, so a
  * raid cannot land inside the five-day window in the first place. The guard stays because
  * the rule should not depend on a league setting this code cannot see and does not read.
  *
@@ -280,10 +280,10 @@ export function marketSummary(operations: MarketOperation[], managerId: number):
  * Days a player cannot be taken by clause after their owner acquires them.
  *
  * The league's own rule, told by the owner and stated by no API response: buying a player
- * buys fifteen days in which nobody can take them off you. The owner may still sell by
+ * buys fourteen days in which nobody can take them off you. The owner may still sell by
  * agreement — protection stops a raid, not a trade.
  */
-export const CLAUSE_PROTECTION_DAYS = 15;
+export const CLAUSE_PROTECTION_DAYS = 14;
 
 const PROTECTION_MS = CLAUSE_PROTECTION_DAYS * 24 * HOUR;
 
@@ -298,7 +298,7 @@ export type ClauseRow = {
  * When a manager's hold on a player stops being raid-proof, or null if it already has.
  *
  * The clock starts at the most recent acquisition BY THAT MANAGER — a purchase or a clause
- * they paid — so a player who changes hands restarts the fifteen days with their new owner,
+ * they paid — so a player who changes hands restarts the fourteen days with their new owner,
  * which is how the game behaves. Most recent, not first: buying somebody back starts a new
  * lock rather than inheriting the old one.
  *
