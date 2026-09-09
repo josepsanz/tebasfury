@@ -2,24 +2,9 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { loadLeagueStatus } from "@/lib/db/queries";
 import { decideAccess, getSession } from "@/lib/auth/guards";
+import { formatSyncedAt } from "@/lib/domain/clock";
 import { SignOutButton } from "@/components/sign-out-button";
 import { NavLinks } from "@/components/nav-links";
-
-/**
- * The hour a sync landed, in the league's own timezone.
- *
- * Server-rendered and absolute, not "2 minutes ago": a relative time computed on the
- * server is wrong the moment the page is cached or left open, and computing it in the
- * browser would ship a client component to every page for one line of text. An hour is
- * what a reader actually needs — it answers "is this from before tonight's matches?".
- */
-function syncedAt(at: Date): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Madrid",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(at);
-}
 
 /**
  * The status strip and the tabs.
@@ -54,7 +39,7 @@ export async function AppNav() {
               </span>
             )}
             {status.lastSync ? (
-              <span style={{ color: "var(--board-ink-dim)" }}>synced {syncedAt(status.lastSync)}</span>
+              <span style={{ color: "var(--board-ink-dim)" }}>synced {formatSyncedAt(status.lastSync, new Date())}</span>
             ) : null}
           </span>
         ) : null}
