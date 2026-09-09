@@ -279,117 +279,100 @@ export function marketSummary(operations: MarketOperation[], managerId: number):
 /**
  * Days a player cannot be taken by clause after their owner acquires them.
  *
- * The league's own rule, told by the owner and stated by no API response: buying a player
- * buys fourteen days in which nobody can take them off you. The owner may still sell by
- * agreement — protection stops a raid, not a trade.
+ * The league's own rule, told by the owner. Kept as a documented constant because it
+ * explains the API's `buyoutClauseLockedEndTime` — the two agree wherever both are known
+ * — but nothing computes with it any more: **the lock is read, not derived.**
+ *
+ * The portal used to work it out from the market log's acquisition instants, which was
+ * correct and unnecessary. The API states the moment exactly, so the derivation, and its
+ * caveat about a gap in the sweep hiding a purchase, are both gone.
  */
 export const CLAUSE_PROTECTION_DAYS = 14;
-
-const PROTECTION_MS = CLAUSE_PROTECTION_DAYS * 24 * HOUR;
 
 export type ClauseRow = {
   playerId: string;
   managerId: number;
-  /** When the lock lifts. Null once it already has — the player can be taken now. */
+  /** When the lock lifts. Null once it already has — see `clauseStatus` for the shield. */
   protectedUntil: Date | null;
+  shielded: boolean;
 };
 
 /**
- * When a manager's hold on a player stops being raid-proof, or null if it already has.
- *
- * The clock starts at the most recent acquisition BY THAT MANAGER — a purchase or a clause
- * they paid — so a player who changes hands restarts the fourteen days with their new owner,
- * which is how the game behaves. Most recent, not first: buying somebody back starts a new
- * lock rather than inheriting the old one.
- *
- * **No acquisition in the log means unprotected, and that is a deduction rather than a
- * guess.** The log reaches back further than the protection lasts — 29 days against 15 on
- * 2026-09-09 — so a player it never saw arrive was acquired before it began, which is
- * longer ago than any lock survives. The margin only widens as the season runs.
- *
- * The one way this lies: a gap in the log. The activity feed is a seven-day window, so the
- * sweep chain would have to fail for a week for an acquisition to fall through it, and a
- * player acquired inside such a gap would read as free when they are not. `sync_runs` has
- * never recorded a failure; the page says what it depends on.
- */
-export function clauseProtection(
-  operations: MarketOperation[],
-  { managerId, playerId, now }: { managerId: number; playerId: string; now: Date },
-): Date | null {
-  const acquisitions = operations.filter((operation) => {
-    if (operation.playerId !== playerId || operation.actorManagerId !== managerId) return false;
-    const kind = operationKind(operation.activityType);
-    return kind === "bought" || kind === "transfer";
-  });
-  if (acquisitions.length === 0) return null;
-
-  const latest = acquisitions.reduce((newest, operation) =>
-    operation.occurredAt > newest.occurredAt ? operation : newest,
-  );
-  const until = new Date(latest.occurredAt.getTime() + PROTECTION_MS);
-  return until > now ? until : null;
-}
-
-/**
- * Every held player's clause status, free ones first.
+ * Every held player's clause status, the takeable first.
  *
  * Free before protected, because a player you can take today outranks one you can take on
- * Friday. Within the protected group, soonest first — that group is a countdown, and the
- * top of it is the only part anybody acts on. Within the free group the order is left to
- * the caller, which sorts by what makes a target tempting rather than by anything this
- * function knows.
+ * Friday. Within the protected group, soonest first — that group is a countdown and only
+ * its top is acted on. Within the free group the order is left to the caller, which sorts
+ * by what makes a target tempting rather than by anything this function knows.
+ *
+ * A shielded player is never "free" however their lock reads: the shield is a separate
+ * 24-hour block the owner applies, and taking it into account here is what stops the board
+ * offering somebody who cannot actually be taken.
  */
 export function clauseBoard(
-  operations: MarketOperation[],
-  squad: { playerId: string; managerId: number }[],
+  squad: { playerId: string; managerId: number; clauseLockedUntil: Date | null; shielded: boolean }[],
   now: Date,
 ): ClauseRow[] {
   return squad
-    .map(({ playerId, managerId }) => ({
+    .map(({ playerId, managerId, clauseLockedUntil, shielded }) => ({
       playerId,
       managerId,
-      protectedUntil: clauseProtection(operations, { managerId, playerId, now }),
+      protectedUntil:
+        clauseLockedUntil !== null && clauseLockedUntil > now ? clauseLockedUntil : null,
+      shielded,
     }))
     .sort((a, b) => {
-      if (a.protectedUntil === null && b.protectedUntil === null) return 0;
-      if (a.protectedUntil === null) return -1;
-      if (b.protectedUntil === null) return 1;
+      const aFree = a.protectedUntil === null && !a.shielded;
+      const bFree = b.protectedUntil === null && !b.shielded;
+      if (aFree && bFree) return 0;
+      if (aFree) return -1;
+      if (bFree) return 1;
+      // Both blocked: a dated lock sorts by its date, a bare shield after them, since a
+      // shield carries no expiry to count down to.
+      if (a.protectedUntil === null) return 1;
+      if (b.protectedUntil === null) return -1;
       return a.protectedUntil.getTime() - b.protectedUntil.getTime();
     });
 }
 
 /**
- * A clause lock as a reader needs it: which of three states, and the words for it.
+ * A clause as a reader needs it: which state, and the words for it.
  *
  * `takeable` and `soon` are the same fact at two distances, not two categories, so the
- * view draws them in one hue at two intensities rather than in two colours — and neither
- * of them is the portal's amber, which means "your team" and nothing else.
+ * view draws them in one hue at two intensities — and neither is the portal's amber,
+ * which means "your team" and nothing else.
  *
- * The threshold between them is a day because that is the unit a manager acts on: a lock
- * lifting tonight is worth waiting up for, one lifting on Friday is a note in the calendar.
+ * `shielded` outranks a lifted lock and yields to a live one. A shield is an extra
+ * 24-hour block with no expiry in the response, so it can be reported but never counted
+ * down; when a dated lock is also running, that date is the more useful thing to show and
+ * the shield rides along as its own mark.
  */
-export type ClauseState = "takeable" | "soon" | "locked";
+export type ClauseState = "takeable" | "soon" | "locked" | "shielded";
 
-export type ClauseStatus = { state: ClauseState; label: string };
+export type ClauseStatus = { state: ClauseState; label: string; shielded: boolean };
 
 const SOON_MS = 24 * HOUR;
 
-/**
- * The state and the wording, decided together and on the server.
- *
- * Formatting here rather than in the view keeps the date arithmetic out of a client
- * component that renders eight hundred rows, and makes the wording testable without
- * rendering anything. The view's whole job is then colour and a padlock.
- */
-export function clauseStatus(protectedUntil: Date | null, now: Date): ClauseStatus {
-  if (protectedUntil === null || protectedUntil <= now) {
-    return { state: "takeable", label: "takeable" };
+export function clauseStatus(
+  { lockedUntil, shielded }: { lockedUntil: Date | null; shielded: boolean },
+  now: Date,
+): ClauseStatus {
+  const live = lockedUntil !== null && lockedUntil > now;
+
+  if (!live) {
+    return shielded
+      ? { state: "shielded", label: "shielded", shielded }
+      : { state: "takeable", label: "takeable", shielded };
   }
 
-  const ms = protectedUntil.getTime() - now.getTime();
+  const ms = (lockedUntil as Date).getTime() - now.getTime();
   if (ms < SOON_MS) {
     const hours = Math.max(1, Math.round(ms / HOUR));
-    return { state: "soon", label: `free in ${hours} ${hours === 1 ? "hour" : "hours"}` };
+    return {
+      state: "soon",
+      label: `free in ${hours} ${hours === 1 ? "hour" : "hours"}`,
+      shielded,
+    };
   }
 
   return {
@@ -398,6 +381,7 @@ export function clauseStatus(protectedUntil: Date | null, now: Date): ClauseStat
       timeZone: "Europe/Madrid",
       day: "2-digit",
       month: "short",
-    }).format(protectedUntil)}`,
+    }).format(lockedUntil as Date)}`,
+    shielded,
   };
 }

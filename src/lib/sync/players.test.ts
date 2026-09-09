@@ -52,7 +52,12 @@ function fakeClient(
     getPlayers: async () => rows,
     getSquad: async (teamId: string): Promise<SquadRow> => ({
       teamId,
-      playerIds: squads[teamId] ?? [],
+      holdings: (squads[teamId] ?? []).map((playerId) => ({
+        playerId,
+        buyoutClause: null,
+        clauseLockedUntil: null,
+        shielded: false,
+      })),
       realTeams: clubs[teamId] ?? [],
     }),
     getActivity: async () => operations,
@@ -391,7 +396,7 @@ describe("runPlayerSweep", () => {
       getPlayers: async () => {
         throw new CredentialError("nope");
       },
-      getSquad: async (teamId) => ({ teamId, playerIds: [], realTeams: [] }),
+      getSquad: async (teamId) => ({ teamId, holdings: [], realTeams: [] }),
       getActivity: async () => [],
     };
     await expect(

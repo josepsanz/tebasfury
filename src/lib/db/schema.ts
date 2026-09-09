@@ -302,6 +302,28 @@ export const squadMembers = pgTable(
       .notNull()
       .references(() => players.id, { onDelete: "cascade" }),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * What it costs to take this player off this manager, as the API states it.
+     *
+     * NOT derivable from market value: an owner can raise their own clause to make a
+     * player expensive to steal, and across one captured squad the ratio of clause to
+     * market value ran from 1.00 to 7.15. Only the API knows it, and it is re-read every
+     * sweep because the owner can change it.
+     *
+     * Null until the first sweep that carries it, and for any entry the API omits it on.
+     */
+    buyoutClause: bigint("buyout_clause", { mode: "number" }),
+    /**
+     * When this player stops being raid-proof, as the API states it.
+     *
+     * The league's rule is fourteen days from acquisition and the two agree wherever both
+     * are known — but this is stated rather than deduced, so it does not depend on the
+     * market log having witnessed the purchase. That dependency is why the portal derived
+     * it first, and why it stopped.
+     */
+    clauseLockedUntil: timestamp("clause_locked_until", { withTimezone: true }),
+    /** An extra 24-hour shield the owner may apply. The API gives no expiry for it. */
+    shielded: boolean("shielded").notNull().default(false),
   },
   (table) => [primaryKey({ columns: [table.teamId, table.playerId] })],
 );

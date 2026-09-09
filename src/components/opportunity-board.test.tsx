@@ -16,6 +16,9 @@ const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   ownerTeamId: null,
   ownerName: null,
   clubName: "Celta",
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
   ...over,
 });
 

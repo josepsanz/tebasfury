@@ -31,7 +31,7 @@ import { runSync } from "./index";
  */
 const unusedPlayerCalls = {
   getPlayers: async () => [],
-  getSquad: async (teamId: string) => ({ teamId, playerIds: [], realTeams: [] }),
+  getSquad: async (teamId: string) => ({ teamId, holdings: [], realTeams: [] }),
   getActivity: async () => [],
 };
 

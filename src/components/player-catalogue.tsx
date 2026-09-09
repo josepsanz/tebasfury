@@ -14,6 +14,7 @@ import {
 } from "@/lib/domain/players";
 import { OwnerLabel } from "@/components/owner-label";
 import { LockIcon } from "@/components/lock-icon";
+import { ShieldIcon } from "@/components/shield-icon";
 import type { ClauseStatus } from "@/lib/domain/market";
 
 /**
@@ -30,6 +31,9 @@ const CLAUSE_COLOUR: Record<ClauseStatus["state"], string> = {
   takeable: "var(--board-gain)",
   soon: "color-mix(in srgb, var(--board-gain) 55%, var(--board-ink-dim))",
   locked: "var(--board-ink-dim)",
+  // A shield blocks a raid as surely as a lock does, so it reads as blocked. It carries
+  // no expiry in the response, which is why it gets a mark and never a countdown.
+  shielded: "var(--board-ink-dim)",
 };
 
 const PAGE = 60;
@@ -252,6 +256,14 @@ export function PlayerCatalogue({
                       <LockIcon />
                     </span>
                   ) : null}
+                  {/* Its own shape beside the padlock, not instead of it: a player can be
+                      locked AND shielded, and the two are different blocks with different
+                      lifetimes. */}
+                  {clause?.shielded ? (
+                    <span className="shrink-0">
+                      <ShieldIcon />
+                    </span>
+                  ) : null}
                 </span>
                 <span className="block truncate text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
                   {clubOrPosition(row)} · <OwnerLabel ownerName={row.ownerName} ownershipKnown={ownershipKnown} />
@@ -277,6 +289,20 @@ export function PlayerCatalogue({
                 >
                   {row.currentValue === null ? "—" : formatMoney(row.currentValue)}
                 </span>
+                {/* The clause beside the market value, because they answer different
+                    questions: what the player is worth, and what it would cost to take
+                    them. They are not proportional — an owner can raise their own clause,
+                    and across one captured squad the ratio ran from 1.00 to 7.15 — so
+                    neither can be read off the other. Only owned players have one. */}
+                {row.buyoutClause === null ? null : (
+                  <span
+                    className="block text-[10px] tabular-nums"
+                    style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
+                    title="Buyout clause"
+                  >
+                    clause {formatMoney(row.buyoutClause)}
+                  </span>
+                )}
                 <span
                   className="block text-[10px] tabular-nums"
                   style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}

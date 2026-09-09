@@ -84,10 +84,20 @@ function Row({
       </span>
 
       <span className="text-right text-[12px] tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
-        {/* Market value, and labelled as nothing else. The clause price is a function of it
-            that this portal does not know, so printing one would be inventing a figure on
-            the screen most likely to be acted on. */}
-        {player?.currentValue == null ? "—" : formatMoney(player.currentValue)}
+        {/* The CLAUSE leads here, because on a raiding board it is the figure that gets
+            paid; the market value follows as the thing it is being compared against. They
+            are not proportional — an owner can raise their own clause — so both are drawn
+            and neither is derived from the other. */}
+        {player?.buyoutClause == null ? (
+          player?.currentValue == null ? "—" : formatMoney(player.currentValue)
+        ) : (
+          formatMoney(player.buyoutClause)
+        )}
+        {player?.buyoutClause == null || player.currentValue == null ? null : (
+          <span className="block text-[10px]" style={{ color: "var(--board-ink-dim)" }}>
+            worth {formatMoney(player.currentValue)}
+          </span>
+        )}
         {row.protectedUntil === null ? null : (
           <span className="block text-[10px]" style={{ color: "var(--board-ink-dim)" }}>
             {countdown(row.protectedUntil, now)}

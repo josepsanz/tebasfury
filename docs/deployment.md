@@ -181,6 +181,18 @@ DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
 Applying it early is safe: two empty tables nothing reads until the code that reads them
 is live.
 
+### `0012` — the buyout clause, and it can go in either order
+
+`0012` adds three nullable columns to `squad_members`: `buyout_clause`,
+`clause_locked_until` and `shielded`. Nothing breaks whichever way round it lands — the
+code reads them as null until a sweep fills them, and the sweep writes nothing anywhere
+the columns do not exist yet.
+
+**The figures appear on the first player sweep after the deploy, not before.** That is up
+to six hours; "Sweep players" on `/admin/sync` brings it forward. Until then the clause
+column is blank and every held player reads as takeable, because a null lock is a lock
+that has lifted.
+
 ### `0011` — the sign-in list, and it must ALSO go in before the code
 
 `0011` adds `allowed_emails`, the table that replaced the `LEAGUE_ALLOWLIST` variable.

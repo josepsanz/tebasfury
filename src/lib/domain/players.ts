@@ -13,7 +13,17 @@ export type PlayerRecord = {
 export type PlayerTotals = { playerId: string; seasonPoints: number; gameweeksRecorded: number };
 
 export type CurrentValue = { playerId: string; value: number; takenOn: string };
-export type Ownership = { playerId: string; teamId: string; managerName: string };
+export type Ownership = {
+  playerId: string;
+  teamId: string;
+  managerName: string;
+  /** What it costs to take this player. Null until a sweep carrying it has run. */
+  buyoutClause: number | null;
+  /** When the clause lock lifts, as the API states it. Null when it already has. */
+  clauseLockedUntil: Date | null;
+  /** An extra 24-hour shield the owner may apply. */
+  shielded: boolean;
+};
 
 /** A club, as the catalogue needs it. Slug and badge stay in the database — Ruling 3. */
 export type RealTeamRecord = { id: string; name: string };
@@ -37,6 +47,17 @@ export type CatalogueRow = {
   ownerName: string | null;
   /** Null when no squad response has yet named this player's club. See Ruling 1. */
   clubName: string | null;
+  /**
+   * What it costs to take this player off their owner, and when they stop being
+   * raid-proof — both as the API states them, never derived.
+   *
+   * The clause is NOT a function of market value: an owner can raise their own to make a
+   * player expensive to steal, and across one captured squad the ratio ran from 1.00 to
+   * 7.15. All three are null or false for an unowned player, who has no clause at all.
+   */
+  buyoutClause: number | null;
+  clauseLockedUntil: Date | null;
+  shielded: boolean;
 };
 
 /**
@@ -75,6 +96,9 @@ export function buildCatalogue(input: {
       gameweeksRecorded: total?.gameweeksRecorded ?? 0,
       ownerTeamId: owner?.teamId ?? null,
       ownerName: owner?.managerName ?? null,
+      buyoutClause: owner?.buyoutClause ?? null,
+      clauseLockedUntil: owner?.clauseLockedUntil ?? null,
+      shielded: owner?.shielded ?? false,
       clubName: clubs.get(player.realTeamId) ?? null,
     };
   });

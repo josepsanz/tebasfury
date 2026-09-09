@@ -46,7 +46,16 @@ describe("buildCatalogue", () => {
       { playerId: "p1", value: 12_000_000, takenOn: "2026-09-07" },
       { playerId: "p2", value: 4_000_000, takenOn: "2026-09-07" },
     ],
-    ownership: [{ playerId: "p1", teamId: "t1", managerName: "Manager A" }],
+    ownership: [
+      {
+        playerId: "p1",
+        teamId: "t1",
+        managerName: "Manager A",
+        buyoutClause: null,
+        clauseLockedUntil: null,
+        shielded: false,
+      },
+    ],
     clubs: [{ id: "rt1", name: "FC Barcelona" }],
   };
 
@@ -94,12 +103,18 @@ describe("filterCatalogue", () => {
       status: "ok", currentValue: 12_000_000, seasonPoints: 40, averagePoints: 10,
       gameweeksRecorded: 4, ownerTeamId: "t1", ownerName: "Manager A",
       clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     },
     {
       id: "p2", nickname: "Bruno", position: "Forward",
       status: "ok", currentValue: 4_000_000, seasonPoints: 9, averagePoints: 3,
       gameweeksRecorded: 3, ownerTeamId: null, ownerName: null,
       clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     },
   ];
 
@@ -134,6 +149,9 @@ describe("club names on the catalogue", () => {
     ownerTeamId: null,
     ownerName: null,
     clubName: "FC Barcelona",
+    buyoutClause: null,
+    clauseLockedUntil: null,
+    shielded: false,
     ...over,
   });
 
@@ -179,18 +197,27 @@ describe("sortCatalogue", () => {
       currentValue: 1_000_000, seasonPoints: 40, averagePoints: 10, gameweeksRecorded: 4,
       ownerTeamId: null, ownerName: null,
       clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     },
     {
       id: "p2", nickname: "Ada", position: "Forward", status: "ok",
       currentValue: 9_000_000, seasonPoints: 9, averagePoints: 3, gameweeksRecorded: 3,
       ownerTeamId: null, ownerName: null,
       clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     },
     {
       id: "p3", nickname: "Bruno", position: "Forward", status: "ok",
       currentValue: null, seasonPoints: 0, averagePoints: null, gameweeksRecorded: 0,
       ownerTeamId: null, ownerName: null,
       clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     },
   ];
 
@@ -222,12 +249,18 @@ describe("sortCatalogue", () => {
       currentValue: 1_000_000, seasonPoints: 12, averagePoints: 12, gameweeksRecorded: 1,
       ownerTeamId: null, ownerName: null,
       clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     };
     const steady: CatalogueRow = {
       id: "p5", nickname: "Léo", position: "Forward", status: "ok",
       currentValue: 1_000_000, seasonPoints: 30, averagePoints: 10, gameweeksRecorded: 3,
       ownerTeamId: null, ownerName: null,
       clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     };
     expect(sortCatalogue([oneGame, steady], "average").map((r) => r.id)).toEqual(["p5", "p4"]);
   });
@@ -252,6 +285,9 @@ describe("the value-for-money sort", () => {
     ownerTeamId: null,
     ownerName: null,
     clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     ...over,
   });
 
@@ -434,6 +470,9 @@ describe("the opportunity boards", () => {
     ownerTeamId: null,
     ownerName: null,
     clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
     ...over,
   });
 
@@ -615,7 +654,7 @@ describe("squadByPosition", () => {
   const p = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
     id, nickname: id, position: "Midfielder", status: "ok",
     currentValue: 1_000_000, seasonPoints: 0, averagePoints: null, gameweeksRecorded: 0,
-    ownerTeamId: "t1", ownerName: "Ada", clubName: null, ...over,
+    ownerTeamId: "t1", ownerName: "Ada", clubName: null, buyoutClause: null, clauseLockedUntil: null, shielded: false, ...over,
   });
 
   it("keeps only this manager's players", () => {

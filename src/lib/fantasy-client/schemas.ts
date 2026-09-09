@@ -138,6 +138,21 @@ export const squadSchema = z.object({
       playerMaster: z
         .object({ id: z.coerce.string(), team: squadTeamSchema.optional() })
         .optional(),
+      /**
+       * What it costs to take this player off their owner, and when they stop being
+       * protected. Both are OPTIONAL rather than required, because a missing field must
+       * cost one player's clause figure and not the whole sweep: `getSquad` is called
+       * thirteen times a run, and a schema that fails on an absent extra would stop the
+       * catalogue, the squads and the market log along with it.
+       *
+       * `buyoutClause` is NOT derivable from market value — measured across one captured
+       * squad the ratio ran from 1.00 to 7.15, because an owner can raise their own
+       * clause to shield a player. Only the API knows it.
+       */
+      buyoutClause: z.coerce.number().optional(),
+      buyoutClauseLockedEndTime: z.coerce.date().optional(),
+      /** An extra 24-hour shield an owner may apply. Stored, not yet shown. */
+      isShielded: z.boolean().optional(),
     }),
   ),
 });

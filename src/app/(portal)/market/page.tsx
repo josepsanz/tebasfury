@@ -20,17 +20,29 @@ export default async function MarketPage() {
   const rows = buildCatalogue(catalogue);
   const now = new Date();
 
+  // The rows already carry the clause and its lock — the catalogue joins them from
+  // `squad_members`, where the sweep writes what the API states. Nothing is derived from
+  // the operation log any more, so a gap in the sweep can no longer make a locked player
+  // look takeable.
   const held = rows.filter((row) => row.ownerTeamId !== null);
   const managerIdOf = new Map(
     [...teamIdByManagerId].map(([managerId, teamId]) => [teamId, managerId]),
   );
   const board = clauseBoard(
-    operations,
     held.flatMap((row) => {
       const managerId = managerIdOf.get(row.ownerTeamId as string);
       // A held player whose team the standings have never named cannot be attributed to a
       // manager, so they are left off rather than shown against nobody.
-      return managerId === undefined ? [] : [{ playerId: row.id, managerId }];
+      return managerId === undefined
+        ? []
+        : [
+            {
+              playerId: row.id,
+              managerId,
+              clauseLockedUntil: row.clauseLockedUntil,
+              shielded: row.shielded,
+            },
+          ];
     }),
     now,
   );

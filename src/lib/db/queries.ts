@@ -192,6 +192,9 @@ export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
         playerId: squadMembers.playerId,
         teamId: squadMembers.teamId,
         managerName: teams.managerName,
+        buyoutClause: squadMembers.buyoutClause,
+        clauseLockedUntil: squadMembers.clauseLockedUntil,
+        shielded: squadMembers.shielded,
       })
       .from(squadMembers)
       .innerJoin(teams, eq(teams.id, squadMembers.teamId)),
@@ -264,6 +267,9 @@ export async function loadPlayer(db: Db, playerId: string): Promise<PlayerDetail
         playerId: squadMembers.playerId,
         teamId: squadMembers.teamId,
         managerName: teams.managerName,
+        buyoutClause: squadMembers.buyoutClause,
+        clauseLockedUntil: squadMembers.clauseLockedUntil,
+        shielded: squadMembers.shielded,
       })
       .from(squadMembers)
       .innerJoin(teams, eq(teams.id, squadMembers.teamId))

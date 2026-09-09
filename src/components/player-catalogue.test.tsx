@@ -16,6 +16,9 @@ const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   ownerTeamId: "t1",
   ownerName: "Manager A",
   clubName: null,
+  buyoutClause: null,
+  clauseLockedUntil: null,
+  shielded: false,
   ...over,
 });
 
@@ -185,9 +188,9 @@ const catalogue = ({ clauses }: { clauses?: Record<string, ClauseStatus> }) =>
   );
 
 describe("PlayerCatalogue, clause state", () => {
-  const takeable = { state: "takeable" as const, label: "takeable" };
-  const soon = { state: "soon" as const, label: "free in 8 hours" };
-  const locked = { state: "locked" as const, label: "locked until 14 Sept" };
+  const takeable = { state: "takeable" as const, label: "takeable", shielded: false };
+  const soon = { state: "soon" as const, label: "free in 8 hours", shielded: false };
+  const locked = { state: "locked" as const, label: "locked until 14 Sept", shielded: false };
 
   it("says when a lock lifts, in words and not only in colour", () => {
     const html = catalogue({ clauses: { p1: locked } });
@@ -221,7 +224,7 @@ describe("PlayerCatalogue, clause state", () => {
 });
 
 describe("PlayerCatalogue, where the padlock sits", () => {
-  const locked = { state: "locked" as const, label: "locked until 14 Sept" };
+  const locked = { state: "locked" as const, label: "locked until 14 Sept", shielded: false };
 
   it("puts the padlock after the name, so every name starts at the same x", () => {
     // A catalogue is scanned down its left edge; an icon in front of some rows makes
@@ -250,5 +253,44 @@ describe("PlayerCatalogue, where the padlock sits", () => {
     // The lock is a sibling of the truncating span, never a child of it.
     expect(truncated).toContain("</span>");
     expect(html).toContain("shrink-0");
+  });
+});
+
+describe("PlayerCatalogue, the clause figure", () => {
+  it("prints the clause beside the market value, since neither follows from the other", () => {
+    // An owner can raise their own clause; across one captured squad the ratio to market
+    // value ran from 1.00 to 7.15, so both figures have to be shown.
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[row("p1", { currentValue: 61_697_098, buyoutClause: 81_375_803 })]}
+        ownershipKnown
+      />,
+    );
+    expect(html).toContain("61.7M");
+    expect(html).toContain("clause 81.4M");
+  });
+
+  it("prints no clause for an unowned player, who has none", () => {
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[row("p1", { ownerTeamId: null, ownerName: null, buyoutClause: null })]}
+        ownershipKnown
+      />,
+    );
+    expect(html).not.toContain("clause ");
+  });
+
+  it("draws a shield for a shielded player, beside the padlock and not instead of it", () => {
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[row("p1")]}
+        ownershipKnown
+        clauses={{
+          p1: { state: "locked", label: "locked until 14 Sept", shielded: true },
+        }}
+      />,
+    );
+    // Two icons: the padlock and the shield.
+    expect(html.match(/<svg/g)).toHaveLength(2);
   });
 });

@@ -9,7 +9,7 @@ const NOW = new Date("2026-09-09T12:00:00Z");
 const player = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   id, nickname: id, position: "Forward", status: "ok",
   currentValue: 1_000_000, seasonPoints: 0, averagePoints: null, gameweeksRecorded: 0,
-  ownerTeamId: "t1", ownerName: "Ada", clubName: null, ...over,
+  ownerTeamId: "t1", ownerName: "Ada", clubName: null, buyoutClause: null, clauseLockedUntil: null, shielded: false, ...over,
 });
 
 const render = (board: ClauseRow[], rows: CatalogueRow[]) =>
@@ -23,9 +23,14 @@ const render = (board: ClauseRow[], rows: CatalogueRow[]) =>
     />,
   );
 
-const free = (id: string): ClauseRow => ({ playerId: id, managerId: 1, protectedUntil: null });
+const free = (id: string): ClauseRow => ({
+  playerId: id,
+  managerId: 1,
+  protectedUntil: null,
+  shielded: false,
+});
 const locked = (id: string, until: string): ClauseRow => ({
-  playerId: id, managerId: 1, protectedUntil: new Date(until),
+  playerId: id, managerId: 1, protectedUntil: new Date(until), shielded: false,
 });
 
 describe("ClauseBoard", () => {

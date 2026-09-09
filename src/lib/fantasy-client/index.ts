@@ -303,7 +303,26 @@ export type RealTeamRow = {
  * players belong to. The two live one field apart in the same type and the collision
  * is easy to trip on — they are different id spaces entirely.
  */
-export type SquadRow = { teamId: string; playerIds: string[]; realTeams: RealTeamRow[] };
+/**
+ * One player a manager holds, and what it would take to prise them away.
+ *
+ * `buyoutClause` is the API's own figure and cannot be worked out from market value: an
+ * owner may raise their own clause to make a player expensive to steal, and across one
+ * captured squad the ratio ran from 1.00 to 7.15.
+ *
+ * `clauseLockedUntil` is likewise stated rather than derived. The league's rule is
+ * fourteen days from acquisition, and the two agree where both are known — but the API
+ * says it exactly, without depending on the market log having seen the purchase.
+ */
+export type SquadHolding = {
+  playerId: string;
+  buyoutClause: number | null;
+  clauseLockedUntil: Date | null;
+  /** An extra 24-hour shield the owner may apply. Carried, not yet used. */
+  shielded: boolean;
+};
+
+export type SquadRow = { teamId: string; holdings: SquadHolding[]; realTeams: RealTeamRow[] };
 
 function toPlayerRow(entry: PlayerEntry): PlayerRow {
   return {
@@ -340,9 +359,9 @@ export async function getPlayers(accessToken: string): Promise<PlayerRow[]> {
 /**
  * The players one league team owns, as ids.
  *
- * The response carries far more — a buyout clause, a sale listing, the owning
- * manager, a season of per-match event counts — and none of it crosses this boundary
- * yet. The ids are what the portal joins on; the rest waits until something needs it.
+ * The buyout clause and its lock now DO cross this boundary — the clause board needed
+ * them, which is the "until something needs it" this comment was waiting for. A sale
+ * listing, the owning manager and a season of per-match event counts still do not.
  */
 export async function getSquad(
   accessToken: string,
@@ -369,9 +388,18 @@ export async function getSquad(
 
   return {
     teamId,
-    playerIds: squad.players
-      .map((entry) => entry.playerMaster?.id ?? entry.id)
-      .filter((id): id is string => id !== undefined),
+    holdings: squad.players.flatMap((entry) => {
+      const playerId = entry.playerMaster?.id ?? entry.id;
+      if (playerId === undefined) return [];
+      return [
+        {
+          playerId,
+          buyoutClause: entry.buyoutClause ?? null,
+          clauseLockedUntil: entry.buyoutClauseLockedEndTime ?? null,
+          shielded: entry.isShielded ?? false,
+        },
+      ];
+    }),
     realTeams: [...realTeams.values()],
   };
 }

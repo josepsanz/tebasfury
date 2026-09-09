@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./testing";
 import {
@@ -130,7 +131,38 @@ describe("loadPlayerCatalogue", () => {
 
   it("names the owner of an owned player", async () => {
     const { ownership } = await loadPlayerCatalogue(h.db);
-    expect(ownership).toEqual([{ playerId: "p1", teamId: "t1", managerName: "Manager A" }]);
+    expect(ownership).toEqual([
+      {
+        playerId: "p1",
+        teamId: "t1",
+        managerName: "Manager A",
+        // Null until a sweep carrying them has run; this fixture predates one.
+        buyoutClause: null,
+        clauseLockedUntil: null,
+        shielded: false,
+      },
+    ]);
+  });
+
+  it("carries the clause and its lock, which the view cannot work out for itself", async () => {
+    // The clause is NOT a function of market value — an owner can raise their own — so
+    // it can only come from the sweep. Reading it back is what proves the column is
+    // wired all the way through rather than merely present.
+    await h.db
+      .update(squadMembers)
+      .set({
+        buyoutClause: 81_375_803,
+        clauseLockedUntil: new Date("2026-09-18T21:27:45Z"),
+        shielded: true,
+      })
+      .where(eq(squadMembers.playerId, "p1"));
+
+    const { ownership } = await loadPlayerCatalogue(h.db);
+    expect(ownership[0]).toMatchObject({
+      buyoutClause: 81_375_803,
+      clauseLockedUntil: new Date("2026-09-18T21:27:45Z"),
+      shielded: true,
+    });
   });
 
   it("reports whether ownership is known at all", async () => {

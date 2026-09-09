@@ -85,6 +85,13 @@
       "when": 1788968714629,
       "tag": "0011_groovy_blacklash",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788990548718,
+      "tag": "0012_slimy_puck",
+      "breakpoints": true
     }
   ]
 }

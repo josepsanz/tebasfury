@@ -6,7 +6,7 @@ import { SquadList } from "./squad-list";
 const p = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   id, nickname: id, position: "Midfielder", status: "ok",
   currentValue: 2_000_000, seasonPoints: 12, averagePoints: null, gameweeksRecorded: 0,
-  ownerTeamId: "t1", ownerName: "Ada", clubName: null, ...over,
+  ownerTeamId: "t1", ownerName: "Ada", clubName: null, buyoutClause: null, clauseLockedUntil: null, shielded: false, ...over,
 });
 
 const render = (rows: CatalogueRow[], ownershipKnown = true) => {

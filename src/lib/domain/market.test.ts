@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   CLAUSE_PROTECTION_DAYS,
   clauseBoard,
-  clauseProtection,
   clauseStatus,
   holdings,
   marketSummary,
@@ -356,132 +355,70 @@ describe("holdings, what a player made or lost", () => {
   });
 });
 
-describe("clauseProtection", () => {
-  const ME = 1;
-  const THEM = 2;
-  const now = at("2026-09-09T12:00:00Z");
-
-  it("locks a player for fourteen days after their owner buys them", () => {
-    const until = clauseProtection(
-      [op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-05T10:00:00Z") })],
-      { managerId: ME, playerId: "p1", now },
-    );
-    expect(until).toEqual(at("2026-09-19T10:00:00Z"));
-  });
-
-  it("states the rule it enforces", () => {
-    expect(CLAUSE_PROTECTION_DAYS).toBe(14);
-  });
-
-  it("is null once the fourteen days have run", () => {
-    const until = clauseProtection(
-      [op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-20T10:00:00Z") })],
-      { managerId: ME, playerId: "p1", now },
-    );
-    expect(until).toBeNull();
-  });
-
-  it("counts a clause paid as an acquisition, so a raider is protected in turn", () => {
-    const until = clauseProtection(
-      [op({ id: "t", activityType: 1, actorManagerId: ME, counterpartyManagerId: THEM, occurredAt: at("2026-09-08T10:00:00Z") })],
-      { managerId: ME, playerId: "p1", now },
-    );
-    expect(until).toEqual(at("2026-09-22T10:00:00Z"));
-  });
-
-  it("restarts the clock for the new owner when a player changes hands", () => {
-    // The old owner's purchase does not protect the new one, and the new owner's does not
-    // reach back — the lock belongs to a manager and a player together.
-    const operations = [
-      op({ id: "old", activityType: 31, actorManagerId: THEM, occurredAt: at("2026-08-20T10:00:00Z") }),
-      op({ id: "new", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-08T10:00:00Z") }),
-    ];
-    expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toEqual(
-      at("2026-09-22T10:00:00Z"),
-    );
-    expect(clauseProtection(operations, { managerId: THEM, playerId: "p1", now })).toBeNull();
-  });
-
-  it("starts from the MOST recent acquisition, so buying somebody back re-locks them", () => {
-    const operations = [
-      op({ id: "first", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-15T10:00:00Z") }),
-      op({ id: "again", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-07T10:00:00Z") }),
-    ];
-    expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toEqual(
-      at("2026-09-21T10:00:00Z"),
-    );
-  });
-
-  it("reads a player the log never saw arrive as unprotected, which is a deduction", () => {
-    // The log reaches back further than the lock lasts, so a player it never saw acquired
-    // was acquired before it began — longer ago than any protection survives.
-    expect(clauseProtection([], { managerId: ME, playerId: "p1", now })).toBeNull();
-  });
-
-  it("ignores a sale, which ends a hold rather than starting one", () => {
-    const until = clauseProtection(
-      [op({ id: "s", activityType: 33, actorManagerId: ME, occurredAt: at("2026-09-08T10:00:00Z") })],
-      { managerId: ME, playerId: "p1", now },
-    );
-    expect(until).toBeNull();
-  });
-
-  it("ignores another manager's dealings and another player's", () => {
-    const operations = [
-      op({ id: "theirs", activityType: 31, actorManagerId: THEM, occurredAt: at("2026-09-08T10:00:00Z") }),
-      op({ id: "other", activityType: 31, actorManagerId: ME, playerId: "p2", occurredAt: at("2026-09-08T10:00:00Z") }),
-    ];
-    expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toBeNull();
-  });
-
-  it("treats the instant the lock lifts as lifted, not as one last second of cover", () => {
-    const operations = [
-      op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-26T12:00:00Z") }),
-    ];
-    // `now` is exactly fourteen days after the purchase, to the millisecond.
-    expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toBeNull();
-  });
-});
-
 describe("clauseBoard", () => {
   const now = at("2026-09-09T12:00:00Z");
-  const squad = [
-    { playerId: "locked-late", managerId: 1 },
-    { playerId: "free", managerId: 1 },
-    { playerId: "locked-soon", managerId: 2 },
-  ];
-  const operations = [
-    op({ id: "a", activityType: 31, actorManagerId: 1, playerId: "locked-late", occurredAt: at("2026-09-08T10:00:00Z") }),
-    op({ id: "b", activityType: 31, actorManagerId: 2, playerId: "locked-soon", occurredAt: at("2026-08-27T10:00:00Z") }),
-  ];
+  const held = (playerId: string, managerId: number, lock: string | null, shielded = false) => ({
+    playerId,
+    managerId,
+    clauseLockedUntil: lock === null ? null : at(lock),
+    shielded,
+  });
 
   it("puts the takeable first, then the soonest to free up", () => {
     // A player you can take today outranks one you can take on Friday.
-    expect(clauseBoard(operations, squad, now).map((r) => r.playerId)).toEqual([
-      "free",
-      "locked-soon",
-      "locked-late",
-    ]);
+    const board = clauseBoard(
+      [
+        held("locked-late", 1, "2026-09-22T10:00:00Z"),
+        held("free", 1, null),
+        held("locked-soon", 2, "2026-09-10T10:00:00Z"),
+      ],
+      now,
+    );
+    expect(board.map((r) => r.playerId)).toEqual(["free", "locked-soon", "locked-late"]);
+  });
+
+  it("treats a lock that has already lifted as free", () => {
+    const board = clauseBoard([held("lapsed", 1, "2026-09-08T10:00:00Z")], now);
+    expect(board[0].protectedUntil).toBeNull();
+  });
+
+  it("never calls a shielded player free, whatever their lock says", () => {
+    // The shield is a separate block; offering somebody who cannot be taken is the one
+    // thing this board must not do.
+    const board = clauseBoard(
+      [held("shielded", 1, null, true), held("open", 2, null)],
+      now,
+    );
+    expect(board.map((r) => r.playerId)).toEqual(["open", "shielded"]);
+    expect(board.find((r) => r.playerId === "shielded")?.shielded).toBe(true);
+  });
+
+  it("sorts a bare shield after every dated lock, having no date to count down to", () => {
+    const board = clauseBoard(
+      [held("shielded", 1, null, true), held("dated", 2, "2026-09-30T10:00:00Z")],
+      now,
+    );
+    expect(board.map((r) => r.playerId)).toEqual(["dated", "shielded"]);
   });
 
   it("carries the moment each lock lifts", () => {
-    const board = clauseBoard(operations, squad, now);
-    expect(board[0].protectedUntil).toBeNull();
-    expect(board[1].protectedUntil).toEqual(at("2026-09-10T10:00:00Z"));
+    const board = clauseBoard([held("a", 1, "2026-09-10T10:00:00Z")], now);
+    expect(board[0].protectedUntil).toEqual(at("2026-09-10T10:00:00Z"));
   });
 
   it("keeps the owner, because the point is knowing who to raid", () => {
-    expect(clauseBoard(operations, squad, now).find((r) => r.playerId === "locked-soon")?.managerId).toBe(2);
+    expect(clauseBoard([held("a", 7, null)], now)[0].managerId).toBe(7);
   });
 
   it("is empty for an empty squad", () => {
-    expect(clauseBoard(operations, [], now)).toEqual([]);
+    expect(clauseBoard([], now)).toEqual([]);
   });
 
   it("does not disturb the caller's array", () => {
-    const rows = [...squad];
-    clauseBoard(operations, rows, now);
-    expect(rows.map((r) => r.playerId)).toEqual(squad.map((r) => r.playerId));
+    const rows = [held("a", 1, null), held("b", 2, "2026-09-20T10:00:00Z")];
+    const before = rows.map((r) => r.playerId);
+    clauseBoard(rows, now);
+    expect(rows.map((r) => r.playerId)).toEqual(before);
   });
 });
 
@@ -489,51 +426,108 @@ describe("clauseStatus", () => {
   const now = at("2026-09-09T12:00:00Z");
 
   it("calls an unprotected player takeable", () => {
-    expect(clauseStatus(null, now)).toEqual({ state: "takeable", label: "takeable" });
+    expect(clauseStatus({ lockedUntil: null, shielded: false }, now)).toEqual({
+      state: "takeable",
+      label: "takeable",
+      shielded: false,
+    });
   });
 
   it("counts a lock that has already lifted as takeable, not as locked", () => {
-    expect(clauseStatus(at("2026-09-09T11:00:00Z"), now).state).toBe("takeable");
+    expect(clauseStatus({ lockedUntil: at("2026-09-09T11:00:00Z"), shielded: false }, now).state).toBe("takeable");
   });
 
   it("treats the exact instant of lifting as lifted", () => {
-    expect(clauseStatus(now, now).state).toBe("takeable");
+    expect(clauseStatus({ lockedUntil: now, shielded: false }, now).state).toBe("takeable");
   });
 
   it("says how many hours are left inside the last day", () => {
     // A day is the unit a manager acts on: a lock lifting tonight is worth waiting up
     // for, one lifting on Friday is a note in the calendar.
-    expect(clauseStatus(at("2026-09-09T20:00:00Z"), now)).toEqual({
+    expect(clauseStatus({ lockedUntil: at("2026-09-09T20:00:00Z"), shielded: false }, now)).toEqual({
       state: "soon",
       label: "free in 8 hours",
+      shielded: false,
     });
   });
 
   it("says one hour, not 1 hours", () => {
-    expect(clauseStatus(at("2026-09-09T13:00:00Z"), now).label).toBe("free in 1 hour");
+    expect(clauseStatus({ lockedUntil: at("2026-09-09T13:00:00Z"), shielded: false }, now).label).toBe("free in 1 hour");
   });
 
   it("never rounds the last minutes down to zero hours", () => {
     // "free in 0 hours" reads as a bug; the player is still locked.
-    const status = clauseStatus(at("2026-09-09T12:10:00Z"), now);
+    const status = clauseStatus({ lockedUntil: at("2026-09-09T12:10:00Z"), shielded: false }, now);
     expect(status.state).toBe("soon");
     expect(status.label).toBe("free in 1 hour");
   });
 
   it("is locked, with a date, beyond a day", () => {
-    expect(clauseStatus(at("2026-09-14T12:00:00Z"), now)).toEqual({
+    expect(clauseStatus({ lockedUntil: at("2026-09-14T12:00:00Z"), shielded: false }, now)).toEqual({
       state: "locked",
       label: "locked until 14 Sept",
+      shielded: false,
     });
   });
 
   it("puts the boundary at exactly a day on the locked side", () => {
-    expect(clauseStatus(at("2026-09-10T12:00:00Z"), now).state).toBe("locked");
-    expect(clauseStatus(at("2026-09-10T11:59:00Z"), now).state).toBe("soon");
+    expect(clauseStatus({ lockedUntil: at("2026-09-10T12:00:00Z"), shielded: false }, now).state).toBe("locked");
+    expect(clauseStatus({ lockedUntil: at("2026-09-10T11:59:00Z"), shielded: false }, now).state).toBe("soon");
   });
 
   it("dates the lock in the league's own timezone, not the machine's", () => {
     // 23:30 UTC is already the next day in Madrid, and the reader lives in Madrid.
-    expect(clauseStatus(at("2026-09-14T23:30:00Z"), now).label).toBe("locked until 15 Sept");
+    expect(clauseStatus({ lockedUntil: at("2026-09-14T23:30:00Z"), shielded: false }, now).label).toBe("locked until 15 Sept");
+  });
+});
+
+describe("the league's clause rule", () => {
+  it("is fourteen days, recorded even though nothing computes with it any more", () => {
+    // The lock is READ from the API now, not derived. The constant stays because it is
+    // the rule the owner told us and the reason `buyoutClauseLockedEndTime` says what it
+    // says — and because if the API ever stops carrying that field, this is the number
+    // the portal would have to fall back to deriving from.
+    expect(CLAUSE_PROTECTION_DAYS).toBe(14);
+  });
+});
+
+describe("clauseStatus and the shield", () => {
+  const now = at("2026-09-09T12:00:00Z");
+
+  it("calls an unlocked, unshielded player takeable", () => {
+    expect(clauseStatus({ lockedUntil: null, shielded: false }, now)).toEqual({
+      state: "takeable",
+      label: "takeable",
+      shielded: false,
+    });
+  });
+
+  it("is shielded, not takeable, once the lock has lapsed but the shield stands", () => {
+    // The shield is a separate 24-hour block. Calling this player takeable would offer
+    // somebody who cannot actually be taken.
+    expect(clauseStatus({ lockedUntil: at("2026-09-08T10:00:00Z"), shielded: true }, now)).toEqual({
+      state: "shielded",
+      label: "shielded",
+      shielded: true,
+    });
+  });
+
+  it("shows the dated lock when both are running, and still flags the shield", () => {
+    // A date can be counted down to; a shield cannot, because the response carries no
+    // expiry for it. So the date leads and the shield rides along as its own mark.
+    const status = clauseStatus({ lockedUntil: at("2026-09-20T10:00:00Z"), shielded: true }, now);
+    expect(status.state).toBe("locked");
+    expect(status.shielded).toBe(true);
+  });
+
+  it("counts down a shielded player's lock in hours like any other", () => {
+    const status = clauseStatus({ lockedUntil: at("2026-09-09T20:00:00Z"), shielded: true }, now);
+    expect(status).toMatchObject({ state: "soon", label: "free in 8 hours", shielded: true });
+  });
+
+  it("never counts down the shield itself, having no expiry to count to", () => {
+    const status = clauseStatus({ lockedUntil: null, shielded: true }, now);
+    expect(status.label).toBe("shielded");
+    expect(status.label).not.toMatch(/hour|until/);
   });
 });

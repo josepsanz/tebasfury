@@ -369,8 +369,10 @@ describe("the squad mapping", () => {
     // free, so the count is asserted rather than the ids alone.
     stubFetch(squadFixture, 200);
     const squad = await getSquad("at", "018012894", "9000019");
-    expect(squad.playerIds).toHaveLength(squadFixture.players.length);
-    expect(squad.playerIds.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
+    expect(squad.holdings).toHaveLength(squadFixture.players.length);
+    expect(squad.holdings.every((h) => typeof h.playerId === "string" && h.playerId.length > 0)).toBe(
+      true,
+    );
     expect(squad.teamId).toBe("9000019");
   });
 
@@ -401,7 +403,7 @@ describe("the squad mapping", () => {
     // fail the sweep for that team.
     stubFetch({ id: "9000019", players: [{ playerMaster: { id: "p1" } }] }, 200);
     const squad = await getSquad("at", "018012894", "9000019");
-    expect(squad.playerIds).toEqual(["p1"]);
+    expect(squad.holdings.map((h) => h.playerId)).toEqual(["p1"]);
     expect(squad.realTeams).toEqual([]);
   });
 });

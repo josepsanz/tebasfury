@@ -327,16 +327,35 @@ async function replaceSquads(
     // a suspicious response; it does not make a club name in it false.
     for (const c of squad.realTeams) clubs.set(c.id, c);
 
-    const validIds = squad.playerIds.filter((id) => knownPlayerIds.has(id));
-    droppedSquadPlayers += squad.playerIds.length - validIds.length;
+    const valid = squad.holdings.filter((h) => knownPlayerIds.has(h.playerId));
+    const validIds = valid.map((h) => h.playerId);
+    droppedSquadPlayers += squad.holdings.length - valid.length;
 
     if (validIds.length > 0) {
-      for (const chunk of chunked(validIds, CHUNK_SQUAD)) {
+      for (const chunk of chunked(valid, CHUNK_SQUAD)) {
         await db
           .insert(squadMembers)
-          .values(chunk.map((playerId) => ({ teamId: team.id, playerId })))
-          .onConflictDoNothing({
+          .values(
+            chunk.map((h) => ({
+              teamId: team.id,
+              playerId: h.playerId,
+              buyoutClause: h.buyoutClause,
+              clauseLockedUntil: h.clauseLockedUntil,
+              shielded: h.shielded,
+            })),
+          )
+          // UPDATE, not DO NOTHING, and only these three columns. The clause and its lock
+          // change while a player stays put — an owner raises their clause, a lock counts
+          // down — so leaving the row alone would freeze them at whatever the first sweep
+          // saw. `firstSeenAt` is deliberately absent from the set: it means "in this
+          // squad since", and re-stamping it every sweep would destroy that.
+          .onConflictDoUpdate({
             target: [squadMembers.teamId, squadMembers.playerId],
+            set: {
+              buyoutClause: sql`excluded.buyout_clause`,
+              clauseLockedUntil: sql`excluded.clause_locked_until`,
+              shielded: sql`excluded.shielded`,
+            },
           });
       }
       await db
