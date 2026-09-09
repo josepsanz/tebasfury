@@ -156,9 +156,11 @@ export function rankFormations(
       ...take("Midfielder", formation.midfielders),
       ...take("Forward", formation.forwards),
     ];
-    // A fieldable eleven has no unknown values in it by construction: an unknown sinks,
-    // so it is only ever selected when the line has nothing better, and then the total
-    // would be a lie. Treat it as nought points scored, which is what it is.
+    // An unknown value CAN reach the eleven: when a line holds exactly as many players as
+    // the formation demands, sinking cannot exclude anybody. It contributes nothing
+    // countable, so the total understates that eleven — but not its ranking, because the
+    // same forced player appears in every formation that can be fielded at all. Under the
+    // default `points` metric this cannot arise: `seasonPoints` is a number, never null.
     const total = eleven.reduce((sum, row) => sum + (valueOf(row, metric) ?? 0), 0);
     return { formation, name: formationName(formation), total, eleven, shortfall: null };
   });

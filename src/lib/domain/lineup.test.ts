@@ -238,6 +238,27 @@ describe("rankFormations", () => {
     rankFormations(rows, "points");
     expect(rows.map((r) => r.id)).toEqual(full.map((r) => r.id));
   });
+
+  it("counts a forced unknown as nothing, which understates a total but not the ranking", () => {
+    // 1 GK, 3 DF, 4 MF, 3 FW makes 3-4-3 the only possible formation, so all three
+    // forwards are selected whatever their averages — including the one who has never
+    // featured. Pinned because the sinking rule cannot help here: there is nobody to
+    // sink below.
+    const forced = [
+      row("gk", { position: "Goalkeeper", averagePoints: 1 }),
+      ...[1, 2, 3].map((n) => row(`d${n}`, { position: "Defender", averagePoints: 1 })),
+      ...[1, 2, 3, 4].map((n) => row(`m${n}`, { position: "Midfielder", averagePoints: 1 })),
+      row("scorer", { position: "Forward", averagePoints: 5 }),
+      row("other", { position: "Forward", averagePoints: 5 }),
+      row("never", { position: "Forward", averagePoints: null, gameweeksRecorded: 0 }),
+    ];
+
+    const best = rankFormations(forced, "average")[0];
+    expect(best.name).toBe("3-4-3");
+    expect(best.eleven.map((p) => p.id)).toContain("never");
+    // gk 1 + defenders 3 + midfielders 4 + forwards 5 + 5 + (unknown counted as nothing)
+    expect(best.total).toBe(18);
+  });
 });
 
 describe("nearestFormation", () => {
