@@ -87,7 +87,7 @@ export function StandingsTable({
               <span className="flex items-baseline gap-2 min-w-0">
                 <Link
                   href={`/teams/${row.teamId}`}
-                  className="truncate text-[13px] underline-offset-4 hover:underline"
+                  className="truncate text-[13px] underline decoration-[var(--board-line)] underline-offset-4"
                 >
                   {row.managerName}
                 </Link>
