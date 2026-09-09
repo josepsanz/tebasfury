@@ -1,8 +1,8 @@
-import { and, eq, gt, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import { necroporraRounds, necroporraVotes, teams, user } from "@/lib/db/schema";
-import type { Ballot, Round } from "@/lib/domain/necroporra";
+import type { Ballot, Round, Voter } from "@/lib/domain/necroporra";
 
 /** Neon HTTP in production, PGlite in tests. Generic over the driver, like the claims module. */
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -135,4 +135,22 @@ export async function loadVoterNames(db: Db): Promise<Map<string, string>> {
   const names = new Map(accounts.map((a) => [a.id, a.name]));
   for (const m of managers) if (m.userId !== null) names.set(m.userId, m.managerName);
   return names;
+}
+
+/**
+ * Who may vote: every manager who has claimed a team.
+ *
+ * The eligible set, not the set who voted — the page shows a manager with no ballot as
+ * exactly that, and it cannot do so without knowing who was expected. Read from `teams`
+ * rather than from `user`, because holding a team is what makes somebody a voter: an
+ * account with no claim can read the Necroporra and cannot vote in it.
+ */
+export async function loadVoters(db: Db): Promise<Voter[]> {
+  const rows = await db
+    .select({ userId: teams.userId, name: teams.managerName })
+    .from(teams)
+    .where(isNotNull(teams.userId));
+  return rows
+    .filter((row): row is { userId: string; name: string } => row.userId !== null)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }

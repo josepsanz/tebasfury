@@ -3,6 +3,7 @@ import {
   MAX_VOTES,
   isOpen,
   lastPlaced,
+  roundBallots,
   scoreRound,
   seasonTable,
   validatePair,
@@ -210,5 +211,60 @@ describe("seasonTable", () => {
 
   it("is empty before anybody has voted", () => {
     expect(seasonTable([], rounds, new Map())).toEqual([]);
+  });
+});
+
+describe("roundBallots", () => {
+  const voters = [
+    { userId: "u2", name: "Bruno" },
+    { userId: "u1", name: "Ada" },
+    { userId: "u3", name: "Cleo" },
+  ];
+  const cast = [
+    { gameweek: 4, userId: "u1", firstTeamId: "a", secondTeamId: "b" },
+    { gameweek: 4, userId: "u2", firstTeamId: "c", secondTeamId: null },
+    { gameweek: 5, userId: "u3", firstTeamId: "a", secondTeamId: null },
+  ];
+
+  it("shows every manager's picks, in name order", () => {
+    const rows = roundBallots(voters, cast, 4, null);
+    expect(rows.map((r) => [r.name, r.picks])).toEqual([
+      ["Ada", ["a", "b"]],
+      ["Bruno", ["c"]],
+      ["Cleo", []],
+    ]);
+  });
+
+  it("keeps a manager who has not voted, rather than leaving them out", () => {
+    // "Nobody has heard from Cleo" is as much of a prod as the picks themselves, and an
+    // absence shown as an absence cannot be read as a manager who does not play.
+    const rows = roundBallots(voters, cast, 4, null);
+    expect(rows.find((r) => r.name === "Cleo")).toMatchObject({ picks: [] });
+  });
+
+  it("marks who named the team that finished last", () => {
+    const rows = roundBallots(voters, cast, 4, "b");
+    expect(rows.find((r) => r.name === "Ada")?.hit).toBe(true);
+    expect(rows.find((r) => r.name === "Bruno")?.hit).toBe(false);
+  });
+
+  it("marks nobody while the round is undecided", () => {
+    expect(roundBallots(voters, cast, 4, null).every((r) => !r.hit)).toBe(true);
+  });
+
+  it("reads only the round asked for", () => {
+    const rows = roundBallots(voters, cast, 5, null);
+    expect(rows.find((r) => r.name === "Cleo")?.picks).toEqual(["a"]);
+    expect(rows.find((r) => r.name === "Ada")?.picks).toEqual([]);
+  });
+
+  it("is every voter and nothing else when a round has no ballots at all", () => {
+    expect(roundBallots(voters, [], 9, null).map((r) => r.picks)).toEqual([[], [], []]);
+  });
+
+  it("does not disturb the caller's voter array", () => {
+    const original = [...voters];
+    roundBallots(voters, cast, 4, null);
+    expect(voters).toEqual(original);
   });
 });

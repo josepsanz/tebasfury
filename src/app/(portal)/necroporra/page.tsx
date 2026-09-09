@@ -7,17 +7,20 @@ import {
   loadMyBallot,
   loadRounds,
   loadVoterNames,
+  loadVoters,
 } from "@/lib/necroporra";
 import {
   isOpen,
   lastPlaced,
   picksOf,
+  roundBallots,
   seasonTable,
-  type Ballot,
 } from "@/lib/domain/necroporra";
 import { requireSession } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { NecroporraBallot } from "@/components/necroporra-ballot";
+import { NecroporraBallots } from "@/components/necroporra-ballots";
+import { RoundPicker } from "@/components/round-picker";
 import { vote } from "./actions";
 
 /** The deadline as the league would say it, in the league's own timezone. */
@@ -31,15 +34,22 @@ const madrid = (at: Date) =>
     minute: "2-digit",
   }).format(at);
 
-export default async function NecroporraPage() {
+const HEADING = "mt-10 text-[11px] uppercase tracking-[0.06em]";
+
+export default async function NecroporraPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const session = await requireSession();
   const now = new Date();
 
-  const [rounds, { snapshots, teams }, myTeam, names] = await Promise.all([
+  const [rounds, { snapshots, teams }, myTeam, names, voters] = await Promise.all([
     loadRounds(db),
     loadSnapshots(db),
     loadMyTeam(db, { userId: session.user.id }),
     loadVoterNames(db),
+    loadVoters(db),
   ]);
 
   const resolved = rounds.map((round) => ({
@@ -48,15 +58,27 @@ export default async function NecroporraPage() {
   }));
   const ballots = await loadBallots(db, rounds.map((r) => r.gameweek));
 
-  // The one round still taking votes. There is at most one: the sync opens the week the
-  // API calls current, and the previous one closed when it kicked off.
+  // At most one round takes votes: the sync opens the week the API calls current, and the
+  // previous one closed when it kicked off.
   const open = resolved.find((round) => isOpen(round, now)) ?? null;
-  const myBallot = open ? await loadMyBallot(db, { gameweek: open.gameweek, userId: session.user.id }) : null;
+  const myBallot = open
+    ? await loadMyBallot(db, { gameweek: open.gameweek, userId: session.user.id })
+    : null;
 
   const teamName = new Map(teams.map((t) => [t.id, t.managerName]));
   const table = seasonTable(ballots, resolved, names);
 
-  const past = resolved.filter((round) => !isOpen(round, now)).sort((a, b) => b.gameweek - a.gameweek);
+  // Newest first, so the picker opens on the round just decided rather than on August.
+  const closed = resolved
+    .filter((round) => !isOpen(round, now))
+    .sort((a, b) => b.gameweek - a.gameweek);
+
+  // A round that is not a number, or one nothing was opened for, falls back to the most
+  // recent — a hand-edited URL is not an exceptional condition worth a 404.
+  const asked = (await searchParams).round;
+  const wanted = Number(Array.isArray(asked) ? asked[0] : asked);
+  const looking =
+    closed.find((round) => round.gameweek === wanted) ?? closed[0] ?? null;
 
   return (
     <section className="mx-auto max-w-2xl">
@@ -66,7 +88,7 @@ export default async function NecroporraPage() {
         meta={rounds.length === 0 ? "no rounds yet" : `${rounds.length} rounds`}
       />
 
-      <h2 className="mt-8 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
+      <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
         {open === null ? "Nothing open" : `Round ${open.gameweek} — closes ${madrid(open.closesAt)}`}
       </h2>
 
@@ -77,8 +99,6 @@ export default async function NecroporraPage() {
             : "Voting is shut until the next round is named, which happens a few days before it kicks off."}
         </p>
       ) : myTeam === null ? (
-        // Said, not hidden: an account with no claim is a person who has not finished
-        // signing up, and "claim your team" is a thing they can act on.
         <p className="mt-3 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
           The Necroporra is per manager.{" "}
           <Link href="/claim" className="underline underline-offset-4">
@@ -89,15 +109,27 @@ export default async function NecroporraPage() {
       ) : (
         <NecroporraBallot
           gameweek={open.gameweek}
-          // Your own team is not offered. The action refuses it too — this only spares
-          // the reader a refusal they could not have avoided.
           teams={teams.filter((team) => team.id !== myTeam.teamId)}
           chosen={myBallot ? picksOf(myBallot) : []}
           action={vote}
         />
       )}
 
-      <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
+      {open === null ? null : (
+        <>
+          <h3 className="mt-6 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
+            Everyone&rsquo;s picks so far
+          </h3>
+          <NecroporraBallots
+            rows={roundBallots(voters, ballots, open.gameweek, null)}
+            teamName={teamName}
+            viewerId={session.user.id}
+            resolved={false}
+          />
+        </>
+      )}
+
+      <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
         Season
       </h2>
       {table.length === 0 ? (
@@ -140,81 +172,47 @@ export default async function NecroporraPage() {
         </ol>
       )}
 
-      {past.length === 0 ? null : (
+      {looking === null ? null : (
         <>
-          <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
-            Closed rounds
+          <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
+            Past rounds
           </h2>
-          {/* Every ballot, now that it is too late to copy one. Before the deadline the
-              page shows a voter only their own picks, because committing early is the
-              whole game. */}
-          {past.map((round) => (
-            <PastRound
-              key={round.gameweek}
-              gameweek={round.gameweek}
-              lastTeamId={round.lastTeamId}
-              ballots={ballots.filter((b) => b.gameweek === round.gameweek)}
-              names={names}
-              teamName={teamName}
+          {/* A picker rather than every round stacked down the page: by May there are
+              thirty-eight of them, and the one anybody wants is rarely the oldest. Same
+              component the standings use, pointed at this route. */}
+          <div className="mt-3">
+            <RoundPicker
+              gameweeks={closed.map((round) => round.gameweek).reverse()}
+              selected={looking.gameweek}
+              basePath="/necroporra"
+              allLabel={null}
+              legend="Round"
             />
-          ))}
+          </div>
+
+          <p className="mt-3 text-[12px]">
+            {looking.lastTeamId === null ? (
+              // "Not yet" is not "nobody": a round whose standings have not settled must
+              // not read as a round everybody lost.
+              <span style={{ color: "var(--board-ink-dim)" }}>Still being decided.</span>
+            ) : (
+              <>
+                <span style={{ color: "var(--board-ink-dim)" }}>Finished last: </span>
+                <span style={{ color: "var(--board-alert)" }}>
+                  {teamName.get(looking.lastTeamId) ?? looking.lastTeamId}
+                </span>
+              </>
+            )}
+          </p>
+
+          <NecroporraBallots
+            rows={roundBallots(voters, ballots, looking.gameweek, looking.lastTeamId)}
+            teamName={teamName}
+            viewerId={session.user.id}
+            resolved={looking.lastTeamId !== null}
+          />
         </>
       )}
     </section>
-  );
-}
-
-function PastRound({
-  gameweek,
-  lastTeamId,
-  ballots,
-  names,
-  teamName,
-}: {
-  gameweek: number;
-  lastTeamId: string | null;
-  ballots: Ballot[];
-  names: Map<string, string>;
-  teamName: Map<string, string>;
-}) {
-  return (
-    <div className="mt-4">
-      <p className="text-[12px]">
-        <span style={{ color: "var(--board-ink-dim)" }}>Round {gameweek} — </span>
-        {lastTeamId === null ? (
-          // "Not yet" is not "nobody": a round still being played, or one whose standings
-          // have not settled, must not read as a round everybody lost.
-          <span style={{ color: "var(--board-ink-dim)" }}>still being decided</span>
-        ) : (
-          <>
-            last was <span style={{ color: "var(--board-alert)" }}>{teamName.get(lastTeamId) ?? lastTeamId}</span>
-          </>
-        )}
-      </p>
-
-      {ballots.length === 0 ? (
-        <p className="mt-1 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-          Nobody voted.
-        </p>
-      ) : (
-        <ul className="mt-1">
-          {ballots.map((ballot) => {
-            const picks = picksOf(ballot);
-            const hit = lastTeamId !== null && picks.includes(lastTeamId);
-            return (
-              <li
-                key={ballot.userId}
-                className="text-[11.5px]"
-                style={{ color: hit ? "var(--board-gain)" : "var(--board-ink-dim)" }}
-              >
-                {names.get(ballot.userId) ?? ballot.userId}:{" "}
-                {picks.map((id) => teamName.get(id) ?? id).join(", ") || "—"}
-                {hit ? " ✓" : ""}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
   );
 }

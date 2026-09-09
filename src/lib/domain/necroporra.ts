@@ -152,3 +152,53 @@ export function seasonTable(
     }))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
 }
+
+export type Voter = { userId: string; name: string };
+
+export type RoundBallot = {
+  userId: string;
+  name: string;
+  /** The teams picked, in order. Empty for a manager who has not voted. */
+  picks: string[];
+  /** True once the round is decided and this ballot named the team that finished last. */
+  hit: boolean;
+};
+
+/**
+ * Every eligible manager's ballot for one round, whether or not they voted.
+ *
+ * **Everybody's picks are visible, including while the round is still open.** That
+ * reversed the original ruling, on the owner's reasoning: the argument between friends is
+ * the product, and a poll nobody can needle each other about is a form. Somebody voting
+ * late can see the earlier picks; in a league of thirteen who know each other, that is
+ * something to be teased about rather than a hole to be closed.
+ *
+ * A manager who has not voted is RETURNED, with no picks, rather than left out. "Nobody
+ * has heard from Bruno" is as much of a prod as the picks themselves, and an absence
+ * shown as an absence cannot be mistaken for a manager who does not play.
+ *
+ * `hit` is false for every ballot while the round is undecided — not unknown, because
+ * nothing renders it until there is a last-placed team to compare against.
+ */
+export function roundBallots(
+  voters: Voter[],
+  ballots: Ballot[],
+  gameweek: number,
+  lastTeamId: string | null,
+): RoundBallot[] {
+  const byUser = new Map(
+    ballots.filter((b) => b.gameweek === gameweek).map((b) => [b.userId, b]),
+  );
+
+  return [...voters]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((voter) => {
+      const picks = byUser.has(voter.userId) ? picksOf(byUser.get(voter.userId)!) : [];
+      return {
+        userId: voter.userId,
+        name: voter.name,
+        picks,
+        hit: lastTeamId !== null && picks.includes(lastTeamId),
+      };
+    });
+}

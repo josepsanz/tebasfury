@@ -22,15 +22,28 @@ import { useRouter } from "next/navigation";
 export function RoundPicker({
   gameweeks,
   selected,
+  basePath = "/standings",
+  param = "round",
+  allLabel = "Season total",
+  legend = "Showing",
 }: {
   gameweeks: number[];
   selected: number | null;
+  /** Where the choice navigates. Two mounts: the standings and the Necroporra. */
+  basePath?: string;
+  param?: string;
+  /**
+   * The label for "no particular round". Pass null where every choice IS a round — the
+   * Necroporra always shows one — so the select has no option that means nothing.
+   */
+  allLabel?: string | null;
+  legend?: string;
 }) {
   const router = useRouter();
 
   return (
     <label className="flex items-center gap-2 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-      <span className="uppercase tracking-[0.06em]">Showing</span>
+      <span className="uppercase tracking-[0.06em]">{legend}</span>
       <select
         className="border px-2 py-[3px] text-[12px]"
         style={{
@@ -42,10 +55,10 @@ export function RoundPicker({
         value={selected === null ? "" : String(selected)}
         onChange={(event) => {
           const round = event.target.value;
-          router.push(round === "" ? "/standings" : `/standings?round=${round}`);
+          router.push(round === "" ? basePath : `${basePath}?${param}=${round}`);
         }}
       >
-        <option value="">Season total</option>
+        {allLabel === null ? null : <option value="">{allLabel}</option>}
         {[...gameweeks].reverse().map((week) => (
           <option key={week} value={week}>
             Round {week}

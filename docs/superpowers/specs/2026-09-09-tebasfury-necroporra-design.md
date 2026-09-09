@@ -105,10 +105,23 @@ The round table slice settled this with the same evidence.
 A round is unresolved while any of its rows are provisional or its positions are null. An
 unresolved round scores nobody — it does not score everybody zero.
 
-### Ruling 8 — a closed round shows every vote; an open one shows only your own
+### Ruling 8 — every vote is visible, open round included
 
-Before the deadline, seeing what others picked would let a late voter copy, and the whole
-game is committing early. After it, the votes are the entertainment.
+**Reversed on 2026-09-09 by the owner, and the reason is better than the original.** This
+said an open round should show a voter only their own picks, because seeing the others
+would let a late voter copy, and committing early is the game.
+
+The owner's answer: *això fomenta el pique.* The visible argument between friends IS the
+product here — a poll nobody can needle each other about is a form. Thirteen people who
+know each other are not an electorate to be protected from influence; the copying this
+was guarding against is itself something to be teased about, and hiding the picks removes
+far more fun than it protects.
+
+So an open round shows everyone's picks, and who has not picked yet — the second is as
+much of a prod as the first.
+
+The cost, stated once and accepted: somebody who votes on Friday can see Monday's picks
+before choosing. That is now a feature of the game rather than a flaw in it.
 
 ## Architecture
 
@@ -141,8 +154,10 @@ the Playwright suite never signs in. Manual checks below.
 2. Change one of the two; exactly two votes remain.
 3. Your own team is not offered.
 4. With the second (unclaimed) account: the page reads, the form says why it cannot vote.
-5. After a round closes, everybody's votes appear.
-6. At 320px and 375px.
+5. Everybody's votes appear on the open round as well as on closed ones, and a manager
+   who has not voted is listed as not having voted.
+6. A past round can be looked up from the picker without scrolling past every other one.
+7. At 320px and 375px.
 
 ## Out of scope
 

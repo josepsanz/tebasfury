@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
 import { teams, user } from "@/lib/db/schema";
 import {
@@ -7,6 +8,7 @@ import {
   loadMyBallot,
   loadRound,
   loadRounds,
+  loadVoters,
   loadVoterNames,
   openRound,
 } from "./index";
@@ -136,5 +138,21 @@ describe("loadVoterNames", () => {
     // So a past round's ballot never renders as a bare id after a team is released.
     const names = await loadVoterNames(h.db);
     expect(names.get("bruno")).toBe("Bruno B");
+  });
+});
+
+describe("loadVoters", () => {
+  it("is every manager who has claimed a team, in name order", async () => {
+    await h.db.update(teams).set({ userId: "bruno" }).where(eq(teams.id, "t3"));
+    const voters = await loadVoters(h.db);
+    expect(voters).toEqual([
+      { userId: "bruno", name: "La Agustineta 96" },
+      { userId: "alice", name: "La rataneta" },
+    ]);
+  });
+
+  it("leaves out unclaimed teams, which have nobody to vote for them", async () => {
+    const voters = await loadVoters(h.db);
+    expect(voters).toEqual([{ userId: "alice", name: "La rataneta" }]);
   });
 });
