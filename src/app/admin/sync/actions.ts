@@ -7,6 +7,8 @@ import { saveRefreshToken } from "@/lib/fantasy-client/credentials";
 import { CredentialError, createClient } from "@/lib/fantasy-client";
 import { getEnv } from "@/lib/env";
 import { requirePermission } from "@/lib/auth/guards";
+import { addAllowedEmails, existingAllowedEmails, removeAllowedEmail } from "@/lib/access";
+import { parseAllowlist } from "@/lib/auth/allowlist";
 import { schedulePlayerSweep, scheduleNextRun } from "@/lib/scheduler";
 import { runSync } from "@/lib/sync";
 import { nextPlayerSweepAfterFailure } from "@/lib/sync/next-run";
@@ -16,6 +18,9 @@ import { CREDENTIAL_RECOVERY_MESSAGE } from "./credential-state";
 
 /** The public client id of the LaLiga web app, which is what issues the token. */
 const CLIENT_ID = "6457fa17-1224-416a-b21a-ee6ce76e9bc0";
+
+/** Enough to catch a typo, not a validator. Google decides what actually exists. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type ActionResult = { ok: true; message: string } | { ok: false; message: string };
 
@@ -125,4 +130,55 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
       (notes.length > 0 ? ` (${notes.join(", ")})` : "") +
       `. Next sweep at ${nextRunAt.toISOString()}.`,
   };
+}
+
+/**
+ * Adds addresses to the sign-in list.
+ *
+ * Guarded by `access: ["manage"]`, which only the admin role holds — a collaborator who
+ * may trigger a sync must not also decide who reaches the league.
+ *
+ * The reply counts what actually changed rather than what was submitted: pasting five
+ * addresses of which three were already there is "2 added", not "5 added". Saying five
+ * would be a small lie that costs a real minute the day somebody is bounced.
+ */
+export async function allowEmails(formData: FormData): Promise<ActionResult> {
+  const session = await requirePermission({ access: ["manage"] });
+
+  const emails = parseAllowlist(String(formData.get("emails") ?? ""));
+  if (emails.length === 0) return { ok: false, message: "No address was given." };
+
+  const invalid = emails.filter((email) => !EMAIL.test(email));
+  if (invalid.length > 0) {
+    return { ok: false, message: `Not an email address: ${invalid.join(", ")}` };
+  }
+
+  const already = await existingAllowedEmails(db, emails);
+  const added = await addAllowedEmails(db, { emails, addedBy: session.user.id });
+  revalidatePath("/admin/sync");
+
+  if (added === 0) return { ok: true, message: "Already on the list — nothing to add." };
+  const note = already.length > 0 ? ` ${already.length} already there.` : "";
+  return { ok: true, message: `${added} added.${note}` };
+}
+
+/**
+ * Takes one address off the list.
+ *
+ * This stops them signing in AGAIN; it does not end a session they already hold, which
+ * runs for seven days. The screen says so, because a silent seven-day tail on a removal
+ * is exactly the kind of thing an owner assumes is instant.
+ */
+export async function disallowEmail(formData: FormData): Promise<ActionResult> {
+  await requirePermission({ access: ["manage"] });
+
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (email === "") return { ok: false, message: "No address was named." };
+
+  const removed = await removeAllowedEmail(db, email);
+  revalidatePath("/admin/sync");
+
+  return removed
+    ? { ok: true, message: `${email} removed. Any session they already hold runs until it expires.` }
+    : { ok: false, message: "That address was not on the list." };
 }

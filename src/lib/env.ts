@@ -16,12 +16,11 @@ const envSchema = z.object({
   BETTER_AUTH_URL: z.url(),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
-  // Required, and separate from LEAGUE_ALLOWLIST on purpose: this address is always
-  // admitted, so a mistyped allowlist cannot lock out the one person who could fix it.
+  // Required, and the only part of the allowlist that lives in the environment. Always
+  // admitted, and checked before the `allowed_emails` table is read — so neither a
+  // mistyped list nor an unreachable database can lock out the one person who could
+  // put either right. Everybody else is managed from /admin/sync.
   ADMIN_EMAIL: z.email(),
-  // Optional, and its absence means "the admin only" rather than "everyone" — a missed
-  // variable on a new deployment target must not silently reopen the portal.
-  LEAGUE_ALLOWLIST: z.string().optional(),
   CREDENTIALS_KEY: z.string().refine((v) => Buffer.from(v, "base64").length === 32, {
     message: "must be 32 bytes, base64 encoded",
   }),

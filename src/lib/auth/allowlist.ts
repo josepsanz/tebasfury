@@ -30,21 +30,33 @@ function normalise(email: string | null | undefined): string | null {
 }
 
 /**
- * The configured list, as addresses.
+ * Whether this identity is the owner's.
  *
- * Blanks are dropped so a trailing comma or a stray space costs nothing — the variable
- * is edited by hand in a Vercel form, which is exactly where those creep in.
+ * Checked BEFORE the stored list is read, and that ordering is deliberate: the admin
+ * must be able to sign in when the database is unreachable, because the database is
+ * where the list they would need to fix now lives. It is the one door that depends on
+ * nothing but an environment variable.
+ */
+export function isAdmin(email: string | null | undefined, adminEmail: string): boolean {
+  const candidate = normalise(email);
+  return candidate !== null && candidate === normalise(adminEmail);
+}
+
+/**
+ * A pasted list of addresses, as addresses.
  *
- * An unset variable yields an empty list, and an empty list admits only the admin. The
- * opposite default is how this hole would come back: a variable missed on a new
- * deployment target would silently reopen the portal, and nothing would look wrong.
+ * Blanks are dropped so a trailing comma or a stray space costs nothing — this parses
+ * what a person typed into a form, which is exactly where those creep in. Duplicates
+ * collapse, so pasting a list twice adds nothing the second time.
  */
 export function parseAllowlist(raw: string | undefined): string[] {
   if (!raw) return [];
-  return raw
-    .split(",")
+  const entries = raw
+    // Newlines as well as commas: a list pasted out of a chat arrives one per line.
+    .split(/[,\n;]/)
     .map((entry) => normalise(entry))
     .filter((entry): entry is string => entry !== null);
+  return [...new Set(entries)];
 }
 
 /**

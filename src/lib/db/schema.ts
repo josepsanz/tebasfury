@@ -442,3 +442,30 @@ export const necroporraVotes = pgTable(
     ),
   ],
 );
+
+/**
+ * Who may sign in, besides the owner.
+ *
+ * Started life as `LEAGUE_ALLOWLIST`, an environment variable, and moved here on
+ * 2026-09-09 for one concrete reason: **a Vercel variable change needs a redeploy to
+ * take effect**, and that friction lands exactly when it hurts most — the afternoon the
+ * owner invites twelve people, one address at a time.
+ *
+ * There is deliberately no second source. Keeping the variable as well would be two
+ * lists for one rule, and whoever was bounced would have to be looked up in both.
+ *
+ * `ADMIN_EMAIL` stays an environment variable and is still always admitted, which is
+ * what makes this table safe to own the rule: it is checked BEFORE this table is read,
+ * so a database that is unreachable — or a list somebody empties by accident — never
+ * locks out the one person who could put it right.
+ *
+ * The email is the primary key, stored already normalised (trimmed, lower-cased) by
+ * `parseAllowlist`, so the same address cannot be added twice in two capitalisations.
+ */
+export const allowedEmails = pgTable("allowed_emails", {
+  email: text("email").primaryKey(),
+  addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  /** The user id that added it. Not a foreign key: an admin may later be deleted, and
+   *  losing the row's history would be worse than keeping an id that resolves to nobody. */
+  addedBy: text("added_by").notNull(),
+});

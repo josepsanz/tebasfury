@@ -78,6 +78,13 @@
       "when": 1788963554802,
       "tag": "0010_parched_solo",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788968714629,
+      "tag": "0011_groovy_blacklash",
+      "breakpoints": true
     }
   ]
 }

@@ -5,7 +5,8 @@ import { admin as adminPlugin } from "better-auth/plugins";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { getEnv } from "@/lib/env";
-import { NOT_IN_LEAGUE, isAllowed, parseAllowlist } from "./allowlist";
+import { loadAllowedEmails } from "@/lib/access";
+import { NOT_IN_LEAGUE, isAdmin, isAllowed } from "./allowlist";
 import { ac, roles } from "./permissions";
 
 export const auth = betterAuth({
@@ -33,9 +34,16 @@ export const auth = betterAuth({
      * `?error=<code>` on the error URL below. Better Auth also fails closed if this
      * throws, so a bug here cannot open the door.
      */
-    validateUserInfo: ({ user }) => {
-      const env = getEnv();
-      if (isAllowed(user.email, parseAllowlist(env.LEAGUE_ALLOWLIST), env.ADMIN_EMAIL)) return;
+    validateUserInfo: async ({ user }) => {
+      const { ADMIN_EMAIL } = getEnv();
+
+      // The owner first, and WITHOUT touching the database. The list lives in a table
+      // now, and the one account that could repair a broken or unreachable table must
+      // not depend on reading it. This is the door that needs nothing but an env var.
+      if (isAdmin(user.email, ADMIN_EMAIL)) return;
+
+      const allowed = await loadAllowedEmails(db);
+      if (isAllowed(user.email, allowed, ADMIN_EMAIL)) return;
 
       return {
         error: NOT_IN_LEAGUE,

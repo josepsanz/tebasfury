@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAllowed, parseAllowlist } from "./allowlist";
+import { isAdmin, isAllowed, parseAllowlist } from "./allowlist";
 
 const ADMIN = "owner@example.com";
 
@@ -73,5 +73,34 @@ describe("isAllowed", () => {
     // rule stays readable — an entry matches exactly what it says — and the cure for a
     // bounced friend is to fix the list, which docs/deployment.md says first.
     expect(isAllowed("f.sanz@gmail.com", ["fsanz@gmail.com"], ADMIN)).toBe(false);
+  });
+});
+
+describe("isAdmin", () => {
+  it("recognises the owner regardless of case or spacing", () => {
+    expect(isAdmin("  OWNER@Example.com ", ADMIN)).toBe(true);
+  });
+
+  it("is false for everybody else, and for nobody", () => {
+    expect(isAdmin("joan@example.com", ADMIN)).toBe(false);
+    expect(isAdmin(null, ADMIN)).toBe(false);
+    expect(isAdmin("  ", ADMIN)).toBe(false);
+  });
+});
+
+describe("parseAllowlist, as a paste", () => {
+  it("takes one address per line, which is how a list arrives from a chat", () => {
+    expect(parseAllowlist("joan@example.com\nmarta@example.com")).toEqual([
+      "joan@example.com",
+      "marta@example.com",
+    ]);
+  });
+
+  it("collapses duplicates, so pasting the same list twice adds nothing", () => {
+    expect(parseAllowlist("joan@example.com, JOAN@example.com")).toEqual(["joan@example.com"]);
+  });
+
+  it("takes semicolons too, which is what a copied mail header uses", () => {
+    expect(parseAllowlist("a@x.com; b@x.com")).toEqual(["a@x.com", "b@x.com"]);
   });
 });
