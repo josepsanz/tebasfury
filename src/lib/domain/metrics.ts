@@ -32,9 +32,17 @@ const byGameweek = (a: { gameweek: number }, b: { gameweek: number }) => a.gamew
 /**
  * A blank gameweek is a missing lineup, not a performance (Ruling 1), so the records
  * skip it. Ties go to the earliest gameweek: the first time it happened is the record.
+ *
+ * A tie WITHIN the same gameweek (two managers, one score) is broken by `teamId`, never
+ * left to array order: `queries.ts` orders `team_gameweek_stats` by gameweek only, and
+ * its own comment warns that Postgres's heap order shifts after an update or a vacuum.
+ * `standings.ts` set the precedent — a stable secondary key so the order never wobbles
+ * between renders — and this is the same fix for the same reason.
  */
 function recordOf(rows: Snapshot[], pick: "max" | "min"): RoundRecord {
-  const played = rows.filter((row) => row.points !== 0).sort(byGameweek);
+  const played = rows
+    .filter((row) => row.points !== 0)
+    .sort((a, b) => byGameweek(a, b) || a.teamId.localeCompare(b.teamId));
   if (played.length === 0) return null;
 
   const best = played.reduce((chosen, row) =>

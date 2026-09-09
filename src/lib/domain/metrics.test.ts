@@ -271,4 +271,15 @@ describe("leagueMetrics", () => {
       expect(leagueMetrics(rows).worst).toEqual({ points: 20, gameweek: 1, teamId: "b" });
     });
   });
+
+  describe("a same-gameweek tie", () => {
+    it("names the same record-holder whichever order the rows arrive in", () => {
+      // Two teams tied for the season's best round, in the same gameweek — heap order
+      // from the database is not something the domain may rely on to pick a winner.
+      const forward = [snap("z", 4, 71), snap("a", 4, 71)];
+      const backward = [snap("a", 4, 71), snap("z", 4, 71)];
+      expect(leagueMetrics(forward).best).toEqual(leagueMetrics(backward).best);
+      expect(leagueMetrics(forward).best?.teamId).toBe("a");
+    });
+  });
 });
