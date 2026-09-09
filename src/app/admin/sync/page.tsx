@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { syncRuns } from "@/lib/db/schema";
@@ -75,6 +76,18 @@ export default async function SyncPage() {
             allow={allowEmails}
             disallow={disallowEmail}
           />
+          {/* Being on the list is only half of it: a manager must also claim their team
+              before they can be marked in the standings or vote in the Necroporra, and
+              that second step is the one people skip. The claim board is also where
+              whoever may correct league data can release a team somebody took by
+              mistake — so it is the natural next screen from this one. */}
+          <p className="mt-4 text-[12.5px]" style={{ color: "var(--board-ink-dim)" }}>
+            Signing in is only half of it — each manager must also{" "}
+            <Link href="/claim" className="underline underline-offset-4">
+              claim their team
+            </Link>{" "}
+            before they can vote.
+          </p>
         </>
       ) : null}
 
