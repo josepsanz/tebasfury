@@ -186,3 +186,30 @@ needs a signed-in browser, so it leaves no manual checks behind beyond looking a
 - Any cap coupling the lines, such as a limit per real club. If the league adds one, the
   separability argument above is what has to be revisited — and a solver might then earn
   its place.
+
+## The live check — performed 2026-09-09, matches the design
+
+All four checks ran clean, one at a time as this machine requires (`vitest` and `eslint`
+together starve PGlite's workers): `npx tsc --noEmit`, `npx vitest run` (50 files, 655
+tests), `npx eslint`, `npx next build`. Nothing to report beyond "clean".
+
+Since this slice has no signed-in-browser surface to walk (see Testing above), the check
+that matters is the arithmetic itself, against production rather than through the app. A
+throwaway, read-only script queried `squad_members`, `players` and `player_gameweek_points`
+directly and re-derived `rankFormations`' own algorithm — sort each line, take a prefix,
+sum — independently of the shipped code:
+
+| Formations possible | Managers |
+| --- | --- |
+| all seven | 1 — `JMjugon` |
+| three to five | 4 — `Millou912`, `Villaone` (5); `LamineTheTuareg`, `PavelmacuFC` (3) |
+| exactly one | 4 — `La Agustineta 96`, `PlatanosVerdes`, `tete alejo`, `TheMessias` |
+| **none** | **4 — `-papi—`, `cristian1206`, `La rataneta`, `LILTEAM`** |
+
+This reproduces the feasibility table above exactly, manager for manager, against live
+data rather than the snapshot the design was written from. `La rataneta`'s nearest
+formation is `5-3-2`, short two midfielders — one eligible midfielder against every
+formation's floor of three, confirming Ruling 6's example. `JMjugon`, the one squad that
+can field all seven, scores best on `4-4-2` under the points metric.
+
+Everything the spec predicted held. No domain change followed.
