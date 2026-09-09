@@ -16,11 +16,21 @@ export function SquadList({
   groups,
   total,
   ownershipKnown,
+  protectedUntil,
 }: {
   groups: SquadGroup[];
   total: number | null;
   /** False before any squad has been read at all — see `CatalogueData.ownershipKnown`. */
   ownershipKnown: boolean;
+  /**
+   * Player id to when their clause lock lifts. A player absent from the map, or mapped to
+   * null, can be taken right now.
+   *
+   * Read from the owner's side, so it answers the opposite question to the market's clause
+   * board: not "who can I raid" but "when am I exposed". Optional, so a caller that has not
+   * worked it out shows the squad without pretending everyone is takeable.
+   */
+  protectedUntil?: Map<string, Date | null>;
 }) {
   if (!ownershipKnown) {
     return (
@@ -97,6 +107,19 @@ export function SquadList({
                       {label === null ? null : (
                         <span className="ml-2 text-[10.5px]" style={{ color: "var(--board-alert)" }}>
                           {label}
+                        </span>
+                      )}
+                      {/* Only the locked are marked. Saying "takeable" beside eighty of a
+                          hundred names would be noise, and the market's clause board is
+                          where that side of it is read. */}
+                      {protectedUntil?.get(player.id) == null ? null : (
+                        <span className="ml-2 text-[10.5px]" style={{ color: "var(--board-gain)" }}>
+                          safe until{" "}
+                          {new Intl.DateTimeFormat("en-GB", {
+                            timeZone: "Europe/Madrid",
+                            day: "2-digit",
+                            month: "short",
+                          }).format(protectedUntil.get(player.id) as Date)}
                         </span>
                       )}
                     </span>

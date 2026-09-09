@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CLAUSE_PROTECTION_DAYS,
+  clauseBoard,
+  clauseProtection,
   holdings,
   marketSummary,
   operationKind,
@@ -349,5 +352,134 @@ describe("holdings, what a player made or lost", () => {
       sold(3_000_000, "2026-09-08T10:00:00Z"),
     ]);
     expect(holding.profit).toBe(0);
+  });
+});
+
+describe("clauseProtection", () => {
+  const ME = 1;
+  const THEM = 2;
+  const now = at("2026-09-09T12:00:00Z");
+
+  it("locks a player for fifteen days after their owner buys them", () => {
+    const until = clauseProtection(
+      [op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-05T10:00:00Z") })],
+      { managerId: ME, playerId: "p1", now },
+    );
+    expect(until).toEqual(at("2026-09-20T10:00:00Z"));
+  });
+
+  it("states the rule it enforces", () => {
+    expect(CLAUSE_PROTECTION_DAYS).toBe(15);
+  });
+
+  it("is null once the fifteen days have run", () => {
+    const until = clauseProtection(
+      [op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-20T10:00:00Z") })],
+      { managerId: ME, playerId: "p1", now },
+    );
+    expect(until).toBeNull();
+  });
+
+  it("counts a clause paid as an acquisition, so a raider is protected in turn", () => {
+    const until = clauseProtection(
+      [op({ id: "t", activityType: 1, actorManagerId: ME, counterpartyManagerId: THEM, occurredAt: at("2026-09-08T10:00:00Z") })],
+      { managerId: ME, playerId: "p1", now },
+    );
+    expect(until).toEqual(at("2026-09-23T10:00:00Z"));
+  });
+
+  it("restarts the clock for the new owner when a player changes hands", () => {
+    // The old owner's purchase does not protect the new one, and the new owner's does not
+    // reach back — the lock belongs to a manager and a player together.
+    const operations = [
+      op({ id: "old", activityType: 31, actorManagerId: THEM, occurredAt: at("2026-08-20T10:00:00Z") }),
+      op({ id: "new", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-08T10:00:00Z") }),
+    ];
+    expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toEqual(
+      at("2026-09-23T10:00:00Z"),
+    );
+    expect(clauseProtection(operations, { managerId: THEM, playerId: "p1", now })).toBeNull();
+  });
+
+  it("starts from the MOST recent acquisition, so buying somebody back re-locks them", () => {
+    const operations = [
+      op({ id: "first", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-15T10:00:00Z") }),
+      op({ id: "again", activityType: 31, actorManagerId: ME, occurredAt: at("2026-09-07T10:00:00Z") }),
+    ];
+    expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toEqual(
+      at("2026-09-22T10:00:00Z"),
+    );
+  });
+
+  it("reads a player the log never saw arrive as unprotected, which is a deduction", () => {
+    // The log reaches back further than the lock lasts, so a player it never saw acquired
+    // was acquired before it began — longer ago than any protection survives.
+    expect(clauseProtection([], { managerId: ME, playerId: "p1", now })).toBeNull();
+  });
+
+  it("ignores a sale, which ends a hold rather than starting one", () => {
+    const until = clauseProtection(
+      [op({ id: "s", activityType: 33, actorManagerId: ME, occurredAt: at("2026-09-08T10:00:00Z") })],
+      { managerId: ME, playerId: "p1", now },
+    );
+    expect(until).toBeNull();
+  });
+
+  it("ignores another manager's dealings and another player's", () => {
+    const operations = [
+      op({ id: "theirs", activityType: 31, actorManagerId: THEM, occurredAt: at("2026-09-08T10:00:00Z") }),
+      op({ id: "other", activityType: 31, actorManagerId: ME, playerId: "p2", occurredAt: at("2026-09-08T10:00:00Z") }),
+    ];
+    expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toBeNull();
+  });
+
+  it("treats the instant the lock lifts as lifted, not as one last second of cover", () => {
+    const operations = [
+      op({ id: "b", activityType: 31, actorManagerId: ME, occurredAt: at("2026-08-25T12:00:00Z") }),
+    ];
+    // Exactly fifteen days later.
+    expect(clauseProtection(operations, { managerId: ME, playerId: "p1", now })).toBeNull();
+  });
+});
+
+describe("clauseBoard", () => {
+  const now = at("2026-09-09T12:00:00Z");
+  const squad = [
+    { playerId: "locked-late", managerId: 1 },
+    { playerId: "free", managerId: 1 },
+    { playerId: "locked-soon", managerId: 2 },
+  ];
+  const operations = [
+    op({ id: "a", activityType: 31, actorManagerId: 1, playerId: "locked-late", occurredAt: at("2026-09-08T10:00:00Z") }),
+    op({ id: "b", activityType: 31, actorManagerId: 2, playerId: "locked-soon", occurredAt: at("2026-08-26T10:00:00Z") }),
+  ];
+
+  it("puts the takeable first, then the soonest to free up", () => {
+    // A player you can take today outranks one you can take on Friday.
+    expect(clauseBoard(operations, squad, now).map((r) => r.playerId)).toEqual([
+      "free",
+      "locked-soon",
+      "locked-late",
+    ]);
+  });
+
+  it("carries the moment each lock lifts", () => {
+    const board = clauseBoard(operations, squad, now);
+    expect(board[0].protectedUntil).toBeNull();
+    expect(board[1].protectedUntil).toEqual(at("2026-09-10T10:00:00Z"));
+  });
+
+  it("keeps the owner, because the point is knowing who to raid", () => {
+    expect(clauseBoard(operations, squad, now).find((r) => r.playerId === "locked-soon")?.managerId).toBe(2);
+  });
+
+  it("is empty for an empty squad", () => {
+    expect(clauseBoard(operations, [], now)).toEqual([]);
+  });
+
+  it("does not disturb the caller's array", () => {
+    const rows = [...squad];
+    clauseBoard(operations, rows, now);
+    expect(rows.map((r) => r.playerId)).toEqual(squad.map((r) => r.playerId));
   });
 });

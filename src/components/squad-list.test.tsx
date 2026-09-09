@@ -61,3 +61,38 @@ describe("SquadList", () => {
     expect(render([], true)).toContain("No players recorded for this manager");
   });
 });
+
+describe("SquadList, clause protection", () => {
+  const withProtection = (until: Map<string, Date | null>) => {
+    const groups = squadByPosition([p("Ada"), p("Bo")], "t1");
+    return renderToStaticMarkup(
+      <SquadList
+        groups={groups}
+        total={squadValue(groups)}
+        ownershipKnown
+        protectedUntil={until}
+      />,
+    );
+  };
+
+  it("says how long a protected player is safe for", () => {
+    const html = withProtection(new Map([["Ada", new Date("2026-09-20T10:00:00Z")]]));
+    expect(html).toContain("safe until");
+    expect(html).toContain("20 Sept");
+  });
+
+  it("marks only the locked, never the takeable", () => {
+    // Saying "takeable" beside most of a squad would be noise; the market's clause board
+    // is where that side is read.
+    const html = withProtection(new Map([["Ada", new Date("2026-09-20T10:00:00Z")], ["Bo", null]]));
+    expect(html.match(/safe until/g)).toHaveLength(1);
+  });
+
+  it("marks nobody when the caller has not worked protection out", () => {
+    const groups = squadByPosition([p("Ada")], "t1");
+    const html = renderToStaticMarkup(
+      <SquadList groups={groups} total={squadValue(groups)} ownershipKnown />,
+    );
+    expect(html).not.toContain("safe until");
+  });
+});

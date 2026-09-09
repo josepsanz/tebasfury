@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadMarket, loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
 import { teamMetrics } from "@/lib/domain/metrics";
-import { marketSummary } from "@/lib/domain/market";
+import { clauseProtection, marketSummary } from "@/lib/domain/market";
 import { buildCatalogue, squadByPosition, squadValue } from "@/lib/domain/players";
 import {
   formatAverage,
@@ -44,6 +44,20 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   // and it carries each player's value and points, which `squad_members` does not.
   const catalogue = await loadPlayerCatalogue(db);
   const squad = squadByPosition(buildCatalogue(catalogue), id);
+
+  // When each of their players stops being raid-proof. From the owner's side, so it reads
+  // as "when am I exposed" rather than as the market board's "who can I take".
+  const now = new Date();
+  const protectedUntil = new Map(
+    managerId === null
+      ? []
+      : squad.flatMap((group) =>
+          group.players.map((player): [string, Date | null] => [
+            player.id,
+            clauseProtection(market.operations, { managerId, playerId: player.id, now }),
+          ]),
+        ),
+  );
 
   const summary = managerId === null ? null : marketSummary(market.operations, managerId);
   const playerName = (playerId: string) => market.playerNames.get(playerId);
@@ -94,6 +108,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         groups={squad}
         total={squadValue(squad)}
         ownershipKnown={catalogue.ownershipKnown}
+        protectedUntil={protectedUntil}
       />
 
       <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>

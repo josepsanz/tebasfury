@@ -275,3 +275,85 @@ export function marketSummary(operations: MarketOperation[], managerId: number):
 
   return { bought, sold, clausesPaid, clausesCharged, cashIn, cashOut, difference: cashIn - cashOut };
 }
+
+/**
+ * Days a player cannot be taken by clause after their owner acquires them.
+ *
+ * The league's own rule, told by the owner and stated by no API response: buying a player
+ * buys fifteen days in which nobody can take them off you. The owner may still sell by
+ * agreement — protection stops a raid, not a trade.
+ */
+export const CLAUSE_PROTECTION_DAYS = 15;
+
+const PROTECTION_MS = CLAUSE_PROTECTION_DAYS * 24 * HOUR;
+
+export type ClauseRow = {
+  playerId: string;
+  managerId: number;
+  /** When the lock lifts. Null once it already has — the player can be taken now. */
+  protectedUntil: Date | null;
+};
+
+/**
+ * When a manager's hold on a player stops being raid-proof, or null if it already has.
+ *
+ * The clock starts at the most recent acquisition BY THAT MANAGER — a purchase or a clause
+ * they paid — so a player who changes hands restarts the fifteen days with their new owner,
+ * which is how the game behaves. Most recent, not first: buying somebody back starts a new
+ * lock rather than inheriting the old one.
+ *
+ * **No acquisition in the log means unprotected, and that is a deduction rather than a
+ * guess.** The log reaches back further than the protection lasts — 29 days against 15 on
+ * 2026-09-09 — so a player it never saw arrive was acquired before it began, which is
+ * longer ago than any lock survives. The margin only widens as the season runs.
+ *
+ * The one way this lies: a gap in the log. The activity feed is a seven-day window, so the
+ * sweep chain would have to fail for a week for an acquisition to fall through it, and a
+ * player acquired inside such a gap would read as free when they are not. `sync_runs` has
+ * never recorded a failure; the page says what it depends on.
+ */
+export function clauseProtection(
+  operations: MarketOperation[],
+  { managerId, playerId, now }: { managerId: number; playerId: string; now: Date },
+): Date | null {
+  const acquisitions = operations.filter((operation) => {
+    if (operation.playerId !== playerId || operation.actorManagerId !== managerId) return false;
+    const kind = operationKind(operation.activityType);
+    return kind === "bought" || kind === "transfer";
+  });
+  if (acquisitions.length === 0) return null;
+
+  const latest = acquisitions.reduce((newest, operation) =>
+    operation.occurredAt > newest.occurredAt ? operation : newest,
+  );
+  const until = new Date(latest.occurredAt.getTime() + PROTECTION_MS);
+  return until > now ? until : null;
+}
+
+/**
+ * Every held player's clause status, free ones first.
+ *
+ * Free before protected, because a player you can take today outranks one you can take on
+ * Friday. Within the protected group, soonest first — that group is a countdown, and the
+ * top of it is the only part anybody acts on. Within the free group the order is left to
+ * the caller, which sorts by what makes a target tempting rather than by anything this
+ * function knows.
+ */
+export function clauseBoard(
+  operations: MarketOperation[],
+  squad: { playerId: string; managerId: number }[],
+  now: Date,
+): ClauseRow[] {
+  return squad
+    .map(({ playerId, managerId }) => ({
+      playerId,
+      managerId,
+      protectedUntil: clauseProtection(operations, { managerId, playerId, now }),
+    }))
+    .sort((a, b) => {
+      if (a.protectedUntil === null && b.protectedUntil === null) return 0;
+      if (a.protectedUntil === null) return -1;
+      if (b.protectedUntil === null) return 1;
+      return a.protectedUntil.getTime() - b.protectedUntil.getTime();
+    });
+}
