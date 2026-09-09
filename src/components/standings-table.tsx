@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { TableRow } from "@/lib/domain/standings";
 
 const ordinal = (n: number) => {
@@ -84,7 +85,12 @@ export function StandingsTable({
             </span>
             <span className="min-w-0">
               <span className="flex items-baseline gap-2 min-w-0">
-                <span className="truncate text-[13px]">{row.managerName}</span>
+                <Link
+                  href={`/teams/${row.teamId}`}
+                  className="truncate text-[13px] underline-offset-4 hover:underline"
+                >
+                  {row.managerName}
+                </Link>
                 {row.teamId === myTeamId ? (
                   <span
                     aria-label="Your team"

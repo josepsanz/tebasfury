@@ -145,3 +145,15 @@ describe("the table's own labels", () => {
     expect(html).not.toContain("Form");
   });
 });
+
+describe("the way to a manager's own page", () => {
+  const rows = buildTable(season, teams);
+
+  it("makes every manager name a link to their team", () => {
+    const html = renderToStaticMarkup(
+      <StandingsTable rows={rows} formByTeam={{}} isLive={false} myTeamId={null} />,
+    );
+    expect(html).toContain('href="/teams/a"');
+    expect(html).toContain('href="/teams/b"');
+  });
+});
