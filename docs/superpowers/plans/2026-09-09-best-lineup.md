@@ -47,7 +47,7 @@ import { describe, expect, it } from "vitest";
 import type { CatalogueRow } from "./players";
 import { FORMATIONS, eligible, formationName } from "./lineup";
 
-export const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
+const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   id,
   nickname: id,
   position: "Midfielder",
@@ -259,31 +259,35 @@ describe("rankFormations", () => {
     expect(ranked[0].total).toBeGreaterThan(ranked[1].total ?? 0);
   });
 
-  it("ranks by the chosen metric, so the two can disagree", () => {
+  it("picks a DIFFERENT formation under each metric, which is why both exist", () => {
+    // Defenders have played all season for a steady return; forwards have played once
+    // and scored well. Season points favour the many appearances, the average favours
+    // the few — so the two metrics genuinely disagree about the shape of the team.
     const rows = [
       row("gk", { position: "Goalkeeper", seasonPoints: 0, averagePoints: 0 }),
-      // A defender who played every week for a modest return.
       ...[1, 2, 3, 4, 5].map((n) =>
-        row(`d${n}`, {
-          position: "Defender",
-          seasonPoints: 40,
-          averagePoints: 10,
-          gameweeksRecorded: 4,
-        }),
+        row(`d${n}`, { position: "Defender", seasonPoints: 40, averagePoints: 10 }),
       ),
       ...[1, 2, 3, 4, 5].map((n) =>
-        row(`m${n}`, { position: "Midfielder", seasonPoints: 1, averagePoints: 0.25 }),
+        row(`m${n}`, { position: "Midfielder", seasonPoints: 30, averagePoints: 7.5 }),
       ),
       ...[1, 2, 3].map((n) =>
-        row(`f${n}`, { position: "Forward", seasonPoints: 1, averagePoints: 0.25 }),
+        row(`f${n}`, {
+          position: "Forward",
+          seasonPoints: 20,
+          averagePoints: 20,
+          gameweeksRecorded: 1,
+        }),
       ),
     ];
+
     const byPoints = rankFormations(rows, "points")[0];
+    expect(byPoints.name).toBe("5-4-1");
+    expect(byPoints.total).toBe(340);
+
     const byAverage = rankFormations(rows, "average")[0];
-    // Five defenders is the best line either way here, so both pick a 5-x-x; what
-    // changes is the arithmetic behind the total.
-    expect(byPoints.total).toBe(202);
-    expect(byAverage.total).toBeCloseTo(50.5, 5);
+    expect(byAverage.name).toBe("4-3-3");
+    expect(byAverage.total).toBeCloseTo(122.5, 5);
   });
 
   it("reports a per-line shortfall instead of a total when a line is short", () => {
@@ -316,10 +320,19 @@ describe("rankFormations", () => {
   });
 
   it("puts every impossible formation after every possible one", () => {
-    const ranked = rankFormations(full, "points");
-    const firstImpossible = ranked.findIndex((r) => r.shortfall !== null);
-    const lastPossible = ranked.map((r) => r.shortfall === null).lastIndexOf(true);
-    expect(lastPossible).toBeLessThan(firstImpossible === -1 ? 99 : firstImpossible);
+    // A squad where exactly one formation fits: 1 GK, 4 DF, 4 MF, 2 FW leaves only
+    // 4-4-2. Running this against a squad that fits everything would assert nothing,
+    // because there would be no impossible formation to be ordered after.
+    const mixed = [
+      row("gk", { position: "Goalkeeper" }),
+      ...[1, 2, 3, 4].map((n) => row(`d${n}`, { position: "Defender" })),
+      ...[1, 2, 3, 4].map((n) => row(`m${n}`, { position: "Midfielder" })),
+      ...[1, 2].map((n) => row(`f${n}`, { position: "Forward" })),
+    ];
+    const ranked = rankFormations(mixed, "points");
+    expect(ranked[0].name).toBe("4-4-2");
+    expect(ranked[0].shortfall).toBeNull();
+    expect(ranked.slice(1).every((r) => r.shortfall !== null)).toBe(true);
   });
 
   it("leaves out a player who cannot be fielded", () => {
