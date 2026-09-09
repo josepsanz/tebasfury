@@ -55,7 +55,7 @@ export default async function LineupPage({
       <PageHeader
         title={`${team.managerName} — best lineup`}
         note="The highest-scoring eleven this squad can field, by formation. Injured, suspended and out-of-league players are left out; doubtful ones are counted and marked."
-        meta={`${squad.length} in the squad`}
+        meta={catalogue.ownershipKnown ? `${squad.length} in the squad` : undefined}
       />
 
       <p className="mt-2 flex items-center gap-3 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>

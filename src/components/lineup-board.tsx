@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  LINES,
   nearestFormation,
   type LineupMetric,
   type RankedFormation,
@@ -17,8 +18,6 @@ import { statusLabel, type CatalogueRow } from "@/lib/domain/players";
  * 2026-09-09, four of thirteen managers could field nothing and four more had exactly one
  * option, so the reasons matter more than the ranking for most of the league.
  */
-
-const LINES = ["Goalkeeper", "Defender", "Midfielder", "Forward"] as const;
 
 const plural = (n: number, word: string) => `${n} more ${word}${n === 1 ? "" : "s"}`;
 
@@ -131,17 +130,18 @@ export function LineupBoard({
   }
 
   const nearest = nearestFormation(ranked);
-  const best = ranked.find((r) => r.shortfall === null) ?? null;
   const href = (name: string) => `/teams/${teamId}/lineup?by=${metric}&formation=${name}`;
 
   return (
     <>
-      {nearest === null || best !== null ? null : (
-        <p className="mt-3 text-[13px]" style={{ color: "var(--board-alert)" }}>
-          No formation can be fielded from this squad. The nearest is{" "}
-          <strong>{nearest.name}</strong> — {shortfallWords(nearest.shortfall!)} needed.
-        </p>
-      )}
+      {nearest === null
+        ? null
+        : nearest.shortfall !== null && (
+            <p className="mt-3 text-[13px]" style={{ color: "var(--board-alert)" }}>
+              No formation can be fielded from this squad. The nearest is{" "}
+              <strong>{nearest.name}</strong> — {shortfallWords(nearest.shortfall)} needed.
+            </p>
+          )}
 
       {showing === null ? null : (
         <>
@@ -151,9 +151,11 @@ export function LineupBoard({
               className="ml-3 text-[13px] tabular-nums"
               style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
             >
-              {metric === "points"
-                ? `${showing.total ?? 0} pts`
-                : `${(showing.total ?? 0).toFixed(1)} avg`}
+              {showing.total === null
+                ? "—"
+                : metric === "points"
+                  ? `${showing.total} pts`
+                  : `${showing.total.toFixed(1)} avg`}
             </span>
           </h2>
           <Eleven showing={showing} metric={metric} />
@@ -192,11 +194,13 @@ export function LineupBoard({
               className="text-right tabular-nums"
               style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
             >
-              {entry.shortfall === null
-                ? metric === "points"
-                  ? `${entry.total ?? 0} pts`
-                  : `${(entry.total ?? 0).toFixed(1)} avg`
-                : shortfallWords(entry.shortfall)}
+              {entry.shortfall !== null
+                ? shortfallWords(entry.shortfall)
+                : entry.total === null
+                  ? "—"
+                  : metric === "points"
+                    ? `${entry.total} pts`
+                    : `${entry.total.toFixed(1)} avg`}
             </span>
           </li>
         ))}

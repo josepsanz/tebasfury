@@ -71,7 +71,7 @@ describe("eligible", () => {
   it("does not disturb the caller's array", () => {
     const rows = [row("a"), row("b", { status: "injured" })];
     eligible(rows);
-    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.id)).toEqual(["a", "b"]);
   });
 });
 
@@ -240,11 +240,11 @@ describe("rankFormations", () => {
     expect(rows.map((r) => r.id)).toEqual(full.map((r) => r.id));
   });
 
-  it("counts a forced unknown as nothing, which understates a total but not the ranking", () => {
+  it("reports a null total for a formation forced to field an unknown value, while it stays fieldable", () => {
     // 1 GK, 3 DF, 4 MF, 3 FW makes 3-4-3 the only possible formation, so all three
     // forwards are selected whatever their averages — including the one who has never
-    // featured. Pinned because the sinking rule cannot help here: there is nobody to
-    // sink below.
+    // featured. The sinking rule cannot help here: there is nobody to sink below, so the
+    // total is unknowable rather than merely low.
     const forced = [
       row("gk", { position: "Goalkeeper", averagePoints: 1 }),
       ...[1, 2, 3].map((n) => row(`d${n}`, { position: "Defender", averagePoints: 1 })),
@@ -256,9 +256,33 @@ describe("rankFormations", () => {
 
     const best = rankFormations(forced, "average")[0];
     expect(best.name).toBe("3-4-3");
+    expect(best.shortfall).toBeNull();
+    expect(best.eleven).toHaveLength(11);
     expect(best.eleven.map((p) => p.id)).toContain("never");
-    // gk 1 + defenders 3 + midfielders 4 + forwards 5 + 5 + (unknown counted as nothing)
-    expect(best.total).toBe(18);
+    expect(best.total).toBeNull();
+  });
+
+  it("does not let a formation with an unknown total outrank one with a known total", () => {
+    // 1 GK, 4 DF (avg 1 each), 4 MF (three at avg 5, one unknown), 3 FW (avg 4 each).
+    // 4-3-3 needs only three midfielders, so it excludes the unknown one and its total
+    // (32) is real. 3-4-3 needs all four midfielders, forcing the unknown one in, so its
+    // total is unknowable — and it must not be compared against 4-3-3's 32 as if a
+    // missing value were a zero.
+    const rows = [
+      row("gk", { position: "Goalkeeper", averagePoints: 1 }),
+      ...[1, 2, 3, 4].map((n) => row(`d${n}`, { position: "Defender", averagePoints: 1 })),
+      ...[1, 2, 3].map((n) => row(`m${n}`, { position: "Midfielder", averagePoints: 5 })),
+      row("m4", { position: "Midfielder", averagePoints: null, gameweeksRecorded: 0 }),
+      ...[1, 2, 3].map((n) => row(`f${n}`, { position: "Forward", averagePoints: 4 })),
+    ];
+
+    const ranked = rankFormations(rows, "average");
+    expect(ranked[0].name).toBe("4-3-3");
+    expect(ranked[0].total).toBe(32);
+
+    const threeFourThree = ranked.find((r) => r.name === "3-4-3");
+    expect(threeFourThree?.shortfall).toBeNull();
+    expect(threeFourThree?.total).toBeNull();
   });
 });
 
@@ -272,7 +296,8 @@ describe("nearestFormation", () => {
       ...[1, 2, 3, 4].map((n) => row(`f${n}`, { position: "Forward" })),
     ];
     const nearest = nearestFormation(rankFormations(thin, "points"));
-    // 5-3-2 needs two more midfielders; every other formation needs more than that.
+    // 5-3-2 needs two more midfielders, and so does 4-3-3 — the tie goes to 5-3-2 because
+    // it comes first in FORMATIONS order, not because it is uniquely nearest.
     expect(nearest?.name).toBe("5-3-2");
     expect(nearest?.shortfall?.midfielders).toBe(2);
   });

@@ -84,7 +84,7 @@ export type RankedFormation = {
 };
 
 /** The line a player belongs to. One position each, which is why the lines are separable. */
-const LINES = ["Goalkeeper", "Defender", "Midfielder", "Forward"] as const;
+export const LINES = ["Goalkeeper", "Defender", "Midfielder", "Forward"] as const;
 
 /**
  * What a player is worth under the chosen metric, or null when it is unknown.
@@ -98,16 +98,24 @@ const valueOf = (row: CatalogueRow, metric: LineupMetric): number | null =>
   metric === "points" ? row.seasonPoints : row.averagePoints;
 
 /**
- * Every formation, best first, with either its eleven or the reason it cannot be fielded.
+ * Every formation, ranked from best to worst, with either its eleven or the reason it
+ * cannot be fielded.
  *
  * Each line is sorted ONCE and every formation then reads a prefix of it. That is not an
  * optimisation, it is the algorithm: because a player belongs to exactly one line, the
  * lines never compete, and the best N of a line is the best N of that line in every
  * formation that asks for N. Seven formations cost four sorts.
  *
- * An impossible formation carries a per-line shortfall rather than a bare `false`. "No
- * formation possible" on a squad of thirteen reads as a broken portal; "one midfielder
- * short" is a transfer instruction.
+ * `total` is null whenever the eleven it picked contains even one player with no metric
+ * value. A missing value is not zero, and letting it act like zero would let a formation
+ * that got lucky enough to exclude the unknown player beat one that didn't, on a total
+ * that was never actually measured for either.
+ *
+ * That makes three tiers, not one: fieldable formations with a known total, sorted by that
+ * total descending; fieldable formations whose total is unknown, in `FORMATIONS` order;
+ * then unfieldable formations, also in `FORMATIONS` order. An unfieldable formation carries
+ * a per-line shortfall rather than a bare `false`. "No formation possible" on a squad of
+ * thirteen reads as a broken portal; "one midfielder short" is a transfer instruction.
  */
 export function rankFormations(
   rows: CatalogueRow[],
@@ -157,21 +165,27 @@ export function rankFormations(
       ...take("Forward", formation.forwards),
     ];
     // An unknown value CAN reach the eleven: when a line holds exactly as many players as
-    // the formation demands, sinking cannot exclude anybody. It contributes nothing
-    // countable, so the total understates that eleven — but not its ranking, because the
-    // same forced player appears in every formation that can be fielded at all. Under the
-    // default `points` metric this cannot arise: `seasonPoints` is a number, never null.
-    const total = eleven.reduce((sum, row) => sum + (valueOf(row, metric) ?? 0), 0);
+    // the formation demands, sinking cannot exclude anybody. When that happens the total is
+    // unknowable, not merely low, so it is null rather than the unknown player's
+    // contribution being treated as zero. Under the default `points` metric this cannot
+    // arise: `seasonPoints` is a number, never null.
+    const values = eleven.map((row) => valueOf(row, metric));
+    const total = values.some((v) => v === null)
+      ? null
+      : (values as number[]).reduce((sum, v) => sum + v, 0);
     return { formation, name: formationName(formation), total, eleven, shortfall: null };
   });
 
-  // Possible first by total; impossible after, in the order FORMATIONS declares them so
-  // the list never reorders itself between renders.
+  // Three tiers: known-total fieldables by total descending, then unknown-total fieldables,
+  // then unfieldable ones — the latter two each in the order FORMATIONS declares them, via
+  // a stable sort, so the list never reorders itself between renders.
+  const tier = (r: RankedFormation): 0 | 1 | 2 =>
+    r.shortfall !== null ? 2 : r.total === null ? 1 : 0;
   return ranked.sort((a, b) => {
-    if (a.shortfall === null && b.shortfall === null) return (b.total ?? 0) - (a.total ?? 0);
-    if (a.shortfall === null) return -1;
-    if (b.shortfall === null) return 1;
-    return 0;
+    const ta = tier(a);
+    const tb = tier(b);
+    if (ta !== tb) return ta - tb;
+    return ta === 0 ? (b.total as number) - (a.total as number) : 0;
   });
 }
 

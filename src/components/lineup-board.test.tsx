@@ -26,14 +26,14 @@ const full = [
   ...[1, 2, 3].map((n) => row(`f${n}`, { position: "Forward" })),
 ];
 
-const render = (rows: CatalogueRow[], ownershipKnown = true) => {
-  const ranked = rankFormations(rows, "points");
+const render = (rows: CatalogueRow[], ownershipKnown = true, metric: "points" | "average" = "points") => {
+  const ranked = rankFormations(rows, metric);
   const showing = ranked.find((r) => r.shortfall === null) ?? null;
   return renderToStaticMarkup(
     <LineupBoard
       ranked={ranked}
       showing={showing}
-      metric="points"
+      metric={metric}
       teamId="t1"
       ownershipKnown={ownershipKnown}
     />,
@@ -111,5 +111,26 @@ describe("LineupBoard", () => {
   it("tells an empty squad apart from a portal that has read no squads at all", () => {
     expect(render([], false)).toContain("No squad has been read yet");
     expect(render([], true)).toContain("No formation");
+  });
+
+  it("renders a dash, not a number, for an unknown average and the total it forces unknown", () => {
+    // 1 GK, 3 DF, 4 MF, 3 FW makes 3-4-3 the only fieldable formation, forcing "never" —
+    // whose average is unknown — into the eleven. That formation's total is therefore
+    // unknown too, and neither should print as if it had been measured.
+    const forced = [
+      row("gk", { position: "Goalkeeper", averagePoints: 1 }),
+      ...[1, 2, 3].map((n) => row(`d${n}`, { position: "Defender", averagePoints: 1 })),
+      ...[1, 2, 3, 4].map((n) => row(`m${n}`, { position: "Midfielder", averagePoints: 1 })),
+      row("scorer", { position: "Forward", averagePoints: 5 }),
+      row("other", { position: "Forward", averagePoints: 5 }),
+      row("never", { position: "Forward", averagePoints: null, gameweeksRecorded: 0 }),
+    ];
+    const html = render(forced, true, "average");
+    expect(html).toContain('href="/players/never"');
+    const dashes = html.match(/—/g) ?? [];
+    // At least one dash for "never"'s own figure, and one for the unknown total shown
+    // beside the formation's name.
+    expect(dashes.length).toBeGreaterThanOrEqual(2);
+    expect(html).not.toContain("NaN");
   });
 });
