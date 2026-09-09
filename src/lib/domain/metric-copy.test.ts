@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatAverage, formatRecord, formatTrend, formatWorstRecord } from "./metric-copy";
+import {
+  formatAverage,
+  formatPointsPerMillion,
+  formatRecord,
+  formatRegularity,
+  formatStreak,
+  formatTrend,
+  formatWorstRecord,
+} from "./metric-copy";
 
 describe("formatTrend", () => {
   it("carries its unit, so a reader can judge how big the movement is", () => {
@@ -56,5 +64,51 @@ describe("formatWorstRecord", () => {
 
   it("says nothing has been played rather than showing a dash", () => {
     expect(formatWorstRecord(null, nameOf)).toEqual({ value: "No rounds yet" });
+  });
+});
+
+describe("formatRegularity", () => {
+  it("shows the spread with its unit and a note on how to read it", () => {
+    expect(formatRegularity(4.2)).toEqual({ value: "± 4.2 pts", note: "Lower is steadier" });
+  });
+
+  it("asks for a second round instead of computing a spread from one", () => {
+    expect(formatRegularity(null)).toEqual({ value: "Needs two rounds" });
+  });
+});
+
+describe("formatPointsPerMillion", () => {
+  it("shows the figure as a plain string", () => {
+    expect(formatPointsPerMillion(12.5)).toEqual({ value: "12.5" });
+  });
+
+  it("says no squad value was recorded rather than showing a dash", () => {
+    expect(formatPointsPerMillion(null)).toEqual({ value: "No squad value recorded" });
+  });
+});
+
+describe("formatStreak", () => {
+  it("says nothing has been played, same wording as everywhere else, when there are no rounds", () => {
+    expect(formatStreak({ rounds: 0, above: false }, 0)).toEqual({ value: "No rounds yet" });
+  });
+
+  it("distinguishes an actual level reading from having no rounds at all", () => {
+    expect(formatStreak({ rounds: 0, above: false }, 5)).toEqual({
+      value: "Level with the league",
+    });
+  });
+
+  it("uses the singular for one round", () => {
+    expect(formatStreak({ rounds: 1, above: true }, 3)).toEqual({
+      value: "1 round above",
+      tone: "up",
+    });
+  });
+
+  it("uses the plural and the down tone for a run below", () => {
+    expect(formatStreak({ rounds: 3, above: false }, 5)).toEqual({
+      value: "3 rounds below",
+      tone: "down",
+    });
   });
 });

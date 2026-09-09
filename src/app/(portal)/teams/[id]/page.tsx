@@ -2,7 +2,15 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadSnapshots } from "@/lib/db/queries";
 import { teamMetrics } from "@/lib/domain/metrics";
-import { formatRecord, formatTrend, formatWorstRecord } from "@/lib/domain/metric-copy";
+import {
+  formatAverage,
+  formatPointsPerMillion,
+  formatRecord,
+  formatRegularity,
+  formatStreak,
+  formatTrend,
+  formatWorstRecord,
+} from "@/lib/domain/metric-copy";
 import { requireSession } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { MetricGrid, type Metric } from "@/components/metric-grid";
@@ -23,32 +31,18 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   const rounds = snapshots.filter((row) => row.teamId === id).length;
 
   const items: Metric[] = [
-    { label: "Average", value: metrics.average === null ? "No rounds yet" : String(metrics.average) },
+    { label: "Average", ...formatAverage(metrics.average) },
     { label: "Trend", ...formatTrend(metrics.trend) },
     { label: "Best round", ...formatRecord(metrics.best, nameOf) },
     // The zero-exclusion reason belongs in metric-copy.ts alongside the rest of the
     // wording — formatWorstRecord already appends it to the caption.
     { label: "Worst round", ...formatWorstRecord(metrics.worst, nameOf) },
-    {
-      label: "Regularity",
-      value: metrics.regularity === null ? "Needs two rounds" : `± ${metrics.regularity} pts`,
-      note: metrics.regularity === null ? undefined : "Lower is steadier",
-    },
-    {
-      label: "Streak",
-      value:
-        metrics.streak.rounds === 0
-          ? "Level with the league"
-          : `${metrics.streak.rounds} ${metrics.streak.rounds === 1 ? "round" : "rounds"} ${metrics.streak.above ? "above" : "below"}`,
-      tone: metrics.streak.rounds === 0 ? undefined : metrics.streak.above ? "up" : "down",
-    },
-    {
-      label: "Points per million",
-      value:
-        metrics.pointsPerMillion === null
-          ? "No squad value recorded"
-          : String(metrics.pointsPerMillion),
-    },
+    { label: "Regularity", ...formatRegularity(metrics.regularity) },
+    // formatStreak also takes rounds played: a zero-length streak means "level with
+    // the league" only once there is a round to be level on — with none played it is
+    // the same "no rounds yet" wording as every other figure on this page.
+    { label: "Streak", ...formatStreak(metrics.streak, rounds) },
+    { label: "Points per million", ...formatPointsPerMillion(metrics.pointsPerMillion) },
   ];
 
   return (

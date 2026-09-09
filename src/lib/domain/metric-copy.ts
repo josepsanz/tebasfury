@@ -1,4 +1,4 @@
-import type { RoundRecord, Trend } from "./metrics";
+import type { RoundRecord, Streak, Trend } from "./metrics";
 
 /** The one wording for "nothing has been played yet" — shared so it is written once. */
 const NO_ROUNDS_YET = "No rounds yet";
@@ -44,4 +44,34 @@ export function formatWorstRecord(
   const base = formatRecord(record, nameOf);
   if (record === null) return base;
   return { ...base, note: `${base.note} · zeros excluded` };
+}
+
+/** How steady a team's scoring is, with a reminder that a smaller figure is steadier. */
+export function formatRegularity(regularity: number | null): { value: string; note?: string } {
+  if (regularity === null) return { value: "Needs two rounds" };
+  return { value: `± ${regularity} pts`, note: "Lower is steadier" };
+}
+
+/** Points squeezed from squad value, or the same "nothing yet" wording as elsewhere. */
+export function formatPointsPerMillion(pointsPerMillion: number | null): { value: string } {
+  return { value: pointsPerMillion === null ? "No squad value recorded" : String(pointsPerMillion) };
+}
+
+/**
+ * A run of rounds on one side of the league average — but only once there is a run to
+ * report. `streakOf` cannot tell "level with the league" apart from "never played" on
+ * its own (both are a zero-length streak), so this takes the rounds played as well and
+ * resolves the ambiguity here, alongside the rest of the module's wording.
+ */
+export function formatStreak(
+  streak: Streak,
+  roundsPlayed: number,
+): { value: string; tone?: "up" | "down" } {
+  if (roundsPlayed === 0) return { value: NO_ROUNDS_YET };
+  if (streak.rounds === 0) return { value: "Level with the league" };
+
+  return {
+    value: `${streak.rounds} ${streak.rounds === 1 ? "round" : "rounds"} ${streak.above ? "above" : "below"}`,
+    tone: streak.above ? "up" : "down",
+  };
 }
