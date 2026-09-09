@@ -98,8 +98,33 @@ export function applyPin(current: Pins, teamId: string): Pins {
   return { slots, order: [...rest, teamId] };
 }
 
-export function ProgressCharts({ series, teams }: { series: Series; teams: TeamRef[] }) {
-  const [pins, setPins] = useState<Pins>({ slots: EMPTY_PINS, order: [] });
+/**
+ * Where the pins start: the viewer's own team and nothing else.
+ *
+ * Through `applyPin` rather than by writing slot zero directly, so `order` is populated
+ * too — a default pin that never entered the order would be immune to the "oldest yields
+ * its slot" rule and would silently outlive six later pins.
+ */
+export function initialPins(myTeamId: string | null): Pins {
+  // Copied, never the module-level array itself: no two visits share a pin state.
+  const empty: Pins = { slots: [...EMPTY_PINS], order: [] };
+  return myTeamId === null ? empty : applyPin(empty, myTeamId);
+}
+
+export function ProgressCharts({
+  series,
+  teams,
+  myTeamId = null,
+}: {
+  series: Series;
+  teams: TeamRef[];
+  /** The viewer's own team, pinned before they touch anything. Null if they have none. */
+  myTeamId?: string | null;
+}) {
+  // The initial state only, computed once: `useState`'s initialiser does not run again on
+  // re-render, so unpinning your own team stays unpinned for the rest of the visit. It
+  // comes back on the next one, which is the point — you arrive looking for your line.
+  const [pins, setPins] = useState<Pins>(() => initialPins(myTeamId));
   const pinned = pins.slots;
 
   const toggle = (teamId: string) => setPins((current) => applyPin(current, teamId));

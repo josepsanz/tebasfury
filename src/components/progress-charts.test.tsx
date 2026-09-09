@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildSeries, type Snapshot, type TeamRef } from "@/lib/domain/standings";
-import { applyPin, formatTooltipValue, ProgressCharts, type Pins } from "./progress-charts";
+import {
+  applyPin,
+  formatTooltipValue,
+  initialPins,
+  ProgressCharts,
+  type Pins,
+} from "./progress-charts";
 
 describe("applyPin", () => {
   const empty = (): Pins => ({ slots: [null, null, null, null, null, null], order: [] });
@@ -119,6 +125,22 @@ describe("ProgressCharts", () => {
     expect(html).toMatch(/Beta<\/td><td[^>]*>40<\/td><td[^>]*>60/);
   });
 
+  it("starts with the viewer's own badge already pressed", () => {
+    // Arriving at your own progress chart, you are looking for your own line.
+    const series = buildSeries([snap("a", 1, 50), snap("b", 1, 40)], teams);
+    const html = renderToStaticMarkup(
+      <ProgressCharts series={series} teams={teams} myTeamId="b" />,
+    );
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Beta</);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>Alpha</);
+  });
+
+  it("presses nobody's badge for a viewer who has not claimed a team", () => {
+    const series = buildSeries([snap("a", 1, 50), snap("b", 1, 40)], teams);
+    const html = renderToStaticMarkup(<ProgressCharts series={series} teams={teams} />);
+    expect(html).not.toContain('aria-pressed="true"');
+  });
+
   it("shows a chart's own empty state before any gameweek has synced", () => {
     const series = buildSeries([], teams);
     const html = renderToStaticMarkup(<ProgressCharts series={series} teams={teams} />);
@@ -139,5 +161,31 @@ describe("ProgressCharts", () => {
     // Team value's table view: gw1 is a real gap ("—"), gw2 has a real figure.
     expect(html).toMatch(/Alpha<\/td><td[^>]*>—<\/td><td[^>]*>105\.0M/);
     expect(html).toMatch(/Beta<\/td><td[^>]*>—<\/td><td[^>]*>95\.0M/);
+  });
+});
+
+describe("initialPins", () => {
+  it("pins the viewer's own team before they touch anything", () => {
+    const pins = initialPins("t1");
+    expect(pins.slots[0]).toBe("t1");
+    expect(pins.slots.slice(1).every((id) => id === null)).toBe(true);
+  });
+
+  it("puts the default pin in the order, so it can be displaced like any other", () => {
+    // Written through applyPin for exactly this reason: a pin missing from `order` would
+    // be immune to the "oldest yields its slot" rule and outlive six later pins.
+    expect(initialPins("t1").order).toEqual(["t1"]);
+    const full = ["a", "b", "c", "d", "e"].reduce(applyPin, initialPins("t1"));
+    expect(applyPin(full, "f").slots).not.toContain("t1");
+  });
+
+  it("pins nobody for a viewer who has not claimed a team", () => {
+    expect(initialPins(null)).toEqual({ slots: [null, null, null, null, null, null], order: [] });
+  });
+
+  it("never hands back the shared empty-slots array, claimed team or not", () => {
+    // EMPTY_PINS is module-level; no two visits may share one pin state.
+    expect(initialPins("t1").slots).not.toBe(initialPins("t2").slots);
+    expect(initialPins(null).slots).not.toBe(initialPins(null).slots);
   });
 });
