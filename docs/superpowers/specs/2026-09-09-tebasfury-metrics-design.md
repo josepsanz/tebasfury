@@ -236,6 +236,16 @@ other page, the signed-in path has no automated coverage.
 
 ## The visual checks — not yet performed
 
+Checks 41–45 below remain unperformed. Every one of them needs a signed-in session, and
+the automated suites deliberately never sign in — the Vitest suite never opens a browser,
+and the Playwright suite stops at the redirect, by design — so no agent working from this
+codebase can load the home page or a team page as a signed-in manager. The same gap covers
+more than the League panel and the standings link: it covers the team page as a whole.
+`/teams/[id]`'s only automated coverage is that an anonymous visitor is redirected to
+`/login`; nobody has yet seen it render real figures. These checks are the owner's to
+walk, at 320px and 375px, including one team with fewer than three rounds played, so that
+several of its figures show their unavailable reasons instead of numbers.
+
 41. The League panel at 320px: four figures with captions in two columns, and the longest
     manager name in a caption. Does a caption wrap under its figure or collide with the
     next one?
