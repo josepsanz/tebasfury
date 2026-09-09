@@ -13,6 +13,14 @@ import { OpportunityBoard } from "@/components/opportunity-board";
 import { loadMyTeam } from "@/lib/claims";
 import { ClaimLine } from "@/components/claim-line";
 import { KpiStrip, type Kpi } from "@/components/kpi-strip";
+import { leagueMetrics } from "@/lib/domain/metrics";
+import {
+  formatAverage,
+  formatRecord,
+  formatTrend,
+  formatWorstRecord,
+} from "@/lib/domain/metric-copy";
+import { MetricGrid, type Metric } from "@/components/metric-grid";
 
 export default async function HomePage() {
   const session = await getSession();
@@ -70,6 +78,17 @@ export default async function HomePage() {
       ]
     : [];
 
+  const league = leagueMetrics(snapshots);
+  const nameOf = (teamId: string) =>
+    teamRefs.find((team) => team.id === teamId)?.managerName ?? teamId;
+
+  const leagueItems: Metric[] = [
+    { label: "League average", ...formatAverage(league.average) },
+    { label: "League trend", ...formatTrend(league.trend) },
+    { label: "Best round", ...formatRecord(league.best, nameOf) },
+    { label: "Worst round", ...formatWorstRecord(league.worst, nameOf) },
+  ];
+
   return (
     <section className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-semibold">TebasFury</h1>
@@ -80,6 +99,14 @@ export default async function HomePage() {
       <ClaimLine myTeamName={myTeam?.managerName ?? null} />
 
       <KpiStrip items={kpis} />
+
+      <h2
+        className="mt-6 text-[11px] uppercase tracking-[0.06em]"
+        style={{ color: "var(--board-ink-dim)" }}
+      >
+        League
+      </h2>
+      <MetricGrid items={leagueItems} />
 
       <OpportunityBoard
         title="Best value for money"
