@@ -99,6 +99,33 @@ three rounds, a regularity needs two, points per million needs a squad value tha
 live-observed gameweek records. Rendering a dash and leaving the reader to guess whether
 the figure is zero, missing or broken is the failure this ruling exists to prevent.
 
+### Ruling 8 — a metric describes rounds that have FINISHED
+
+`teamMetrics` and `leagueMetrics` read `team_gameweek_stats` whole, and while a round is
+open that table holds one row per team whose `points` is not a score but a partial: the
+in-progress total for a match that has not finished. On six settled rounds averaging 45,
+one live row sitting at 8 points mid-round turns the average into 39.7, the trend from
+"▼ 1 pts/round" into "▼ 17.5 pts/round", and the regularity from "± 1.3 pts" into
+"± 13 pts" — a collapse the League panel would report for the two or three days a round
+is open, that is not happening. Before kickoff every row reads 0, which is the exact
+ambiguity Ruling 1 excludes zeros to resolve, walking back in through `average`,
+`trend` and `regularity`, which Ruling 1 never touched.
+
+`buildTable` (`standings.ts`) also reads the live row, and stays right to: a cumulative
+total is monotone — the live points only ever add to it — and the view labels it as live,
+with a "Live" column and "GW n live" in the strip. A reader is told what they are looking
+at. A mean, a slope and a standard deviation are not monotone and are not provisional —
+partway through a round they are simply computed from the wrong rows, and the metric grid
+carries no such label to say so.
+
+So `teamMetrics` and `leagueMetrics` filter every provisional row out at the point
+snapshots enter each function, before any figure is derived from them: the records, the
+average, the trend, the spread, and the array `streakOf` walks — including the league
+averages it measures a streak against. The filter costs nothing a settled week needs:
+`upsertStats` writes `isProvisional: live` for the week currently open and rewrites that
+same row to `false` once it closes, so the round reappears, correctly, the moment it is
+one.
+
 ## Architecture
 
 ### The domain

@@ -12,6 +12,9 @@ export type TeamMetrics = {
   regularity: number | null;
   streak: Streak;
   pointsPerMillion: number | null;
+  /** Settled rounds only (Ruling 8) — the same count `formatStreak` needs to tell
+   *  "level with the league" apart from "never played". */
+  roundsPlayed: number;
 };
 
 export type LeagueMetrics = {
@@ -111,8 +114,24 @@ function streakOf(rows: Snapshot[], teamId: string, leagueAverage: Map<number, n
   return { rounds, above };
 }
 
+/**
+ * Every metric describes rounds that have FINISHED (Ruling 8), so both entry points
+ * filter provisional rows here, before anything downstream sees them: the records, the
+ * average, the trend, the spread, and the array handed to `streakOf` — including the
+ * league averages it measures against.
+ *
+ * The filter is safe. `upsertStats` (`lib/sync/index.ts`) writes `isProvisional: live`
+ * for the week currently being played and rewrites that same row to `false` once it
+ * settles — so a settled week is never missing here, only ever delayed by the two or
+ * three days its round is open.
+ */
+function settledOnly(snapshots: Snapshot[]): Snapshot[] {
+  return snapshots.filter((row) => !row.isProvisional);
+}
+
 export function teamMetrics(snapshots: Snapshot[], teamId: string): TeamMetrics {
-  const mine = snapshots.filter((row) => row.teamId === teamId);
+  const settled = settledOnly(snapshots);
+  const mine = settled.filter((row) => row.teamId === teamId);
   const points = mine.map((row) => row.points);
 
   const values = mine
@@ -128,19 +147,21 @@ export function teamMetrics(snapshots: Snapshot[], teamId: string): TeamMetrics 
     average: mean(points),
     trend: trendOf(mine.map((row) => ({ gameweek: row.gameweek, value: row.points }))),
     regularity: spreadOf(points),
-    streak: streakOf(snapshots, teamId, averageByGameweek(snapshots)),
+    streak: streakOf(settled, teamId, averageByGameweek(settled)),
     pointsPerMillion:
       latestValue === null || latestValue === 0 ? null : round1(total / (latestValue / 1_000_000)),
+    roundsPlayed: mine.length,
   };
 }
 
 export function leagueMetrics(snapshots: Snapshot[]): LeagueMetrics {
-  const averages = averageByGameweek(snapshots);
+  const settled = settledOnly(snapshots);
+  const averages = averageByGameweek(settled);
 
   return {
-    best: recordOf(snapshots, "max"),
-    worst: recordOf(snapshots, "min"),
-    average: mean(snapshots.map((row) => row.points)),
+    best: recordOf(settled, "max"),
+    worst: recordOf(settled, "min"),
+    average: mean(settled.map((row) => row.points)),
     trend: trendOf([...averages].map(([gameweek, value]) => ({ gameweek, value }))),
   };
 }

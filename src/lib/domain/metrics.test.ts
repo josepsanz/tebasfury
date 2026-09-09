@@ -139,6 +139,81 @@ describe("teamMetrics", () => {
       regularity: null,
       streak: { rounds: 0, above: false },
       pointsPerMillion: null,
+      roundsPlayed: 0,
+    });
+  });
+
+  describe("a round still being played (C1)", () => {
+    // upsertStats sets isProvisional: live for the current gameweek and rewrites it to
+    // false once the round settles — so a metric that only reads settled rows loses no
+    // history, only the two or three days a round is open.
+    it("does not let a live partial score change the average", () => {
+      const settled = [snap("a", 1, 50), snap("a", 2, 40)];
+      const withLive = [...settled, snap("a", 3, 8, { isProvisional: true })];
+      expect(teamMetrics(withLive, "a").average).toBe(teamMetrics(settled, "a").average);
+    });
+
+    it("does not let a live partial score become the worst round", () => {
+      const rows = [
+        snap("a", 1, 50),
+        snap("a", 2, 40),
+        snap("a", 3, 8, { isProvisional: true }),
+      ];
+      expect(teamMetrics(rows, "a").worst).toEqual({ points: 40, gameweek: 2, teamId: "a" });
+    });
+
+    it("does not let a live partial score become the best round", () => {
+      const rows = [
+        snap("a", 1, 50),
+        snap("a", 2, 40),
+        snap("a", 3, 90, { isProvisional: true }),
+      ];
+      expect(teamMetrics(rows, "a").best).toEqual({ points: 50, gameweek: 1, teamId: "a" });
+    });
+
+    it("does not let a live round extend a streak", () => {
+      // League averages over the settled rounds: GW1 30, GW2 30. Team a is above both.
+      const settled = [
+        snap("a", 1, 40), snap("b", 1, 20),
+        snap("a", 2, 40), snap("b", 2, 20),
+      ];
+      // A live GW3 where team a is scoring far below the (also live, and irrelevant)
+      // league figure must not stretch or break the streak computed from GW1-2.
+      const withLive = [
+        ...settled,
+        snap("a", 3, 2, { isProvisional: true }),
+        snap("b", 3, 90, { isProvisional: true }),
+      ];
+      expect(teamMetrics(withLive, "a").streak).toEqual(teamMetrics(settled, "a").streak);
+    });
+
+    it("does not let a live round break a streak", () => {
+      const settled = [
+        snap("a", 1, 40), snap("b", 1, 20),
+        snap("a", 2, 40), snap("b", 2, 20),
+      ];
+      // Live GW3 has team a BELOW the live league figure — if this leaked in, it would
+      // break the above-streak the settled rounds actually show.
+      const withLive = [
+        ...settled,
+        snap("a", 3, 5, { isProvisional: true }),
+        snap("b", 3, 90, { isProvisional: true }),
+      ];
+      expect(teamMetrics(withLive, "a").streak).toEqual({ rounds: 2, above: true });
+    });
+
+    it("does not count a live round as one played", () => {
+      const rows = [snap("a", 1, 40), snap("a", 2, 8, { isProvisional: true })];
+      expect(teamMetrics(rows, "a").roundsPlayed).toBe(1);
+    });
+
+    it("before any match kicks off, all-zero live rows do not read as a wiped-out average", () => {
+      // Every team is 0 while live and unplayed — those rows must not enter the
+      // average at all, settled or otherwise, rather than being read as thirteen
+      // blank lineups.
+      const settled = [snap("a", 1, 40), snap("a", 2, 60)];
+      const withLiveZero = [...settled, snap("a", 3, 0, { isProvisional: true })];
+      expect(teamMetrics(withLiveZero, "a").average).toBe(teamMetrics(settled, "a").average);
     });
   });
 });
@@ -174,5 +249,26 @@ describe("leagueMetrics", () => {
 
   it("says nothing about an empty league", () => {
     expect(leagueMetrics([])).toEqual({ best: null, worst: null, average: null, trend: null });
+  });
+
+  describe("a round still being played (C1)", () => {
+    it("does not let a live partial score change the league average", () => {
+      const settled = [snap("a", 1, 40), snap("b", 1, 20)];
+      const withLive = [
+        ...settled,
+        snap("a", 2, 5, { isProvisional: true }),
+        snap("b", 2, 3, { isProvisional: true }),
+      ];
+      expect(leagueMetrics(withLive).average).toBe(leagueMetrics(settled).average);
+    });
+
+    it("does not let a live partial score become the league's best or worst round", () => {
+      const rows = [
+        snap("a", 1, 40), snap("b", 1, 20),
+        snap("a", 2, 90, { isProvisional: true }), snap("b", 2, 1, { isProvisional: true }),
+      ];
+      expect(leagueMetrics(rows).best).toEqual({ points: 40, gameweek: 1, teamId: "a" });
+      expect(leagueMetrics(rows).worst).toEqual({ points: 20, gameweek: 1, teamId: "b" });
+    });
   });
 });
