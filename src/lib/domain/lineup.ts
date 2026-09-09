@@ -62,3 +62,133 @@ const UNFIELDABLE = new Set(["injured", "suspended", "out_of_league"]);
 export function eligible(rows: CatalogueRow[]): CatalogueRow[] {
   return rows.filter((row) => !UNFIELDABLE.has(row.status));
 }
+
+export type LineupMetric = "points" | "average";
+
+export type Shortfall = {
+  goalkeepers: number;
+  defenders: number;
+  midfielders: number;
+  forwards: number;
+};
+
+export type RankedFormation = {
+  formation: Formation;
+  name: string;
+  /** The eleven's total, or null when the formation cannot be fielded. */
+  total: number | null;
+  /** Empty when the formation cannot be fielded. */
+  eleven: CatalogueRow[];
+  /** Null when the formation CAN be fielded. */
+  shortfall: Shortfall | null;
+};
+
+/** The line a player belongs to. One position each, which is why the lines are separable. */
+const LINES = ["Goalkeeper", "Defender", "Midfielder", "Forward"] as const;
+
+/**
+ * What a player is worth under the chosen metric, or null when it is unknown.
+ *
+ * Null and not zero for an average nobody has: a player who has never featured has no
+ * average at all, and treating the unknown as a low number would let them displace
+ * somebody who has actually played. `sortCatalogue` draws the same distinction about an
+ * unknown market value, and for the same reason.
+ */
+const valueOf = (row: CatalogueRow, metric: LineupMetric): number | null =>
+  metric === "points" ? row.seasonPoints : row.averagePoints;
+
+/**
+ * Every formation, best first, with either its eleven or the reason it cannot be fielded.
+ *
+ * Each line is sorted ONCE and every formation then reads a prefix of it. That is not an
+ * optimisation, it is the algorithm: because a player belongs to exactly one line, the
+ * lines never compete, and the best N of a line is the best N of that line in every
+ * formation that asks for N. Seven formations cost four sorts.
+ *
+ * An impossible formation carries a per-line shortfall rather than a bare `false`. "No
+ * formation possible" on a squad of thirteen reads as a broken portal; "one midfielder
+ * short" is a transfer instruction.
+ */
+export function rankFormations(
+  rows: CatalogueRow[],
+  metric: LineupMetric,
+): RankedFormation[] {
+  const fieldable = eligible(rows);
+
+  const byLine = new Map<string, CatalogueRow[]>(
+    LINES.map((line) => [
+      line,
+      fieldable
+        .filter((row) => row.position === line)
+        .sort((a, b) => {
+          const left = valueOf(a, metric);
+          const right = valueOf(b, metric);
+          // An unknown value sinks, whichever side of the comparison it is on.
+          if (left === null && right === null) return a.nickname.localeCompare(b.nickname);
+          if (left === null) return 1;
+          if (right === null) return -1;
+          // Ties break on name so an eleven cannot wobble between renders.
+          return right - left || a.nickname.localeCompare(b.nickname);
+        }),
+    ]),
+  );
+
+  const take = (line: string, n: number) => (byLine.get(line) ?? []).slice(0, n);
+  const missing = (line: string, n: number) =>
+    Math.max(0, n - (byLine.get(line) ?? []).length);
+
+  const ranked = FORMATIONS.map((formation): RankedFormation => {
+    const shortfall: Shortfall = {
+      goalkeepers: missing("Goalkeeper", 1),
+      defenders: missing("Defender", formation.defenders),
+      midfielders: missing("Midfielder", formation.midfielders),
+      forwards: missing("Forward", formation.forwards),
+    };
+    const short = Object.values(shortfall).some((n) => n > 0);
+
+    if (short) {
+      return { formation, name: formationName(formation), total: null, eleven: [], shortfall };
+    }
+
+    const eleven = [
+      ...take("Goalkeeper", 1),
+      ...take("Defender", formation.defenders),
+      ...take("Midfielder", formation.midfielders),
+      ...take("Forward", formation.forwards),
+    ];
+    // A fieldable eleven has no unknown values in it by construction: an unknown sinks,
+    // so it is only ever selected when the line has nothing better, and then the total
+    // would be a lie. Treat it as nought points scored, which is what it is.
+    const total = eleven.reduce((sum, row) => sum + (valueOf(row, metric) ?? 0), 0);
+    return { formation, name: formationName(formation), total, eleven, shortfall: null };
+  });
+
+  // Possible first by total; impossible after, in the order FORMATIONS declares them so
+  // the list never reorders itself between renders.
+  return ranked.sort((a, b) => {
+    if (a.shortfall === null && b.shortfall === null) return (b.total ?? 0) - (a.total ?? 0);
+    if (a.shortfall === null) return -1;
+    if (b.shortfall === null) return 1;
+    return 0;
+  });
+}
+
+/** How many players a shortfall is asking for in total. */
+const missingCount = (shortfall: Shortfall): number =>
+  shortfall.goalkeepers + shortfall.defenders + shortfall.midfielders + shortfall.forwards;
+
+/**
+ * The impossible formation closest to being possible, or null if any is possible already.
+ *
+ * This is what turns "no formation possible" into something a manager can act on: the
+ * cheapest route back to fielding a team. Ties keep the earlier formation, which is
+ * `FORMATIONS` order, so the answer never wobbles.
+ */
+export function nearestFormation(ranked: RankedFormation[]): RankedFormation | null {
+  if (ranked.some((r) => r.shortfall === null)) return null;
+  return ranked.reduce<RankedFormation | null>((best, candidate) => {
+    if (candidate.shortfall === null) return best;
+    if (best?.shortfall == null) return candidate;
+    return missingCount(candidate.shortfall) < missingCount(best.shortfall) ? candidate : best;
+  }, null);
+}
