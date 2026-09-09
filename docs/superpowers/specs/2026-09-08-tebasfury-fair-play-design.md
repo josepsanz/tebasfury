@@ -50,10 +50,15 @@ Four consequences shape everything below.
 1. **The five-day rule becomes exact rather than approximate.** Both ends of a holding
    period are timestamped to the second. Neither of the diffing holes survives: a player
    bought and sold within one hour is two rows in this feed.
-2. **It is a rolling window, not a history.** Seven days, with paging ignored — so there
-   is no backfill and there never will be. Everything before 2026-09-01 is already gone.
-   A daily capture holds the window comfortably; an outage longer than seven days is
-   permanent, unrecoverable data loss.
+2. ~~**It is a rolling window, not a history.**~~ **Wrong — corrected 2026-09-09.** The
+   probe behind this point tried `?limit`, `?offset`, `?page`, `?size` and `?from`, got the
+   same entries five times, and concluded there was no paging. The paging is a **path
+   segment**: `/activity/0` is the recent window, `/activity/1` everything before it. On
+   2026-09-08 the two held 105 and 318 entries, no id in both, reaching back to 11 August.
+   So there IS a history, the backfill this slice called impossible is a page walk, and an
+   outage longer than the window heals itself on the next sweep. What survives of this
+   point: the window alone is about seven days, so a capture that only asks for page zero
+   would still have lost everything older.
 3. **The identifiers join with nothing in between.** No mapping table, no fuzzy matching,
    no name comparison. The feed's ids are our ids.
 4. **The operation types are learnable from evidence, and three of six now are.**
@@ -408,7 +413,9 @@ View:
   instrument than a log, and the log is what the group asked for.
 - **Identifying type 4.** It is stored, and somebody watching a real one happen will
   settle it in a minute. Guessing costs more than waiting.
-- **Any backfill.** Impossible, not deferred.
+- ~~**Any backfill.** Impossible, not deferred.~~ **Wrong, and done.** Reaching the whole
+  season is one path segment; `getActivity` walks pages until one comes back empty, so
+  every sweep is the backfill.
 - **Notifications when a rule is broken.** The page is the instrument.
 
 ## Practical notes for whoever implements this
@@ -416,7 +423,10 @@ View:
 - Capture the fixture with a script modelled on `scripts/capture-players-fixture.mts`,
   which goes through `getAccessToken` so the rotated refresh token is persisted. Trim to
   one entry per observed type — the shape matters, ninety-four rows do not.
-- The probe's endpoint takes no parameters that do anything. Do not add paging.
+- ~~The probe's endpoint takes no parameters that do anything. Do not add paging.~~
+  Superseded: paging exists as a path segment and is now implemented. The lesson worth
+  keeping is the shape of the mistake — five query parameters answered identically, which
+  was read as "no paging" when it only ruled out paging by query parameter.
 - `activityTypeId` is a number in the response. Do not turn it into a TypeScript enum:
   the set is open, and an enum invites a `default: throw`.
 - Vitest does not typecheck. Run `npx tsc --noEmit` before committing anything that
@@ -425,9 +435,10 @@ View:
 
 ## Follow-ups this slice is expected to leave behind
 
-- **A sweep outage longer than seven days is permanent data loss**, and nothing currently
-  watches for one. `/admin/sync` shows the last successful sweep; the log's own "reaches
-  back to" line is the second place it would become visible.
+- ~~**A sweep outage longer than seven days is permanent data loss.**~~ Resolved
+  2026-09-09: the page walk re-reads the whole history every sweep, so an outage costs
+  nothing but the days it lasts. Nothing still watches for one, and `/admin/sync`'s last
+  successful sweep line remains the diagnostic.
 - **Type 4 is unidentified**, and types 6 and 7 are stored but unread. All three are one
   observation away from being useful.
 - **Amounts are stored and only rendered per row.** A season of them answers questions

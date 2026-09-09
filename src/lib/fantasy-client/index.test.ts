@@ -9,6 +9,7 @@ import {
   getAccessToken,
   getActivity,
   getCurrentWeek,
+  MAX_ACTIVITY_PAGES,
   getPlayers,
   getSquad,
   getStanding,
@@ -109,6 +110,23 @@ describe("getAccessToken", () => {
 });
 
 type FetchCall = [string, RequestInit];
+
+/**
+ * A `fetch` stub that serves one page per call and an empty page ever after.
+ *
+ * `getActivity` walks pages until one comes back empty, so a stub that answers every
+ * call with the same body would spin to the safety cap instead of finishing.
+ */
+function stubPages(pages: unknown[]) {
+  let call = 0;
+  const mock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => {
+    const body = pages[call] ?? [];
+    call += 1;
+    return new Response(JSON.stringify(body), { status: 200 });
+  });
+  vi.stubGlobal("fetch", mock);
+  return mock;
+}
 
 /** A `fetch` stub typed by parameters, so `mock.calls` carries the URL and init. */
 function stubFetch(body: unknown, status: number) {
@@ -404,7 +422,7 @@ describe("the activity mapping", () => {
   });
 
   it("maps an operation across the boundary", async () => {
-    stubFetch([entry()], 200);
+    stubPages([[entry()]]);
     const rows = await getActivity("at", "018012894");
     expect(rows).toEqual([
       {
@@ -424,10 +442,9 @@ describe("the activity mapping", () => {
     // The sweep writes these straight into nullable columns; `undefined` would be a
     // different write, and the three types that omit different fields would each
     // produce a different bug.
-    stubFetch(
+    stubPages([
       [{ id: "1", activityTypeId: 6, user1Id: 5, weekNumber: 3, amount: 5_700_000, createdAt: "2026-09-01T04:34:34+02:00" }],
-      200,
-    );
+    ]);
     const [row] = await getActivity("at", "018012894");
     expect(row.counterpartyManagerId).toBeNull();
     expect(row.playerId).toBeNull();
@@ -438,15 +455,55 @@ describe("the activity mapping", () => {
     // `+02:00` at 21:32 is 19:32 UTC. Dropping the offset would shift every holding
     // period by two hours, which on a 120-hour rule is how a compliant sale becomes a
     // violation.
-    stubFetch([entry()], 200);
+    stubPages([[entry()]]);
     const [row] = await getActivity("at", "018012894");
     expect(row.occurredAt.toISOString()).toBe("2026-09-07T19:32:04.000Z");
   });
 
   it("asks the league's own activity path", async () => {
-    const fetchMock = stubFetch([entry()], 200);
+    const fetchMock = stubPages([[entry()]]);
     await getActivity("at", "018012894");
     expect(fetchMock.mock.calls[0][0]).toContain("/leagues/018012894/activity");
+  });
+
+  it("walks pages until one comes back empty, and keeps them in order", async () => {
+    // The whole season lives behind a path segment: page 0 is the recent window, page 1
+    // everything before it. Two pages held 423 operations back to 11 August when this
+    // was measured, against the 105 page 0 alone returns.
+    const fetchMock = stubPages([
+      [entry({ id: "recent" })],
+      [entry({ id: "older" }), entry({ id: "oldest" })],
+    ]);
+
+    const rows = await getActivity("at", "018012894");
+
+    expect(rows.map((r) => r.id)).toEqual(["recent", "older", "oldest"]);
+    expect(fetchMock.mock.calls[0][0]).toContain("/activity/0");
+    expect(fetchMock.mock.calls[1][0]).toContain("/activity/1");
+    // Three calls, not two: the empty third page is what says the history has ended.
+    expect(fetchMock.mock.calls[2][0]).toContain("/activity/2");
+    expect(fetchMock.mock.calls).toHaveLength(3);
+  });
+
+  it("treats an empty first page as a league with no operations, not a failure", async () => {
+    const fetchMock = stubPages([[]]);
+    await expect(getActivity("at", "018012894")).resolves.toEqual([]);
+    expect(fetchMock.mock.calls).toHaveLength(1);
+  });
+
+  it("stops at the safety cap rather than walking for ever", async () => {
+    // Guards against a response that never comes back empty. Nothing is lost by
+    // stopping: the pages beyond the cap are the oldest, and every earlier sweep
+    // already wrote them.
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(
+      async () => new Response(JSON.stringify([entry()]), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const rows = await getActivity("at", "018012894");
+
+    expect(fetchMock.mock.calls).toHaveLength(MAX_ACTIVITY_PAGES);
+    expect(rows).toHaveLength(MAX_ACTIVITY_PAGES);
   });
 });
 
