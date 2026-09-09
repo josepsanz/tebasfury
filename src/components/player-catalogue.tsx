@@ -13,28 +13,8 @@ import {
   type SortKey,
 } from "@/lib/domain/players";
 import { OwnerLabel } from "@/components/owner-label";
-import { LockIcon } from "@/components/lock-icon";
-import { ShieldIcon } from "@/components/shield-icon";
+import { ClauseName, ClauseNote } from "@/components/clause-marks";
 import type { ClauseStatus } from "@/lib/domain/market";
-
-/**
- * How a clause state is drawn.
- *
- * One hue at two intensities for `takeable` and `soon`, because they are the same fact at
- * two distances rather than two categories. Deliberately NOT the portal's amber, which
- * means "your team" and nothing else — a colour that means two things means neither.
- *
- * The padlock on `locked` is the second channel: colour alone would fail a reader who
- * cannot separate the greens from the grey.
- */
-const CLAUSE_COLOUR: Record<ClauseStatus["state"], string> = {
-  takeable: "var(--board-gain)",
-  soon: "color-mix(in srgb, var(--board-gain) 55%, var(--board-ink-dim))",
-  locked: "var(--board-ink-dim)",
-  // A shield blocks a raid as surely as a lock does, so it reads as blocked. It carries
-  // no expiry in the response, which is why it gets a mark and never a countdown.
-  shielded: "var(--board-ink-dim)",
-};
 
 const PAGE = 60;
 
@@ -236,44 +216,10 @@ export function PlayerCatalogue({
               className="grid grid-cols-[1fr_84px] items-center gap-3 px-2 py-[6px]"
             >
               <span className="min-w-0">
-                {/* The padlock sits AFTER the name and OUTSIDE the truncating span, which
-                    is the same shape `StandingsTable` uses for its "you" marker and for
-                    the same reason: a marker inside a `truncate` is cut off by a long
-                    name, which this codebase has already had to fix once. `min-w-0` on
-                    the row lets the name shrink; `shrink-0` on the lock keeps it whole.
-
-                    After rather than before so every name starts at the same x — a
-                    catalogue is scanned down its left edge, and an icon in front of some
-                    rows makes that edge ragged. */}
-                <span
-                  className="flex items-baseline gap-1.5 min-w-0 text-[13px]"
-                  style={{ color: clause ? CLAUSE_COLOUR[clause.state] : undefined }}
-                  title={clause?.label}
-                >
-                  <span className="truncate">{row.nickname}</span>
-                  {clause?.state === "locked" ? (
-                    <span className="shrink-0">
-                      <LockIcon />
-                    </span>
-                  ) : null}
-                  {/* Its own shape beside the padlock, not instead of it: a player can be
-                      locked AND shielded, and the two are different blocks with different
-                      lifetimes. */}
-                  {clause?.shielded ? (
-                    <span className="shrink-0">
-                      <ShieldIcon />
-                    </span>
-                  ) : null}
-                </span>
+                <ClauseName clause={clause}>{row.nickname}</ClauseName>
                 <span className="block truncate text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
                   {clubOrPosition(row)} · <OwnerLabel ownerName={row.ownerName} ownershipKnown={ownershipKnown} />
-                  {/* Said in words as well as in colour: the hue answers "can I take
-                      this" at a glance, the words answer "when" without a hover. Only a
-                      lock gets words — writing "takeable" beside most of a catalogue
-                      would be noise. */}
-                  {clause === undefined || clause.state === "takeable" ? null : (
-                    <span style={{ color: CLAUSE_COLOUR[clause.state] }}> · {clause.label}</span>
-                  )}
+                  <ClauseNote clause={clause} />
                   {statusLabel(row.status) === null ? null : (
                     <span style={{ color: "var(--board-alert)" }}>
                       {" "}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { squadByPosition, squadValue, type CatalogueRow } from "@/lib/domain/players";
+import type { ClauseStatus } from "@/lib/domain/market";
 import { SquadList } from "./squad-list";
 
 const p = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
@@ -62,37 +63,71 @@ describe("SquadList", () => {
   });
 });
 
-describe("SquadList, clause protection", () => {
-  const withProtection = (until: Map<string, Date | null>) => {
-    const groups = squadByPosition([p("Ada"), p("Bo")], "t1");
+describe("SquadList, clause state", () => {
+  const takeable = { state: "takeable" as const, label: "takeable", shielded: false };
+  const locked = { state: "locked" as const, label: "locked until 20 Sept", shielded: false };
+  const shielded = { state: "shielded" as const, label: "shielded", shielded: true };
+
+  /** One squad, rendered with whatever clause states the case needs. */
+  const squad = (
+    clauses?: Record<string, ClauseStatus>,
+    rows: CatalogueRow[] = [p("Ada"), p("Bo")],
+  ) => {
+    const groups = squadByPosition(rows, "t1");
     return renderToStaticMarkup(
-      <SquadList
-        groups={groups}
-        total={squadValue(groups)}
-        ownershipKnown
-        protectedUntil={until}
-      />,
+      <SquadList groups={groups} total={squadValue(groups)} ownershipKnown clauses={clauses} />,
     );
   };
 
-  it("says how long a protected player is safe for", () => {
-    const html = withProtection(new Map([["Ada", new Date("2026-09-20T10:00:00Z")]]));
-    expect(html).toContain("safe until");
-    expect(html).toContain("20 Sept");
+  it("says when a lock lifts, in the same words the catalogue uses", () => {
+    // One vocabulary across the portal: a reader should not have to learn "safe until"
+    // here and "locked until" three pages away for the same fact.
+    expect(squad({ Ada: locked })).toContain("locked until 20 Sept");
   });
 
-  it("marks only the locked, never the takeable", () => {
-    // Saying "takeable" beside most of a squad would be noise; the market's clause board
-    // is where that side is read.
-    const html = withProtection(new Map([["Ada", new Date("2026-09-20T10:00:00Z")], ["Bo", null]]));
-    expect(html.match(/safe until/g)).toHaveLength(1);
+  it("draws a mark on a blocked player, so colour is not the only channel", () => {
+    expect(squad({ Ada: locked })).toContain("<svg");
+    expect(squad({ Ada: shielded })).toContain("<svg");
+    expect(squad({ Ada: takeable })).not.toContain("<svg");
   });
 
-  it("marks nobody when the caller has not worked protection out", () => {
-    const groups = squadByPosition([p("Ada")], "t1");
-    const html = renderToStaticMarkup(
-      <SquadList groups={groups} total={squadValue(groups)} ownershipKnown />,
-    );
-    expect(html).not.toContain("safe until");
+  it("writes no words beside a takeable player, which would be most of a squad", () => {
+    expect(squad({ Ada: takeable })).not.toContain("takeable<");
+  });
+
+  it("keeps the marks outside the truncating span, so a long name cannot eat them", () => {
+    // The defect this guards against is one this codebase has already had to fix once.
+    const html = squad({ Ada: locked }, [
+      p("Ada", { nickname: "A preposterously long footballer name indeed" }),
+    ]);
+    const truncated = html.slice(html.indexOf('class="truncate"'), html.indexOf("<svg"));
+    expect(truncated).toContain("</span>");
+  });
+
+  it("leaves a squad with no clause states alone", () => {
+    const html = squad();
+    expect(html).not.toContain("locked until");
+    expect(html).not.toContain("<svg");
+  });
+});
+
+describe("SquadList, the buyout clause", () => {
+  it("shows what a player would cost to take beside what they are worth", () => {
+    // Not proportional: an owner can raise their own clause, so neither figure can be
+    // read off the other and both are drawn.
+    const html = render([p("Ada", { currentValue: 61_697_098, buyoutClause: 81_375_803 })]);
+    expect(html).toContain("61.7M");
+    expect(html).toContain("clause 81.4M");
+  });
+
+  it("says nothing about a clause the sweep has not recorded", () => {
+    expect(render([p("Ada", { buyoutClause: null })])).not.toContain("clause ");
+  });
+
+  it("leaves the squad total to the market value, never the clause", () => {
+    // The total answers "what is this squad worth", which is not "what would it cost to
+    // buy it out from under them".
+    const html = render([p("a", { currentValue: 2_000_000, buyoutClause: 9_000_000 })]);
+    expect(html).toContain("2.0M at today");
   });
 });

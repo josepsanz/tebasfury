@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { formatMoney, statusLabel, type SquadGroup } from "@/lib/domain/players";
+import { clubOrPosition, formatMoney, statusLabel, type SquadGroup } from "@/lib/domain/players";
+import { ClauseName, ClauseNote } from "@/components/clause-marks";
+import type { ClauseStatus } from "@/lib/domain/market";
 
 /**
  * What a manager currently holds, grouped by position.
@@ -16,21 +18,22 @@ export function SquadList({
   groups,
   total,
   ownershipKnown,
-  protectedUntil,
+  clauses,
 }: {
   groups: SquadGroup[];
   total: number | null;
   /** False before any squad has been read at all — see `CatalogueData.ownershipKnown`. */
   ownershipKnown: boolean;
   /**
-   * Player id to when their clause lock lifts. A player absent from the map, or mapped to
-   * null, can be taken right now.
+   * Player id to their clause state, in the same shape and drawn with the same marks as
+   * the catalogue's — see `ClauseName`. A squad is read for exactly the reason the
+   * catalogue is, so it says it the same way rather than inventing an owner-side
+   * vocabulary that would have to be learnt twice.
    *
-   * Read from the owner's side, so it answers the opposite question to the market's clause
-   * board: not "who can I raid" but "when am I exposed". Optional, so a caller that has not
-   * worked it out shows the squad without pretending everyone is takeable.
+   * Optional, so a caller that has not worked it out shows the squad without colouring a
+   * single name — no marks is a fair thing to say when nothing is known.
    */
-  protectedUntil?: Map<string, Date | null>;
+  clauses?: Record<string, ClauseStatus>;
 }) {
   if (!ownershipKnown) {
     return (
@@ -86,42 +89,37 @@ export function SquadList({
             <ul>
               {group.players.map((player) => {
                 const label = statusLabel(player.status);
+                const clause = clauses?.[player.id];
                 return (
                   <li
                     key={player.id}
-                    className="grid grid-cols-[1fr_46px_52px] items-baseline gap-2 border-b px-2 py-[6px]"
+                    className="grid grid-cols-[1fr_44px_84px] items-baseline gap-2 border-b px-2 py-[6px]"
                     style={{ borderColor: "var(--board-line)" }}
                   >
-                    <span className="min-w-0 truncate text-[13px]">
-                      <Link
-                        href={`/players/${player.id}`}
-                        className="underline decoration-[var(--board-line)] underline-offset-4"
+                    {/* Two lines, like the catalogue's rows: the name carries the colour
+                        and the marks, and everything qualifying it drops to a dim line
+                        beneath. It was one line before the clause arrived, and keeping it
+                        one would have put a padlock inside a truncating span — the exact
+                        bug this codebase has already fixed once. */}
+                    <span className="min-w-0">
+                      <ClauseName clause={clause}>
+                        <Link
+                          href={`/players/${player.id}`}
+                          className="underline decoration-[var(--board-line)] underline-offset-4"
+                        >
+                          {player.nickname}
+                        </Link>
+                      </ClauseName>
+                      <span
+                        className="block truncate text-[10.5px]"
+                        style={{ color: "var(--board-ink-dim)" }}
                       >
-                        {player.nickname}
-                      </Link>
-                      {player.clubName === null ? null : (
-                        <span className="ml-2 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
-                          {player.clubName}
-                        </span>
-                      )}
-                      {label === null ? null : (
-                        <span className="ml-2 text-[10.5px]" style={{ color: "var(--board-alert)" }}>
-                          {label}
-                        </span>
-                      )}
-                      {/* Only the locked are marked. Saying "takeable" beside eighty of a
-                          hundred names would be noise, and the market's clause board is
-                          where that side of it is read. */}
-                      {protectedUntil?.get(player.id) == null ? null : (
-                        <span className="ml-2 text-[10.5px]" style={{ color: "var(--board-gain)" }}>
-                          safe until{" "}
-                          {new Intl.DateTimeFormat("en-GB", {
-                            timeZone: "Europe/Madrid",
-                            day: "2-digit",
-                            month: "short",
-                          }).format(protectedUntil.get(player.id) as Date)}
-                        </span>
-                      )}
+                        {clubOrPosition(player)}
+                        <ClauseNote clause={clause} />
+                        {label === null ? null : (
+                          <span style={{ color: "var(--board-alert)" }}> · {label}</span>
+                        )}
+                      </span>
                     </span>
                     <span
                       className="text-right text-[12px] tabular-nums"
@@ -134,6 +132,19 @@ export function SquadList({
                       style={{ fontFamily: "var(--font-mono)" }}
                     >
                       {player.currentValue === null ? "—" : formatMoney(player.currentValue)}
+                      {/* What it would cost to take them, beside what they are worth. The
+                          two are not proportional — an owner can raise their own clause,
+                          and across one captured squad the ratio ran from 1.00 to 7.15 —
+                          so neither can be read off the other. */}
+                      {player.buyoutClause === null ? null : (
+                        <span
+                          className="block text-[10px] tabular-nums"
+                          style={{ color: "var(--board-ink-dim)" }}
+                          title="Buyout clause"
+                        >
+                          clause {formatMoney(player.buyoutClause)}
+                        </span>
+                      )}
                     </span>
                   </li>
                 );

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadMarket, loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
 import { teamMetrics } from "@/lib/domain/metrics";
-import { marketSummary } from "@/lib/domain/market";
+import { clauseStatus, marketSummary, type ClauseStatus } from "@/lib/domain/market";
 import { buildCatalogue, squadByPosition, squadValue } from "@/lib/domain/players";
 import {
   formatAverage,
@@ -46,14 +46,20 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   const catalogue = await loadPlayerCatalogue(db);
   const squad = squadByPosition(buildCatalogue(catalogue), id);
 
-  // When each of their players stops being raid-proof, read from the row rather than
-  // worked out: the sweep stores what the API states, so nothing here depends on the
-  // market log having witnessed the purchase.
-  const protectedUntil = new Map(
-    squad.flatMap((group) =>
-      group.players.map((player): [string, Date | null] => [player.id, player.clauseLockedUntil]),
-    ),
-  );
+  // Whether each of their players can be taken, read from the row rather than worked out:
+  // the sweep stores what the API states, so nothing here depends on the market log having
+  // witnessed the purchase. Worked out once on the server, like the catalogue's, so the
+  // league's timezone lands in one render.
+  const now = new Date();
+  const clauses: Record<string, ClauseStatus> = {};
+  for (const group of squad) {
+    for (const player of group.players) {
+      clauses[player.id] = clauseStatus(
+        { lockedUntil: player.clauseLockedUntil, shielded: player.shielded },
+        now,
+      );
+    }
+  }
 
   const summary = managerId === null ? null : marketSummary(market.operations, managerId);
   const playerName = (playerId: string) => market.playerNames.get(playerId);
@@ -113,7 +119,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         groups={squad}
         total={squadValue(squad)}
         ownershipKnown={catalogue.ownershipKnown}
-        protectedUntil={protectedUntil}
+        clauses={clauses}
       />
 
       <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
