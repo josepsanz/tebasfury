@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { loadMarket, loadPlayer } from "@/lib/db/queries";
@@ -32,16 +33,48 @@ export default async function PlayerPage({ params }: { params: Promise<{ id: str
 
   return (
     <section className="mx-auto max-w-2xl">
-      <h1 className="text-xl font-medium">{player.nickname}</h1>
-      <p className="mt-1 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
-        {player.position}
-        {detail.club === null ? "" : ` · ${detail.club.name}`} ·{" "}
-        {/* Same three-state logic as the catalogue row, via the shared component:
-            "Free agent" is a claim the page can only make once at least one squad has
-            been read, not merely from the absence of an owner row. */}
-        <OwnerLabel ownerName={owner?.managerName ?? null} ownershipKnown={ownershipKnown} />
-        {label === null ? null : <span style={{ color: "var(--board-alert)" }}> · {label}</span>}
-      </p>
+      <div className="flex items-center gap-3">
+        {/* An ID badge, not a hero shot. The portal is a trading board — a full-bleed
+            photograph would be the loudest thing on a page whose subject is two charts —
+            so the portrait is sized like the figures beside it and framed in the same
+            hairline every panel here uses.
+
+            `alt=""` on purpose: the name is the very next thing in the reading order, and
+            an image announced as "Ada" beside a heading that says Ada is the same fact
+            twice. Empty alt is what marks it decorative rather than unlabelled. */}
+        {player.imageUrl === null ? null : (
+          <span
+            className="block shrink-0 overflow-hidden border"
+            style={{ borderColor: "var(--board-line)", background: "var(--board-panel)" }}
+          >
+            <Image
+              src={player.imageUrl}
+              alt=""
+              width={64}
+              height={64}
+              // The source is 256×256. At 64 CSS pixels the optimizer is asked for a
+              // 128-wide variant as well, for retina — still half the original, so it
+              // never upscales, and it arrives around 5KB instead of 64.
+              className="block h-16 w-16 object-cover"
+            />
+          </span>
+        )}
+
+        <span className="min-w-0">
+          <h1 className="text-xl font-medium">{player.nickname}</h1>
+          <p className="mt-1 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
+            {player.position}
+            {detail.club === null ? "" : ` · ${detail.club.name}`} ·{" "}
+            {/* Same three-state logic as the catalogue row, via the shared component:
+                "Free agent" is a claim the page can only make once at least one squad has
+                been read, not merely from the absence of an owner row. */}
+            <OwnerLabel ownerName={owner?.managerName ?? null} ownershipKnown={ownershipKnown} />
+            {label === null ? null : (
+              <span style={{ color: "var(--board-alert)" }}> · {label}</span>
+            )}
+          </p>
+        </span>
+      </div>
 
       <div className="mt-6 flex gap-10">
         <span>
