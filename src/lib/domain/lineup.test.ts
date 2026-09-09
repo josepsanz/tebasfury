@@ -81,8 +81,12 @@ describe("rankFormations", () => {
     ...[1, 2, 3, 4, 5].map((n) =>
       row(`d${n}`, { position: "Defender", seasonPoints: n * 10 }),
     ),
+    // Midfielders deliberately outscore defenders. With both lines on the same
+    // distribution, 3-4-3 and 4-3-3 tie exactly — three defenders plus four midfielders
+    // is worth the same as four plus three — and "the best formation" stops being a
+    // single answer, which the ranking test below depends on.
     ...[1, 2, 3, 4, 5].map((n) =>
-      row(`m${n}`, { position: "Midfielder", seasonPoints: n * 10 }),
+      row(`m${n}`, { position: "Midfielder", seasonPoints: n * 10 + 50 }),
     ),
     ...[1, 2, 3].map((n) => row(`f${n}`, { position: "Forward", seasonPoints: n * 100 })),
   ];
@@ -95,9 +99,9 @@ describe("rankFormations", () => {
   });
 
   it("totals the eleven it picked", () => {
-    // gk 20 + defenders 50+40+30 + midfielders 50+40+30+20 + forwards 300+200+100
+    // gk 20 + defenders 50+40+30 + midfielders 100+90+80+70 + forwards 300+200+100
     const best = rankFormations(full, "points").find((r) => r.name === "3-4-3");
-    expect(best?.total).toBe(880);
+    expect(best?.total).toBe(1080);
   });
 
   it("puts the highest-scoring formation first", () => {
