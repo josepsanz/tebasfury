@@ -7,6 +7,7 @@ import {
   formatMoney,
   freeAndScoring,
   ownerDisplay,
+  catalogueQuery,
   parseCatalogueEntry,
   pointsPerMillion,
   pointsTrend,
@@ -538,7 +539,16 @@ describe("parseCatalogueEntry", () => {
     expect(parseCatalogueEntry({ sort: "perMillion", ownership: "free" })).toEqual({
       sort: "perMillion",
       ownership: "free",
+      position: null,
     });
+  });
+
+  it("reads a position, which it cannot validate and does not pretend to", () => {
+    // The positions come from the players themselves, and this parser has none to hand.
+    // The catalogue clamps an unknown one to "all positions" where the list IS known;
+    // inventing a fixed vocabulary here would be a second source of truth for it.
+    expect(parseCatalogueEntry({ position: "Goalkeeper" }).position).toBe("Goalkeeper");
+    expect(parseCatalogueEntry({ position: ["Goalkeeper", "Defender"] }).position).toBeNull();
   });
 
   it("falls back to the catalogue's own defaults for anything else", () => {
@@ -548,15 +558,45 @@ describe("parseCatalogueEntry", () => {
     expect(parseCatalogueEntry({ sort: "bogus", ownership: "nobody" })).toEqual({
       sort: "value",
       ownership: "all",
+      position: null,
     });
-    expect(parseCatalogueEntry({})).toEqual({ sort: "value", ownership: "all" });
+    expect(parseCatalogueEntry({})).toEqual({ sort: "value", ownership: "all", position: null });
   });
 
   it("refuses a repeated parameter rather than guessing which one was meant", () => {
     expect(parseCatalogueEntry({ sort: ["perMillion", "points"] })).toEqual({
       sort: "value",
       ownership: "all",
+      position: null,
     });
+  });
+});
+
+describe("catalogueQuery", () => {
+  it("says nothing at all about a view nobody has changed", () => {
+    // An untouched catalogue leaves the address bar alone: `/players` is the honest URL
+    // for the page you get by clicking Players, and a string of defaults would be noise
+    // to read, to copy and to share.
+    expect(catalogueQuery({ sort: "value", ownership: "all", position: null })).toBe("");
+  });
+
+  it("carries only what was actually chosen", () => {
+    expect(catalogueQuery({ sort: "points", ownership: "all", position: null })).toBe("sort=points");
+    expect(catalogueQuery({ sort: "value", ownership: "free", position: null })).toBe(
+      "ownership=free",
+    );
+    expect(catalogueQuery({ sort: "value", ownership: "all", position: "Goalkeeper" })).toBe(
+      "position=Goalkeeper",
+    );
+  });
+
+  it("round-trips through the parser, which is the only reason it exists", () => {
+    // The pair is what makes the back button work: one writes the address, the other
+    // rebuilds the view from it. A difference between them loses a filter silently.
+    const view = { sort: "perMillion" as const, ownership: "free" as const, position: "Defender" };
+    expect(parseCatalogueEntry(Object.fromEntries(new URLSearchParams(catalogueQuery(view))))).toEqual(
+      view,
+    );
   });
 });
 

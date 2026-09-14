@@ -376,15 +376,45 @@ const OWNERSHIP_KEYS: CatalogueFilter["ownership"][] = ["all", "owned", "free"];
  * Anything unrecognised — a typo, a stale link, a repeated parameter — falls back to the
  * view the catalogue opens with anyway. A bad link should degrade to the normal page.
  */
-export function parseCatalogueEntry(params: Record<string, string | string[] | undefined>): {
+export type CatalogueEntry = {
   sort: SortKey;
   ownership: CatalogueFilter["ownership"];
-} {
+  /**
+   * The position filter, unvalidated on purpose: the positions come from the players, and
+   * this function has none to hand. The catalogue clamps an unknown one where the list IS
+   * known — a fixed vocabulary here would be a second place for it to be wrong.
+   */
+  position: string | null;
+};
+
+export function parseCatalogueEntry(
+  params: Record<string, string | string[] | undefined>,
+): CatalogueEntry {
   const one = (value: string | string[] | undefined) => (typeof value === "string" ? value : null);
   return {
     sort: SORT_KEYS.find((key) => key === one(params.sort)) ?? "value",
     ownership: OWNERSHIP_KEYS.find((key) => key === one(params.ownership)) ?? "all",
+    position: one(params.position),
   };
+}
+
+/**
+ * The same view, written back as a query string.
+ *
+ * The other half of `parseCatalogueEntry`, and it exists for one reason: a reader who
+ * filters the catalogue, opens a player and comes back should find the catalogue as they
+ * left it. The filters live in the component's state, which a navigation throws away —
+ * so the state is mirrored into the address, where the back button can find it.
+ *
+ * Only what was actually chosen is written. An untouched catalogue leaves `/players`
+ * alone, because a string of defaults is noise to read, to copy and to share.
+ */
+export function catalogueQuery({ sort, ownership, position }: CatalogueEntry): string {
+  const params = new URLSearchParams();
+  if (position !== null) params.set("position", position);
+  if (ownership !== "all") params.set("ownership", ownership);
+  if (sort !== "value") params.set("sort", sort);
+  return params.toString();
 }
 
 /** Whole days between two `takenOn` dates, which is the x a value trend is measured over. */

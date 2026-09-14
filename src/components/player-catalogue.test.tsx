@@ -293,4 +293,31 @@ describe("PlayerCatalogue, the clause figure", () => {
     // Two icons: the padlock and the shield.
     expect(html.match(/<svg/g)).toHaveLength(2);
   });
+
+  it("opens filtered to the position the address asked for", () => {
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[row("p1", { position: "Goalkeeper" }), row("p2")]}
+        ownershipKnown
+        initialPosition="Goalkeeper"
+      />,
+    );
+    expect(html).toContain("Player p1");
+    expect(html).not.toContain("Player p2");
+  });
+
+  it("shows every position when the address names one that does not exist", () => {
+    // A filtered catalogue is a shareable link now, so it outlives the code that made it.
+    // A position renamed away should hand the reader the whole catalogue, never an empty
+    // one filtered by something they cannot see.
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[row("p1", { position: "Goalkeeper" }), row("p2")]}
+        ownershipKnown
+        initialPosition="Sweeper"
+      />,
+    );
+    expect(html).toContain("Player p1");
+    expect(html).toContain("Player p2");
+  });
 });

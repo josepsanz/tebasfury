@@ -45,6 +45,7 @@ export default async function PlayersPage({
         ownershipKnown={ownershipKnown}
         clauses={clauses}
         initialSort={entry.sort}
+        initialPosition={entry.position}
         initialOwnership={entry.ownership}
       />
 

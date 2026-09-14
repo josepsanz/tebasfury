@@ -3,11 +3,13 @@
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
+  catalogueQuery,
   clubOrPosition,
   filterCatalogue,
   formatMoney,
   sortCatalogue,
   statusLabel,
+  type CatalogueEntry,
   type CatalogueFilter,
   type CatalogueRow,
   type SortKey,
@@ -100,6 +102,7 @@ export function PlayerCatalogue({
   clauses,
   initialSort = "value",
   initialOwnership = "all",
+  initialPosition = null,
 }: {
   rows: CatalogueRow[];
   ownershipKnown: boolean;
@@ -114,12 +117,36 @@ export function PlayerCatalogue({
   clauses?: Record<string, ClauseStatus>;
   initialSort?: SortKey;
   initialOwnership?: CatalogueFilter["ownership"];
+  /**
+   * The position the address asked for, clamped HERE because this is where the list of
+   * positions is known. A stale or hand-typed link with a position that no longer exists
+   * degrades to "all positions" rather than to an empty catalogue.
+   */
+  initialPosition?: string | null;
 }) {
   const [query, setQuery] = useState("");
-  const [position, setPosition] = useState<string | null>(null);
+  const [position, setPosition] = useState<string | null>(
+    POSITIONS.includes(initialPosition ?? "") ? initialPosition : null,
+  );
   const [ownership, setOwnership] = useState<CatalogueFilter["ownership"]>(initialOwnership);
   const [sort, setSort] = useState<SortKey>(initialSort);
   const [shown, setShown] = useState(PAGE);
+
+  /**
+   * Mirrors the three filters into the address bar as they change.
+   *
+   * `history.replaceState` and not the router: nothing on the server depends on these,
+   * so a navigation would re-render the page to produce the list the browser is already
+   * showing. This only has to leave a trail the BACK button can follow — open a player,
+   * come back, and the catalogue is as you left it instead of reset to everybody.
+   *
+   * The search box is deliberately not in here. It would rewrite the address on every
+   * keystroke, and a search is a one-off in a way a filter is not.
+   */
+  const remember = (next: Partial<CatalogueEntry>) => {
+    const query = catalogueQuery({ sort, ownership, position, ...next });
+    window.history.replaceState(null, "", query === "" ? window.location.pathname : `?${query}`);
+  };
 
   const { page, total } = useMemo(
     () => paginateCatalogue(rows, { query, position, ownership }, sort, shown),
@@ -158,8 +185,10 @@ export function PlayerCatalogue({
           label="Position"
           value={position ?? "all"}
           onChange={(next) => {
-            setPosition(next === "all" ? null : next);
+            const chosen = next === "all" ? null : next;
+            setPosition(chosen);
             setShown(PAGE);
+            remember({ position: chosen });
           }}
         >
           <option value="all">All positions</option>
@@ -174,8 +203,10 @@ export function PlayerCatalogue({
           label="Owner"
           value={ownership}
           onChange={(next) => {
-            setOwnership(next as CatalogueFilter["ownership"]);
+            const chosen = next as CatalogueFilter["ownership"];
+            setOwnership(chosen);
             setShown(PAGE);
+            remember({ ownership: chosen });
           }}
         >
           {OWNERSHIP.map((option) => (
@@ -185,7 +216,14 @@ export function PlayerCatalogue({
           ))}
         </Control>
 
-        <Control label="Sort" value={sort} onChange={(next) => setSort(next as SortKey)}>
+        <Control
+          label="Sort"
+          value={sort}
+          onChange={(next) => {
+            setSort(next as SortKey);
+            remember({ sort: next as SortKey });
+          }}
+        >
           {SORTS.map((option) => (
             <option key={option.key} value={option.key}>
               {option.label}
