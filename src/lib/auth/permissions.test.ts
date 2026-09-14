@@ -28,6 +28,10 @@ describe("role policies", () => {
     it("cannot correct league data", () => {
       expect(roles.user.authorize({ leagueData: ["correct"] }).success).toBe(false);
     });
+
+    it("cannot enter another manager's ballot", () => {
+      expect(roles.user.authorize({ poll: ["voteFor"] }).success).toBe(false);
+    });
   });
 
   describe("collaborator", () => {
@@ -40,11 +44,23 @@ describe("role policies", () => {
     it("cannot manage users", () => {
       expect(roles.collaborator.authorize({ user: ["set-role"] }).success).toBe(false);
     });
+
+    it("cannot enter another manager's ballot, though it may close the round", () => {
+      // The first poll action that is NOT in `collaboratorGrants`, so the admin role has
+      // to name it and stops being a pure superset. This test is what stops the exception
+      // being lost the next time somebody tidies the role composition.
+      expect(roles.collaborator.authorize({ poll: ["close"] }).success).toBe(true);
+      expect(roles.collaborator.authorize({ poll: ["voteFor"] }).success).toBe(false);
+    });
   });
 
   describe("admin", () => {
     it("can manage users", () => {
       expect(roles.admin.authorize({ user: ["set-role"] }).success).toBe(true);
+    });
+
+    it("can enter another manager's ballot", () => {
+      expect(roles.admin.authorize({ poll: ["voteFor"] }).success).toBe(true);
     });
 
     it.each(grantCases)("can do everything a collaborator can: %s:%s", (resource, action) => {

@@ -335,11 +335,13 @@ git commit -m "refactor: a Necroporra vote belongs to the team, not the account"
 - Modify: `src/lib/auth/permissions.ts`
 - Modify: `src/lib/auth/permissions.test.ts`
 
+**Done 2026-09-14.**
+
 **Interfaces:**
 - Consumes: nothing from Task 1.
 - Produces: the permission `{ poll: ["voteFor"] }`, which Tasks 3 and 4 check through `decideAccess`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `src/lib/auth/permissions.test.ts`:
 
@@ -359,12 +361,12 @@ it("refuses a manager", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm vitest run src/lib/auth/permissions.test.ts`
 Expected: FAIL — `voteFor` is not an action on `poll`.
 
-- [ ] **Step 3: Add the action to the statement and to the admin role only**
+- [x] **Step 3: Add the action to the statement and to the admin role only**
 
 In `src/lib/auth/permissions.ts`, extend the statement and override `poll` on the admin:
 
@@ -390,12 +392,12 @@ const admin = ac.newRole({
 });
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm vitest run src/lib/auth/permissions.test.ts src/lib/auth/access-decision.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A

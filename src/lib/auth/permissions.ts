@@ -4,7 +4,11 @@ import { adminAc, defaultStatements } from "better-auth/plugins/admin/access";
 /** The portal's resources and the actions available on each of them. */
 export const statement = {
   ...defaultStatements,
-  poll: ["create", "publish", "close", "resolve"],
+  /**
+   * `voteFor` is entering a ballot in another manager's name — see the admin role, which
+   * is the only one that gets it.
+   */
+  poll: ["create", "publish", "close", "resolve", "voteFor"],
   fairplay: ["read", "annotate", "delete"],
   sync: ["trigger"],
   leagueData: ["correct"],
@@ -46,6 +50,16 @@ const collaborator = ac.newRole({ ...collaboratorGrants });
 
 const admin = ac.newRole({
   ...collaboratorGrants,
+  /**
+   * The one poll action a collaborator does not get, and the first time this role has had
+   * to name anything of its own beyond user management.
+   *
+   * Closing a round and speaking in another manager's name are different sizes of act —
+   * the same line `access: ["manage"]` draws just above. Spelled out rather than
+   * inherited, so that widening `collaboratorGrants` later cannot hand it over by
+   * accident; a test pins that a collaborator is refused.
+   */
+  poll: [...collaboratorGrants.poll, "voteFor"],
   access: ["manage"],
   ...adminAc.statements,
 });
