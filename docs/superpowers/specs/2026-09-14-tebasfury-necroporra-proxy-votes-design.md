@@ -147,10 +147,24 @@ the component separately.
 ### Permission
 
 A new action on the existing `poll` resource: `poll: ["create", "publish", "close",
-"resolve", "voteFor"]`. It lands in `collaboratorGrants`, which means **a collaborator
-gets it too**, exactly as they already get `close` and `resolve`. That follows the
-existing shape rather than inventing an admin-only exception; say so if you want it
-narrower, because it is a one-line change now and a migration of habits later.
+"resolve", "voteFor"]` in `statement`.
+
+**Admin only** — decided 2026-09-14. It is the first poll action that does NOT go into
+`collaboratorGrants`, so the admin role stops being a pure superset and has to name it:
+
+```ts
+const admin = ac.newRole({
+  ...collaboratorGrants,
+  poll: [...collaboratorGrants.poll, "voteFor"],
+  access: ["manage"],
+  ...adminAc.statements,
+});
+```
+
+The reasoning is the same one `access: ["manage"]` already carries in that file: closing
+a round and speaking in another manager's name are different sizes of act. A test should
+pin it — `roles.collaborator.authorize({ poll: ["voteFor"] }).success` is false — because
+the override is easy to lose the next time somebody tidies the role composition.
 
 ### What people see
 
@@ -186,7 +200,10 @@ tables — see the note on why it was built as itself.
 
 ## Open questions
 
-1. **Collaborators.** As above: `voteFor` follows `collaboratorGrants` unless you say
-   otherwise.
-2. **The migration window.** If round 6 opens before this ships, the migration splits in
-   two. Worth knowing before the plan is written, since it changes the first task.
+1. ~~**Collaborators.**~~ Settled 2026-09-14: `voteFor` is admin only, and the admin role
+   names it explicitly rather than inheriting it.
+2. **The migration window.** Open as of 2026-09-14 11:41 UTC: round 6 has not been named,
+   and gameweek 5 runs until 2026-09-15T01:00Z. The first sync that sees the API call
+   gameweek 6 current will open round 6 and shut this window — expect that within a day of
+   gameweek 5 settling. If it shuts first, the migration splits in two and the plan's
+   first task changes.
