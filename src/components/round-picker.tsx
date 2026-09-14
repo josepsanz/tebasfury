@@ -55,7 +55,13 @@ export function RoundPicker({
         value={selected === null ? "" : String(selected)}
         onChange={(event) => {
           const round = event.target.value;
-          router.push(round === "" ? basePath : `${basePath}?${param}=${round}`);
+          // `scroll: false`, which Next's router takes as an option: changing the round is
+          // reading the same page again, not arriving at a new one. On `/teams/[id]` the
+          // picker sits below the squad, so the default scroll-to-top throws the reader
+          // back up the page and away from the pitch they were looking at.
+          router.push(round === "" ? basePath : `${basePath}?${param}=${round}`, {
+            scroll: false,
+          });
         }}
       >
         {allLabel === null ? null : <option value="">{allLabel}</option>}
