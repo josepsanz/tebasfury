@@ -332,6 +332,10 @@ curl -X POST \
   -H "Upstash-Cron: */30 * * * *"
 ```
 
+**Registered on 2026-09-14 at 12:07 UTC** as `scd_58fTv1YnmLrEqJMNXKwh7S4YDQss`, against
+the production deployment. There should only ever be one — list the schedules before
+creating another.
+
 Every half hour it asks one question — is either chain dead? — and almost always answers
 no, at the cost of a single query. It revives a chain only when the silence is far past
 anything healthy: **25 minutes** for the standings while a gameweek is live, **24½ hours**
