@@ -2,17 +2,20 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
 import {
+  gameweeks,
   marketOperations,
   playerGameweekPoints,
   playerValueSnapshots,
   players,
   realTeams,
+  roundLineupPlayers,
+  roundLineups,
   squadMembers,
   syncRuns,
   teams,
 } from "@/lib/db/schema";
 import { CREDENTIAL_ERROR_NAME, CredentialError } from "@/lib/fantasy-client";
-import type { MarketOperationRow, PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
+import type { LineupRow, MarketOperationRow, PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
 import { MINIMUM_CATALOGUE, runPlayerSweep, utcDate, type PlayerClient } from "./players";
 
 const player = (id: string, over: Partial<PlayerRow> = {}): PlayerRow => ({
@@ -61,6 +64,17 @@ function fakeClient(
       realTeams: clubs[teamId] ?? [],
     }),
     getActivity: async () => operations,
+    // Empty players: no test in this file needs a fielded eleven, and an empty list
+    // sidesteps `round_lineup_players.player_id`'s foreign key to `players.id` for
+    // every fixture here that does not bother to name real ones.
+    getLineup: async (teamId: string, week: number): Promise<LineupRow> => ({
+      teamId,
+      gameweek: week,
+      formation: "1-4-4-2",
+      points: 0,
+      snapshotTookOn: now,
+      players: [],
+    }),
   };
 }
 
@@ -76,6 +90,8 @@ describe("runPlayerSweep", () => {
     await h.close();
   });
   beforeEach(async () => {
+    await h.db.delete(roundLineupPlayers);
+    await h.db.delete(roundLineups);
     await h.db.delete(squadMembers);
     await h.db.delete(playerValueSnapshots);
     await h.db.delete(playerGameweekPoints);
@@ -84,6 +100,7 @@ describe("runPlayerSweep", () => {
     await h.db.delete(teams);
     await h.db.delete(syncRuns);
     await h.db.delete(marketOperations);
+    await h.db.delete(gameweeks);
   });
 
   it("writes the catalogue and backfills the points history on the first sweep", async () => {
@@ -398,6 +415,14 @@ describe("runPlayerSweep", () => {
       },
       getSquad: async (teamId) => ({ teamId, holdings: [], realTeams: [] }),
       getActivity: async () => [],
+      getLineup: async (teamId, week) => ({
+        teamId,
+        gameweek: week,
+        formation: "1-4-4-2",
+        points: 0,
+        snapshotTookOn: now,
+        players: [],
+      }),
     };
     await expect(
       runPlayerSweep({
@@ -627,6 +652,23 @@ describe("runPlayerSweep", () => {
 
     const [failed] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "s1"));
     expect(failed.status).toBe("failed");
+  });
+
+  it("captures lineups as part of the sweep and carries the counts in its result", async () => {
+    // `captureLineups` gets its own exhaustive tests in lineups.test.ts; this only
+    // proves the sweep is actually wired to it and reports what it did.
+    await h.db.insert(gameweeks).values({ number: 5, isLive: true });
+    await h.db.insert(teams).values([
+      { id: "t1", managerId: 1, managerName: "Manager A" },
+      { id: "t2", managerId: 2, managerName: "Manager B" },
+    ]);
+
+    const result = await runPlayerSweep({
+      db: h.db, client: fakeClient(catalogue(MINIMUM_CATALOGUE)), now,
+      runId: "s1", trigger: "players-schedule",
+    });
+
+    expect(result).toMatchObject({ lineupsCaptured: 2, lineupsSkipped: 0, lineupsFailed: 0 });
   });
 });
 
