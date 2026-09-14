@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { loadLeagueStatus } from "@/lib/db/queries";
+import { loadMyTeam } from "@/lib/claims";
 import { decideAccess, getSession } from "@/lib/auth/guards";
 import { formatSyncedAt } from "@/lib/domain/clock";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -17,7 +18,12 @@ import { NavLinks } from "@/components/nav-links";
 export async function AppNav() {
   const session = await getSession();
   const canTriggerSync = decideAccess(session, { sync: ["trigger"] }).kind === "allow";
-  const status = session ? await loadLeagueStatus(db) : null;
+  // Two small reads rather than one: the status strip is the same for everybody and the
+  // claim is the reader's own. Both are single indexed lookups, and the nav is on every
+  // page, so they go together rather than in series.
+  const [status, myTeam] = session
+    ? await Promise.all([loadLeagueStatus(db), loadMyTeam(db, { userId: session.user.id })])
+    : [null, null];
 
   return (
     <nav>
@@ -55,7 +61,7 @@ export async function AppNav() {
           )}
         </span>
       </div>
-      {session && <NavLinks canTriggerSync={canTriggerSync} />}
+      {session && <NavLinks canTriggerSync={canTriggerSync} myTeamId={myTeam?.teamId ?? null} />}
     </nav>
   );
 }
