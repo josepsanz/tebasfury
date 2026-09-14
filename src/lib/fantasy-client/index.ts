@@ -432,12 +432,11 @@ export type LineupRow = {
 };
 
 /**
- * The hyphenated label ("1-4-4-2") every caller wants. Measured: the API sends a bare
- * array of counts — goalkeeper always 1 and left out — not the string this composes;
- * a string is passed through unchanged in case a future response spells it out itself.
+ * The hyphenated label ("1-4-4-2") every caller wants, composed from what the API
+ * measurably sends: a bare array of counts with the goalkeeper always 1 and left out.
  */
-function formationLabel(raw: string | number[]): string {
-  return Array.isArray(raw) ? ["1", ...raw].join("-") : raw;
+function formationLabel(counts: number[]): string {
+  return ["1", ...counts].join("-");
 }
 
 /**

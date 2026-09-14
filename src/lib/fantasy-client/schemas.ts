@@ -209,11 +209,12 @@ const fieldedPlayerSchema = z.object({
  *
  * Measured against a live capture: it is a bare array of counts — `[5, 3, 2]` for
  * defenders, midfielders, strikers, with the goalkeeper always 1 and left out — not
- * the hyphenated string ("1-4-4-2") the position tables elsewhere print. A string is
- * accepted too, since one capture is not a specification; `getLineup` is where either
- * shape becomes the hyphenated label every caller actually wants.
+ * the hyphenated string ("1-4-4-2") the position tables elsewhere print. That was a
+ * measurement, not a guess, so a shape that changes again surfaces as a Zod error
+ * naming the field, the same policy `getPlayers` states for its own catalogue;
+ * `getLineup` is where the array becomes the hyphenated label every caller wants.
  */
-const tacticalFormationSchema = z.union([z.array(z.coerce.number()), z.string()]);
+const tacticalFormationSchema = z.array(z.coerce.number());
 
 /**
  * One team's fielded lineup for one round.

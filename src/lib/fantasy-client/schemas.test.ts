@@ -133,7 +133,7 @@ describe("lineupSchema", () => {
     // mark, never the sweep — the same ruling `squadSchema` already makes for the clause.
     const thin = {
       formation: {
-        tacticalFormation: "1-4-4-2",
+        tacticalFormation: [4, 4, 2],
         goalkeeper: [{ playerMaster: { id: 1, weekPoints: 4 } }],
         defender: [],
         midfield: [],
