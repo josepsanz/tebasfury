@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { loadMarket, loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
+import {
+  loadLineupWeeks,
+  loadMarket,
+  loadPlayerCatalogue,
+  loadRoundLineup,
+  loadSnapshots,
+} from "@/lib/db/queries";
 import { teamMetrics } from "@/lib/domain/metrics";
 import {
   clauseStatus,
@@ -27,8 +33,33 @@ import { MarketMoney } from "@/components/market-money";
 import { SquadList } from "@/components/squad-list";
 import { PitchIcon } from "@/components/pitch-icon";
 import { MarketFeed } from "@/components/market-feed";
+import { RoundLineup } from "@/components/round-lineup";
+import { RoundPicker } from "@/components/round-picker";
 
-export default async function TeamPage({ params }: { params: Promise<{ id: string }> }) {
+/**
+ * Which round's lineup to show, or null when this manager has none stored at all.
+ *
+ * Defaults to the newest week with a lineup rather than to the season, the way the
+ * standings' own `chosenRound` defaults to "no round" — there is no whole-season view
+ * here for a missing `?round=` to fall back to, so the newest week is the only sane
+ * default. A parameter that names a week nothing was captured for falls back the same
+ * way: a hand-edited URL is not an exceptional condition worth a 404.
+ */
+function chosenRound(raw: string | string[] | undefined, weeks: number[]): number | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const fallback = weeks[0] ?? null;
+  if (value === undefined) return fallback;
+  const round = Number(value);
+  return weeks.includes(round) ? round : fallback;
+}
+
+export default async function TeamPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   await requireSession();
   const { id } = await params;
   const { snapshots, teams } = await loadSnapshots(db);
@@ -74,6 +105,13 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
 
   const summary = managerId === null ? null : marketSummary(market.operations, managerId);
   const playerName = (playerId: string) => market.playerNames.get(playerId);
+
+  // Newest first, straight from the query — exactly what `chosenRound` wants for its
+  // fallback. `RoundPicker` wants the opposite order (see its own comment on why), so
+  // it is handed a reversed copy rather than this list itself.
+  const lineupWeeks = await loadLineupWeeks(db, { teamId: id });
+  const round = chosenRound((await searchParams).round, lineupWeeks);
+  const lineup = round === null ? null : await loadRoundLineup(db, { teamId: id, gameweek: round });
 
   const items: Metric[] = [
     { label: "Average", ...formatAverage(metrics.average) },
@@ -133,6 +171,32 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
         clauses={clauses}
         holds={holds}
       />
+
+      <h2
+        className="mt-10 flex items-baseline justify-between gap-3 text-[11px] uppercase tracking-[0.06em]"
+        style={{ color: "var(--board-ink-dim)" }}
+      >
+        Their lineup
+        {/* No picker with nothing in it: a manager with no captured round gets the one
+            line below instead, not a select box that opens on an empty list. */}
+        {lineupWeeks.length === 0 ? null : (
+          <RoundPicker
+            gameweeks={[...lineupWeeks].reverse()}
+            selected={round}
+            basePath={`/teams/${id}`}
+            legend="Round"
+            allLabel={null}
+          />
+        )}
+      </h2>
+      {lineupWeeks.length === 0 ? (
+        <p className="mt-3 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
+          No lineup has been captured for this manager yet. The first appears once a
+          round has started.
+        </p>
+      ) : (
+        <RoundLineup lineup={lineup} />
+      )}
 
       <h2 className="mt-10 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>
         Their market

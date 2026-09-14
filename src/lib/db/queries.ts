@@ -19,6 +19,7 @@ import {
   playerValueSnapshots,
   players as playersTable,
   realTeams,
+  roundLineupPlayers,
   roundLineups,
   squadMembers,
   syncRuns,
@@ -340,6 +341,106 @@ export async function loadStoredLineupWeeks(db: Db): Promise<Set<string>> {
     .select({ teamId: roundLineups.teamId, gameweek: roundLineups.gameweek })
     .from(roundLineups);
   return new Set(rows.map((r) => `${r.teamId}:${r.gameweek}`));
+}
+
+/** One player as they were fielded: who, where, and what the round paid them. */
+export type FieldedRow = {
+  playerId: string;
+  nickname: string;
+  line: string;
+  weekPoints: number;
+  inIdeal: boolean;
+};
+
+/** What a team fielded in one round — the header from `round_lineups`, the eleven beside it. */
+export type RoundLineup = {
+  gameweek: number;
+  formation: string;
+  points: number;
+  snapshotTookOn: Date;
+  players: FieldedRow[];
+};
+
+/**
+ * The order a pitch is read in: keeper first, then outward from goal to attack. Fixed
+ * here rather than read off any row, because a line with nobody in it still needs a
+ * place in the order — `RoundLineup` says nothing about columns that are empty.
+ */
+const LINE_ORDER = ["goalkeeper", "defender", "midfield", "striker"] as const;
+
+/**
+ * What one team fielded in one round, eleven in line order — or null when nothing was
+ * captured for that (team, gameweek), which is the honest answer for a round still to
+ * come or one the sweep has not reached yet.
+ *
+ * Two statements, not a join: `round_lineup_players` carries no foreign key back to
+ * `round_lineups` (see the schema comment on why), so a join could not tell "no header"
+ * from "header with no players" apart. Asking for the header first is also the cheap
+ * way to answer null without ever touching the eleven.
+ */
+export async function loadRoundLineup(
+  db: Db,
+  { teamId, gameweek }: { teamId: string; gameweek: number },
+): Promise<RoundLineup | null> {
+  const [header] = await db
+    .select()
+    .from(roundLineups)
+    .where(and(eq(roundLineups.teamId, teamId), eq(roundLineups.gameweek, gameweek)))
+    .limit(1);
+  if (!header) return null;
+
+  const rows = await db
+    .select({
+      playerId: roundLineupPlayers.playerId,
+      nickname: playersTable.nickname,
+      line: roundLineupPlayers.line,
+      weekPoints: roundLineupPlayers.weekPoints,
+      inIdeal: roundLineupPlayers.inIdeal,
+    })
+    .from(roundLineupPlayers)
+    .innerJoin(playersTable, eq(playersTable.id, roundLineupPlayers.playerId))
+    .where(
+      and(
+        eq(roundLineupPlayers.teamId, teamId),
+        eq(roundLineupPlayers.gameweek, gameweek),
+      ),
+    );
+
+  // Postgres owes no order without one, and the eleven is read as a shape (I3 on this
+  // task) — a pitch drawn in whatever order the heap happened to return would be wrong
+  // as often as it was right.
+  const position = new Map(LINE_ORDER.map((line, i) => [line, i]));
+  const players = [...rows].sort(
+    (a, b) => (position.get(a.line as (typeof LINE_ORDER)[number]) ?? LINE_ORDER.length) -
+      (position.get(b.line as (typeof LINE_ORDER)[number]) ?? LINE_ORDER.length),
+  );
+
+  return {
+    gameweek: header.gameweek,
+    formation: header.formation,
+    points: header.points,
+    snapshotTookOn: header.snapshotTookOn,
+    players,
+  };
+}
+
+/**
+ * Every gameweek this team has a stored lineup for, newest first — so the team page's
+ * own `chosenRound` can default to `weeks[0]` with no separate "latest" query. The team
+ * page reverses this before handing it to `RoundPicker`, which wants the opposite order
+ * (see that component's own comment on why); the reversal is that caller's business,
+ * not a second ordering baked in here.
+ */
+export async function loadLineupWeeks(
+  db: Db,
+  { teamId }: { teamId: string },
+): Promise<number[]> {
+  const rows = await db
+    .select({ gameweek: roundLineups.gameweek })
+    .from(roundLineups)
+    .where(eq(roundLineups.teamId, teamId))
+    .orderBy(desc(roundLineups.gameweek));
+  return rows.map((r) => r.gameweek);
 }
 
 /** Everything the catalogue needs, aggregated in the database. */

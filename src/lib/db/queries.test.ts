@@ -8,6 +8,7 @@ import {
   players,
   playerValueSnapshots,
   realTeams,
+  roundLineupPlayers,
   roundLineups,
   squadMembers,
   syncRuns,
@@ -18,6 +19,8 @@ import {
   claimStandingsRun,
   loadChainHeartbeats,
   loadLeagueStatus,
+  loadLineupWeeks,
+  loadRoundLineup,
   loadStoredLineupWeeks,
   markClaimedRunFailed,
   loadMarket,
@@ -646,5 +649,97 @@ describe("loadStoredLineupWeeks", () => {
     const empty = await createTestDatabase();
     expect(await loadStoredLineupWeeks(empty.db)).toEqual(new Set());
     await empty.close();
+  });
+});
+
+describe("loadRoundLineup", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(teams).values([{ id: "t1", managerId: 1, managerName: "Ada" }]);
+    await h.db.insert(players).values([
+      { id: "p1", nickname: "Courtois", position: "Goalkeeper", realTeamId: "rt1", status: "ok" },
+      { id: "p2", nickname: "Carvajal", position: "Defender", realTeamId: "rt1", status: "ok" },
+      { id: "p3", nickname: "Bellingham", position: "Midfielder", realTeamId: "rt1", status: "ok" },
+      { id: "p4", nickname: "Mbappé", position: "Forward", realTeamId: "rt1", status: "ok" },
+    ]);
+    await h.db.insert(roundLineups).values({
+      teamId: "t1",
+      gameweek: 4,
+      formation: "1-4-4-2",
+      points: 54,
+      snapshotTookOn: new Date("2026-09-03T17:03:47Z"),
+    });
+    // Inserted out of line order, so a passing test proves the query sorted them
+    // rather than merely echoing the order they were written in.
+    await h.db.insert(roundLineupPlayers).values([
+      { teamId: "t1", gameweek: 4, playerId: "p4", line: "striker", weekPoints: 9, inIdeal: false },
+      { teamId: "t1", gameweek: 4, playerId: "p1", line: "goalkeeper", weekPoints: 7, inIdeal: false },
+      { teamId: "t1", gameweek: 4, playerId: "p3", line: "midfield", weekPoints: 11, inIdeal: true },
+      { teamId: "t1", gameweek: 4, playerId: "p2", line: "defender", weekPoints: 5, inIdeal: false },
+    ]);
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("comes back with the eleven in line order and each player's name", async () => {
+    const lineup = await loadRoundLineup(h.db, { teamId: "t1", gameweek: 4 });
+    expect(lineup).toMatchObject({
+      gameweek: 4,
+      formation: "1-4-4-2",
+      points: 54,
+      snapshotTookOn: new Date("2026-09-03T17:03:47Z"),
+    });
+    expect(lineup?.players.map((p) => p.line)).toEqual([
+      "goalkeeper",
+      "defender",
+      "midfield",
+      "striker",
+    ]);
+    expect(lineup?.players.map((p) => p.nickname)).toEqual([
+      "Courtois",
+      "Carvajal",
+      "Bellingham",
+      "Mbappé",
+    ]);
+    expect(lineup?.players[2]).toMatchObject({
+      playerId: "p3",
+      weekPoints: 11,
+      inIdeal: true,
+    });
+  });
+
+  it("comes back null for a round nothing was stored for", async () => {
+    expect(await loadRoundLineup(h.db, { teamId: "t1", gameweek: 99 })).toBeNull();
+  });
+});
+
+describe("loadLineupWeeks", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(teams).values([
+      { id: "t1", managerId: 1, managerName: "Ada" },
+      { id: "t2", managerId: 2, managerName: "Bruno" },
+    ]);
+    await h.db.insert(roundLineups).values([
+      { teamId: "t1", gameweek: 3, formation: "1-4-3-3", points: 40, snapshotTookOn: new Date("2026-08-25T20:00:00Z") },
+      { teamId: "t1", gameweek: 5, formation: "1-4-4-2", points: 60, snapshotTookOn: new Date("2026-09-08T20:00:00Z") },
+      { teamId: "t1", gameweek: 4, formation: "1-3-4-3", points: 50, snapshotTookOn: new Date("2026-09-01T20:00:00Z") },
+      // A different team's week — must not leak into t1's list.
+      { teamId: "t2", gameweek: 6, formation: "1-4-4-2", points: 30, snapshotTookOn: new Date("2026-09-08T20:00:00Z") },
+    ]);
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("lists only this team's weeks, newest first", async () => {
+    expect(await loadLineupWeeks(h.db, { teamId: "t1" })).toEqual([5, 4, 3]);
+  });
+
+  it("returns an empty list for a team with no lineups at all", async () => {
+    expect(await loadLineupWeeks(h.db, { teamId: "t2-none" })).toEqual([]);
   });
 });
