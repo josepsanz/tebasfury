@@ -543,9 +543,26 @@ const lineup = (over: Partial<RoundLineup> = {}): RoundLineup => ({
   ...over,
 });
 
-it("draws the lines in the order they stand on a pitch", () => {
+it("lays the lines out left to right, keeper first", () => {
+  // A lineup is read as a shape before it is read as a list: `1-5-3-2` means nothing
+  // until the five are visibly standing across. The DOM order is that shape.
   const html = renderToStaticMarkup(<RoundLineup lineup={lineup()} />);
   expect(html.indexOf("Courtois")).toBeLessThan(html.indexOf("Carvajal"));
+});
+
+it("gives every line its own column, including an empty one", () => {
+  // Four columns always, so the shape of a 1-5-4-1 and a 1-3-4-3 can be told apart at a
+  // glance rather than read off the label.
+  const html = renderToStaticMarkup(<RoundLineup lineup={lineup()} />);
+  expect(html.match(/data-line="/g)).toHaveLength(4);
+});
+
+it("draws the pitch in hairlines and never in green", () => {
+  // The palette spends green on a gain and amber on the reader's own team. A green field
+  // would take one of those meanings away for decoration.
+  const html = renderToStaticMarkup(<RoundLineup lineup={lineup()} />);
+  expect(html).toContain("var(--board-line)");
+  expect(html).not.toContain("var(--board-gain)");
 });
 
 it("gives each player their points for that round", () => {
@@ -553,8 +570,6 @@ it("gives each player their points for that round", () => {
 });
 
 it("marks whoever made the round's ideal eleven, in a shape and a word", () => {
-  // Never colour alone: the amber is the reader's own team and the green is a gain, and
-  // a third meaning would empty both of theirs.
   const html = renderToStaticMarkup(
     <RoundLineup lineup={lineup({ players: [player({ inIdeal: true })] })} />,
   );
@@ -574,7 +589,19 @@ it("names when the lineup froze, so two managers can be compared fairly", () => 
 
 - [ ] **Step 4: Run and watch fail**, then write `RoundLineup`, then run and watch pass.
 
-A server component — no state, no search — like `SquadList` and `OpportunityBoard`. Four lines, each a row of players with `nickname`, `weekPoints` and the ideal mark; the formation string and the round's points at the top; the frozen-at line at the bottom.
+A server component — no state, no search — like `SquadList` and `OpportunityBoard`.
+
+**The layout is a pitch, left to right: one column per line** — goalkeeper, defender,
+midfield, striker — each stacking its players, each column carrying `data-line="<line>"`.
+A CSS grid, with the keeper's column narrower than the outfield ones, over pitch furniture
+drawn in `--board-line` hairlines: touchline, halfway line, centre circle, a goal box at
+the keeper's end. `PitchIcon` already set that vocabulary; follow it and do not import a
+green.
+
+It must hold at **375px** with four columns of short nicknames: the board's small type,
+`truncate` on each name, no wrapping that would push one column out of line with the
+others, and no horizontal scroll. The formation label and the round's points sit above the
+pitch; the frozen-at line below it.
 
 - [ ] **Step 5: Wire the section into the page**
 

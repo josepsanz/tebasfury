@@ -114,12 +114,28 @@ and the Necroporra already use. It opens on the most recent started round.
 For the round being read:
 
 - The **formation** label — `1-5-3-2` — and the round's **points**.
-- The eleven, in four lines, each player with their **`weekPoints`** and a mark for
+- **The eleven on a pitch, laid out left to right, one column per line**: goalkeeper,
+  defenders, midfielders, strikers, each column stacking its players. Asked for on
+  2026-09-14, and it is the right shape for the question: a lineup is read as a SHAPE
+  before it is read as a list, and `1-5-3-2` means nothing until you can see the five
+  standing across.
+- Each player shows their nickname, their **`weekPoints`**, and a mark for
   `isInIdealFormation`. The marks are shapes and words, never colour alone — the amber is
   the reader's own team and the green is a gain, and neither means "ideal eleven".
 - A line naming when the lineup froze, because a reader comparing two managers needs to
   know they are comparing two frozen things.
 - A round with no lineup stored says so plainly rather than drawing an empty pitch.
+
+**The pitch is drawn as furniture, not as a photograph.** Hairlines in `--board-line` on
+the panel background — a touchline, a halfway line, a centre circle, a goal box at the
+keeper's end — in the same register as `PitchIcon`, which already set that vocabulary. It
+is deliberately NOT green: this palette spends green on a gain and amber on the reader's
+own team, and a green field would take one of those meanings away for decoration.
+
+**It has to hold at 375px.** Four columns of short nicknames fit at the board's small type
+with truncation; the pitch shrinks with the grid and never scrolls sideways. A name that
+does not fit is truncated, never wrapped into a second line that would push its column out
+of line with the others.
 
 **This does not reuse `LineupBoard`.** That component draws the best eleven a squad could
 field: it is built on `RankedFormation`, carries a formation ranking and a shortfall

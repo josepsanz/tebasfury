@@ -527,6 +527,12 @@ export const roundLineups = pgTable(
  * `weekPoints` is STORED rather than joined from `player_gameweek_points`, for the reason
  * `market_operations` stores what a sale made: it is what was true of that round, and a
  * row that carries its own figures cannot be rewritten by a correction elsewhere.
+ *
+ * Deliberately carries no foreign key to `round_lineups` — the same reason
+ * `necroporra_votes` carries none to anything: two statements that must each stand
+ * alone with no transactions available, so `captureLineups` always writes the
+ * `round_lineups` header first, and a sweep that dies between the two leaves an empty
+ * pitch rather than eleven players nothing points to.
  */
 export const roundLineupPlayers = pgTable(
   "round_lineup_players",

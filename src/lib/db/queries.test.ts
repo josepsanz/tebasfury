@@ -8,6 +8,7 @@ import {
   players,
   playerValueSnapshots,
   realTeams,
+  roundLineups,
   squadMembers,
   syncRuns,
   teamGameweekStats,
@@ -17,6 +18,7 @@ import {
   claimStandingsRun,
   loadChainHeartbeats,
   loadLeagueStatus,
+  loadStoredLineupWeeks,
   markClaimedRunFailed,
   loadMarket,
   loadPlayer,
@@ -616,5 +618,33 @@ describe("loadChainHeartbeats", () => {
       sweepAt: new Date("2026-09-14T09:00:00Z"),
       isLive: true,
     });
+  });
+});
+
+describe("loadStoredLineupWeeks", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(teams).values([
+      { id: "t1", managerId: 1, managerName: "Ada" },
+      { id: "t2", managerId: 2, managerName: "Bruno" },
+    ]);
+    await h.db.insert(roundLineups).values([
+      { teamId: "t1", gameweek: 4, formation: "1-4-4-2", points: 55, snapshotTookOn: new Date("2026-08-25T20:00:00Z") },
+      { teamId: "t2", gameweek: 5, formation: "1-4-3-3", points: 40, snapshotTookOn: new Date("2026-09-01T20:00:00Z") },
+    ]);
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("keys every stored lineup by team and gameweek", async () => {
+    expect(await loadStoredLineupWeeks(h.db)).toEqual(new Set(["t1:4", "t2:5"]));
+  });
+
+  it("returns an empty set before anything has ever been captured", async () => {
+    const empty = await createTestDatabase();
+    expect(await loadStoredLineupWeeks(empty.db)).toEqual(new Set());
+    await empty.close();
   });
 });

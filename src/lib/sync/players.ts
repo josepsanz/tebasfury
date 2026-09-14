@@ -13,6 +13,7 @@ import {
 } from "@/lib/db/schema";
 import type { FantasyClient, MarketOperationRow, PlayerRow, RealTeamRow } from "@/lib/fantasy-client";
 import { describeFailure } from "./failure";
+import { captureLineups } from "./lineups";
 import { nextPlayerSweep } from "./next-run";
 
 /**
@@ -24,7 +25,7 @@ import { nextPlayerSweep } from "./next-run";
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 /** The calls a sweep makes. Narrower than `FantasyClient`, so a fake is a few lines. */
-export type PlayerClient = Pick<FantasyClient, "getPlayers" | "getSquad" | "getActivity">;
+export type PlayerClient = Pick<FantasyClient, "getPlayers" | "getSquad" | "getActivity" | "getLineup">;
 
 export type PlayerSweepResult = {
   playersSynced: number;
@@ -57,6 +58,12 @@ export type PlayerSweepResult = {
    * when something is wrong cannot show that nothing is.
    */
   operationsCaptured: number;
+  /** Lineups fetched and written this sweep — see `captureLineups`. */
+  lineupsCaptured: number;
+  /** A settled week's lineup already stored, correctly left alone. */
+  lineupsSkipped: number;
+  /** One team's lineup that failed this sweep; the next sweep asks again. */
+  lineupsFailed: number;
   nextRunAt: Date;
 };
 
@@ -166,6 +173,11 @@ export async function runPlayerSweep(deps: {
     const operations = await client.getActivity();
     await upsertOperations(db, operations);
 
+    // Lineups are the sweep's one tolerated failure besides none: `captureLineups` never
+    // throws, because a missing lineup costs a page section and the next sweep asks again.
+    // The market log above is the opposite ruling for the opposite reason.
+    const lineups = await captureLineups(db, client, { now });
+
     const nextRunAt = nextPlayerSweep(now);
     await db
       .update(syncRuns)
@@ -179,6 +191,9 @@ export async function runPlayerSweep(deps: {
       droppedSquadPlayers: squads.droppedSquadPlayers,
       realTeamsKnown: clubCount.value,
       operationsCaptured: operations.length,
+      lineupsCaptured: lineups.captured,
+      lineupsSkipped: lineups.skipped,
+      lineupsFailed: lineups.failed,
       nextRunAt,
     };
   } catch (error) {

@@ -19,6 +19,7 @@ import {
   playerValueSnapshots,
   players as playersTable,
   realTeams,
+  roundLineups,
   squadMembers,
   syncRuns,
   teamGameweekStats,
@@ -324,6 +325,21 @@ export async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
     .orderBy(desc(syncRuns.finishedAt))
     .limit(1);
   return sweep?.finishedAt ?? null;
+}
+
+/**
+ * Which (team, gameweek) lineups are already stored, keyed `"teamId:gameweek"`.
+ *
+ * `captureLineups` needs this once per sweep, not once per team per week: a Set built
+ * from a single read replaces thirteen times the number of started weeks worth of
+ * per-pair existence checks, and it is what lets a settled week be asked for once and
+ * never again.
+ */
+export async function loadStoredLineupWeeks(db: Db): Promise<Set<string>> {
+  const rows = await db
+    .select({ teamId: roundLineups.teamId, gameweek: roundLineups.gameweek })
+    .from(roundLineups);
+  return new Set(rows.map((r) => `${r.teamId}:${r.gameweek}`));
 }
 
 /** Everything the catalogue needs, aggregated in the database. */
