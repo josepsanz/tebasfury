@@ -109,15 +109,18 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
     droppedSquadPlayers,
     realTeamsKnown,
     operationsCaptured,
+    lineupsFailed,
     nextRunAt,
   } = outcome.result;
-  // The two counts below are usually both zero and add nothing when they are — they
-  // only appear when there is something an operator would want to see: a squad that
-  // looked implausible and was left alone, or a player id the catalogue did not
-  // recognise.
+  // The counts below are usually all zero and add nothing when they are — they only
+  // appear when there is something an operator would want to see: a squad that looked
+  // implausible and was left alone, a player id the catalogue did not recognise, or a
+  // lineup that failed and is silently retried next sweep — see `captureLineups`,
+  // which is the one place that failure is otherwise invisible.
   const notes = [
     squadsSkipped > 0 ? `${squadsSkipped} squad(s) left unchanged (empty response)` : null,
     droppedSquadPlayers > 0 ? `${droppedSquadPlayers} unknown squad id(s) dropped` : null,
+    lineupsFailed > 0 ? `${lineupsFailed} lineup(s) failed (retried next sweep)` : null,
   ].filter((note): note is string => note !== null);
 
   return {

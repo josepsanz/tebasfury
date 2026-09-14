@@ -69,6 +69,10 @@ export async function POST(request: Request) {
     droppedSquadPlayers: outcome.result.droppedSquadPlayers,
     realTeamsKnown: outcome.result.realTeamsKnown,
     operationsCaptured: outcome.result.operationsCaptured,
+    // Lineups are the sweep's one silently-retried failure (see `captureLineups`), and
+    // this endpoint's JSON is the other channel an operator — or a monitor watching
+    // it — could read that from, alongside the admin page's notes.
+    lineupsCaptured: outcome.result.lineupsCaptured,
     nextRunAt: outcome.result.nextRunAt.toISOString(),
   });
 }

@@ -518,9 +518,13 @@ describe("the lineup mapping", () => {
   });
 
   it("reads a week's lineup as a flat eleven", async () => {
-    stubFetch(lineupWeekFixture, 200);
+    const fetchMock = stubFetch(lineupWeekFixture);
     const lineup = await getLineup("token", "38127827", 4);
 
+    // The measured finding this feature rests on: plain `/lineup` is a 403 for every
+    // team, and only the week form is the public record. Pinning the URL here is what
+    // would catch a regression back to the private endpoint.
+    expect(fetchMock.mock.calls[0][0]).toContain("/lineup/week/4");
     expect(lineup).toMatchObject({ teamId: "38127827", gameweek: 4 });
     expect(lineup.formation).toMatch(/^\d(-\d)+$/);
     expect(lineup.players).toHaveLength(11);

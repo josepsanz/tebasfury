@@ -23,6 +23,11 @@ export type LineupSweepResult = {
   skipped: number;
   /** One team's fetch or write that failed, counted rather than raised. */
   failed: number;
+  /**
+   * Fielded ids the catalogue did not recognise, dropped rather than failing the
+   * whole eleven — the same tolerance `replaceSquads` applies to a squad response.
+   */
+  droppedPlayers: number;
 };
 
 /**
@@ -43,11 +48,18 @@ export type LineupSweepResult = {
  * counted and skipped; it never fails the other teams' lineups, and it never fails
  * the sweep that called this. See `runPlayerSweep`, which hangs this call with the
  * comment explaining why this ruling is the opposite of `getActivity`'s.
+ *
+ * `knownPlayerIds` is the same set `runPlayerSweep` builds from this sweep's own
+ * catalogue for `replaceSquads`, passed in rather than re-read here. `round_lineup_players
+ * .player_id` carries the identical foreign key to `players.id` that `squad_members
+ * .player_id` does, and the eleven go in as one multi-row insert — one id the catalogue
+ * does not recognise would otherwise throw and fail all eleven, after the delete has
+ * already run.
  */
 export async function captureLineups(
   db: Db,
   client: LineupClient,
-  { now }: { now: Date },
+  { now, knownPlayerIds }: { now: Date; knownPlayerIds: Set<string> },
 ): Promise<LineupSweepResult> {
   const [weeks, knownTeams, stored] = await Promise.all([
     db
@@ -61,6 +73,7 @@ export async function captureLineups(
   let captured = 0;
   let skipped = 0;
   let failed = 0;
+  let droppedPlayers = 0;
 
   for (const team of knownTeams) {
     for (const week of weeks) {
@@ -72,7 +85,9 @@ export async function captureLineups(
 
       try {
         const lineup = await client.getLineup(team.id, week.number);
-        await writeLineup(db, lineup, now);
+        const validPlayers = lineup.players.filter((p) => knownPlayerIds.has(p.playerId));
+        droppedPlayers += lineup.players.length - validPlayers.length;
+        await writeLineup(db, { ...lineup, players: validPlayers }, now);
         captured += 1;
       } catch {
         // One team's lineup, gone this sweep. The next sweep asks again — nothing here
@@ -82,7 +97,7 @@ export async function captureLineups(
     }
   }
 
-  return { captured, skipped, failed };
+  return { captured, skipped, failed, droppedPlayers };
 }
 
 /**

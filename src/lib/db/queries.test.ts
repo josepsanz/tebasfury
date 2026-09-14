@@ -632,9 +632,24 @@ describe("loadStoredLineupWeeks", () => {
       { id: "t1", managerId: 1, managerName: "Ada" },
       { id: "t2", managerId: 2, managerName: "Bruno" },
     ]);
+    await h.db.insert(players).values({
+      id: "p1",
+      nickname: "p1",
+      position: "Midfielder",
+      realTeamId: "rt1",
+      status: "ok",
+    });
     await h.db.insert(roundLineups).values([
       { teamId: "t1", gameweek: 4, formation: "1-4-4-2", points: 55, snapshotTookOn: new Date("2026-08-25T20:00:00Z") },
       { teamId: "t2", gameweek: 5, formation: "1-4-3-3", points: 40, snapshotTookOn: new Date("2026-09-01T20:00:00Z") },
+      // A header with no eleven behind it — what `writeLineup` leaves when a sweep dies
+      // between its two statements. Not a fixture of a "third stored lineup": the whole
+      // point of this describe block is that this one must NOT count as stored.
+      { teamId: "t1", gameweek: 6, formation: "1-4-4-2", points: 0, snapshotTookOn: new Date("2026-09-08T20:00:00Z") },
+    ]);
+    await h.db.insert(roundLineupPlayers).values([
+      { teamId: "t1", gameweek: 4, playerId: "p1", line: "midfield", weekPoints: 3, inIdeal: false },
+      { teamId: "t2", gameweek: 5, playerId: "p1", line: "midfield", weekPoints: 5, inIdeal: false },
     ]);
   });
   afterAll(async () => {
@@ -643,6 +658,13 @@ describe("loadStoredLineupWeeks", () => {
 
   it("keys every stored lineup by team and gameweek", async () => {
     expect(await loadStoredLineupWeeks(h.db)).toEqual(new Set(["t1:4", "t2:5"]));
+  });
+
+  it("does not count a header with no player rows as stored", async () => {
+    // `t1:6` has a `round_lineups` header (inserted above) and no `round_lineup_players`
+    // rows — the shape a half-write leaves. Counting it as stored is Finding 1: it would
+    // leave that pair skipped forever, with an empty pitch nothing else could recover.
+    expect(await loadStoredLineupWeeks(h.db)).not.toContain("t1:6");
   });
 
   it("returns an empty set before anything has ever been captured", async () => {

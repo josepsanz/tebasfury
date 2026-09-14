@@ -335,11 +335,26 @@ export async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
  * from a single read replaces thirteen times the number of started weeks worth of
  * per-pair existence checks, and it is what lets a settled week be asked for once and
  * never again.
+ *
+ * Read off `round_lineup_players`, joined back to the header, rather than off
+ * `round_lineups` alone: `writeLineup` writes the header first and the eleven second,
+ * with no transaction and no foreign key between them, so a sweep that dies in between
+ * — a timeout, a dropped connection — leaves a header with zero players. A header-only
+ * read would call that "already stored" for ever, since a settled week is never asked
+ * for twice; keying off the eleven instead means a half-write has no player row to
+ * join against, is not counted as stored, and self-heals on the very next sweep.
  */
 export async function loadStoredLineupWeeks(db: Db): Promise<Set<string>> {
   const rows = await db
-    .select({ teamId: roundLineups.teamId, gameweek: roundLineups.gameweek })
-    .from(roundLineups);
+    .selectDistinct({ teamId: roundLineups.teamId, gameweek: roundLineups.gameweek })
+    .from(roundLineups)
+    .innerJoin(
+      roundLineupPlayers,
+      and(
+        eq(roundLineupPlayers.teamId, roundLineups.teamId),
+        eq(roundLineupPlayers.gameweek, roundLineups.gameweek),
+      ),
+    );
   return new Set(rows.map((r) => `${r.teamId}:${r.gameweek}`));
 }
 

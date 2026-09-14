@@ -64,6 +64,8 @@ export type PlayerSweepResult = {
   lineupsSkipped: number;
   /** One team's lineup that failed this sweep; the next sweep asks again. */
   lineupsFailed: number;
+  /** Fielded ids the catalogue did not recognise, dropped rather than failing an eleven. */
+  droppedLineupPlayers: number;
   nextRunAt: Date;
 };
 
@@ -176,7 +178,10 @@ export async function runPlayerSweep(deps: {
     // Lineups are the sweep's one tolerated failure besides none: `captureLineups` never
     // throws, because a missing lineup costs a page section and the next sweep asks again.
     // The market log above is the opposite ruling for the opposite reason.
-    const lineups = await captureLineups(db, client, { now });
+    //
+    // `knownPlayerIds` is the same set `replaceSquads` just used, above: one call to
+    // `getPlayers`, one FK to guard against, one set built to guard it.
+    const lineups = await captureLineups(db, client, { now, knownPlayerIds });
 
     const nextRunAt = nextPlayerSweep(now);
     await db
@@ -194,6 +199,7 @@ export async function runPlayerSweep(deps: {
       lineupsCaptured: lineups.captured,
       lineupsSkipped: lineups.skipped,
       lineupsFailed: lineups.failed,
+      droppedLineupPlayers: lineups.droppedPlayers,
       nextRunAt,
     };
   } catch (error) {
