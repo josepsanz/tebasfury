@@ -7,6 +7,14 @@ import {
   type Shortfall,
 } from "@/lib/domain/lineup";
 import { statusLabel, type CatalogueRow } from "@/lib/domain/players";
+import { Pitch, type PitchLine, type PitchMark } from "./pitch";
+
+/** Gameweeks recorded below which an average is a caveat, not a fact. */
+const THIN_SAMPLE = 3;
+
+/** The `~` mark's own wording — singular for one gameweek, plural otherwise. */
+const thinSampleLabel = (gameweeksRecorded: number): string =>
+  `Average from ${gameweeksRecorded} gameweek${gameweeksRecorded === 1 ? "" : "s"}`;
 
 /**
  * The best eleven a squad can field, and every formation ranked beside it.
@@ -32,6 +40,17 @@ function shortfallWords(shortfall: Shortfall): string {
   return parts.join(", ");
 }
 
+/**
+ * The best eleven, drawn on the same pitch `RoundLineup` draws a round's own eleven on —
+ * shared via `./pitch` once this became the second caller its spec had been waiting for.
+ *
+ * Two marks, decided with the owner and not negotiable: `!` names the status itself
+ * (`statusLabel`'s own wording — doubt is a judgement, so the player counts and the
+ * reader is told) and `~` names a thin sample (an average is a caveat, not a floor,
+ * below `THIN_SAMPLE` gameweeks). The caption beneath explains only the marks that
+ * actually appear in THIS eleven, aggregated once — the same shape `RoundLineup`'s own
+ * caption uses for its `★`. No mark anywhere, no caption: there is nothing to explain.
+ */
 function Eleven({
   showing,
   metric,
@@ -46,63 +65,49 @@ function Eleven({
         ? "—"
         : `${player.averagePoints.toFixed(1)} avg`;
 
+  const marksFor = (player: CatalogueRow): PitchMark[] => {
+    const marks: PitchMark[] = [];
+    const label = statusLabel(player.status);
+    if (label !== null) marks.push({ symbol: "!", label });
+    if (player.gameweeksRecorded < THIN_SAMPLE) {
+      marks.push({ symbol: "~", label: thinSampleLabel(player.gameweeksRecorded) });
+    }
+    return marks;
+  };
+
+  // All four lines, always, even the empty ones — see `Pitch`'s own doc comment for why.
+  const lines: PitchLine[] = LINES.map((line) => ({
+    line,
+    players: showing.eleven
+      .filter((p) => p.position === line)
+      .map((player) => ({
+        id: player.id,
+        nickname: player.nickname,
+        // `CatalogueRow` carries no portrait today — `PlayerRecord`'s `imageUrl` is
+        // dropped in `buildCatalogue` — so every player here falls back to initials.
+        // Wiring a portrait through is a real change to `CatalogueRow` and out of scope
+        // for this extraction; `Pitch` already degrades to initials for exactly this case.
+        imageUrl: null,
+        figure: figure(player),
+        marks: marksFor(player),
+      })),
+  }));
+
+  const flaggedCount = showing.eleven.filter((p) => statusLabel(p.status) !== null).length;
+  const thinCount = showing.eleven.filter((p) => p.gameweeksRecorded < THIN_SAMPLE).length;
+
   return (
-    <div className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
-      {LINES.map((line) => {
-        const players = showing.eleven.filter((p) => p.position === line);
-        if (players.length === 0) return null;
-        return (
-          <div key={line}>
-            <div
-              className="px-2 py-[4px] text-[10px] uppercase tracking-[0.06em]"
-              style={{ background: "var(--board-panel)", color: "var(--board-ink-dim)" }}
-            >
-              {line} · {players.length}
-            </div>
-            <ul>
-              {players.map((player) => {
-                const label = statusLabel(player.status);
-                return (
-                  <li
-                    key={player.id}
-                    className="grid grid-cols-[1fr_64px] items-baseline gap-2 border-b px-2 py-[6px]"
-                    style={{ borderColor: "var(--board-line)" }}
-                  >
-                    <span className="min-w-0 truncate text-[13px]">
-                      <Link
-                        href={`/players/${player.id}`}
-                        className="underline decoration-[var(--board-line)] underline-offset-4"
-                      >
-                        {player.nickname}
-                      </Link>
-                      {/* Doubt is a judgement, so the player counts and the reader is told. */}
-                      {label === null ? null : (
-                        <span className="ml-2 text-[10.5px]" style={{ color: "var(--board-alert)" }}>
-                          {label}
-                        </span>
-                      )}
-                      {/* Not a floor, a caveat: this average rests on very little. */}
-                      {player.gameweeksRecorded < 3 ? (
-                        <span className="ml-2 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
-                          {player.gameweeksRecorded === 1
-                            ? "1 gameweek"
-                            : `${player.gameweeksRecorded} gameweeks`}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span
-                      className="text-right text-[12.5px] tabular-nums"
-                      style={{ fontFamily: "var(--font-mono)" }}
-                    >
-                      {figure(player)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        );
-      })}
+    <div className="mt-3">
+      <Pitch lines={lines} />
+      {flaggedCount === 0 && thinCount === 0 ? null : (
+        <p className="mt-2 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
+          {flaggedCount > 0 ? `! marks a flagged status (${flaggedCount})` : null}
+          {flaggedCount > 0 && thinCount > 0 ? " · " : null}
+          {thinCount > 0
+            ? `~ marks an average from fewer than ${THIN_SAMPLE} gameweeks (${thinCount})`
+            : null}
+        </p>
+      )}
     </div>
   );
 }

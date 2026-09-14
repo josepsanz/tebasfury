@@ -51,11 +51,16 @@ describe("LineupBoard", () => {
     expect(html).toContain('href="/players/f1"');
   });
 
-  it("groups the eleven by line", () => {
+  it("groups the eleven by line on the pitch, keeper first", () => {
+    // The eleven is a pitch now, not a list: there is no visible line label any more,
+    // only the `data-line` hook the pitch draws one row per line from. The claim this
+    // test makes is the same one the old grouped list made — four groups, keeper first —
+    // aimed at the markup that now actually carries it.
     const html = render(full);
-    for (const line of ["Goalkeeper", "Defender", "Midfielder", "Forward"]) {
-      expect(html).toContain(line);
-    }
+    expect(html.match(/data-line="/g)).toHaveLength(4);
+    expect(html.indexOf('data-line="Goalkeeper"')).toBeLessThan(
+      html.indexOf('data-line="Forward"'),
+    );
   });
 
   it("lists every formation, with a link that selects it", () => {
@@ -71,14 +76,29 @@ describe("LineupBoard", () => {
       ...full,
       row("iffy", { position: "Forward", status: "doubtful", seasonPoints: 999 }),
     ]);
-    expect(html).toContain("Doubtful");
+    // The `!` mark carries the status itself as its own accessible name — `statusLabel`'s
+    // own wording, on the row — and the caption below the pitch explains the shape once,
+    // aggregated, for whichever marks actually appear.
+    expect(html).toMatch(/role="img"\s+aria-label="Doubtful"/);
+    expect(html).toContain("! marks a flagged status (1)");
   });
 
   it("marks a player whose average rests on fewer than three gameweeks", () => {
     const rows = full.map((r) =>
       r.id === "f1" ? { ...r, gameweeksRecorded: 1 } : r,
     );
-    expect(render(rows)).toContain("1 gameweek");
+    const html = render(rows);
+    expect(html).toMatch(/role="img"\s+aria-label="Average from 1 gameweek"/);
+    expect(html).toContain("~ marks an average from fewer than 3 gameweeks (1)");
+  });
+
+  it("says nothing extra below the pitch when nobody in the eleven carries a mark", () => {
+    // `full` is entirely `ok`-status players with four gameweeks recorded each — no
+    // flagged status, no thin sample. No mark, no caption: there is nothing to explain.
+    const html = render(full);
+    expect(html).not.toContain('role="img"');
+    expect(html).not.toContain("marks a flagged status");
+    expect(html).not.toContain("marks an average from fewer than");
   });
 
   it("says which line is short when nothing can be fielded, and names the nearest", () => {
