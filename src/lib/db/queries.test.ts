@@ -17,6 +17,7 @@ import {
 } from "./schema";
 import {
   claimStandingsRun,
+  loadPortraits,
   loadChainHeartbeats,
   loadLeagueStatus,
   loadLineupWeeks,
@@ -778,5 +779,39 @@ describe("loadLineupWeeks", () => {
 
   it("returns an empty list for a team with no lineups at all", async () => {
     expect(await loadLineupWeeks(h.db, { teamId: "t2-none" })).toEqual([]);
+  });
+});
+
+describe("loadPortraits", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(players).values([
+      {
+        id: "p1",
+        nickname: "Courtois",
+        position: "Goalkeeper",
+        realTeamId: "rt1",
+        status: "ok",
+        imageUrl: "https://assets-fantasy.llt-services.com/players/p1.png",
+      },
+      { id: "p2", nickname: "Carvajal", position: "Defender", realTeamId: "rt1", status: "ok" },
+    ]);
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("answers for the players asked about, and only those", async () => {
+    // The best eleven needs faces for one squad, not for the eight hundred players the
+    // catalogue carries — those rows cross to the browser, and a URL each would be paid
+    // for by every reader of /players.
+    const portraits = await loadPortraits(h.db, ["p1", "p2"]);
+    expect(portraits.get("p1")).toContain("/players/p1.png");
+    expect(portraits.has("p2")).toBe(false);
+  });
+
+  it("asks for nobody and gets nobody, without hitting the database", async () => {
+    expect(await loadPortraits(h.db, [])).toEqual(new Map());
   });
 });

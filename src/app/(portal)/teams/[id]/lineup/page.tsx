@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
+import { loadPlayerCatalogue, loadPortraits, loadSnapshots } from "@/lib/db/queries";
 import { buildCatalogue } from "@/lib/domain/players";
 import { parseMetric, rankFormations } from "@/lib/domain/lineup";
 import { requireSession } from "@/lib/auth/guards";
@@ -41,6 +41,9 @@ export default async function LineupPage({
 
   const metric = parseMetric(query.by);
   const ranked = rankFormations(squad, metric);
+  // One squad's worth of faces, asked for by id: the catalogue's rows cross to the browser
+  // on /players, so a portrait per row would be paid for there to serve eleven faces here.
+  const portraits = await loadPortraits(db, squad.map((row) => row.id));
 
   const askedFor = Array.isArray(query.formation) ? query.formation[0] : query.formation;
   const showing =
@@ -73,6 +76,7 @@ export default async function LineupPage({
         metric={metric}
         teamId={id}
         ownershipKnown={catalogue.ownershipKnown}
+        portraits={portraits}
       />
     </section>
   );

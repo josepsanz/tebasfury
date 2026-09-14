@@ -148,6 +148,29 @@ export async function loadLeagueStatus(db: Db): Promise<LeagueStatus> {
 }
 
 /**
+ * The portraits of a named handful of players.
+ *
+ * Asked for by id rather than carried on `CatalogueRow`, and that is the whole point: the
+ * catalogue's rows cross to the browser — eight hundred of them on `/players` — so a URL
+ * per row would be paid for by every reader of that page to serve eleven faces on another.
+ * The best eleven needs one squad's worth, so it asks for one squad's worth.
+ *
+ * A player the API has never pictured is simply absent from the map; the pitch draws their
+ * initials, which is a missing photo rather than a missing player.
+ */
+export async function loadPortraits(db: Db, playerIds: string[]): Promise<Map<string, string>> {
+  if (playerIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: playersTable.id, imageUrl: playersTable.imageUrl })
+    .from(playersTable)
+    .where(inArray(playersTable.id, playerIds));
+
+  return new Map(
+    rows.flatMap((row) => (row.imageUrl === null ? [] : [[row.id, row.imageUrl] as const])),
+  );
+}
+
+/**
  * When the newest standings run STARTED — whether it has finished or is still working.
  *
  * Deliberately not `loadLeagueStatus`'s `lastSync`, which is the newest SUCCESS and the

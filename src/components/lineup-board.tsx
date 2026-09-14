@@ -54,9 +54,11 @@ function shortfallWords(shortfall: Shortfall): string {
 function Eleven({
   showing,
   metric,
+  portraits,
 }: {
   showing: RankedFormation;
   metric: LineupMetric;
+  portraits: Map<string, string>;
 }) {
   const figure = (player: CatalogueRow) =>
     metric === "points"
@@ -83,11 +85,7 @@ function Eleven({
       .map((player) => ({
         id: player.id,
         nickname: player.nickname,
-        // `CatalogueRow` carries no portrait today — `PlayerRecord`'s `imageUrl` is
-        // dropped in `buildCatalogue` — so every player here falls back to initials.
-        // Wiring a portrait through is a real change to `CatalogueRow` and out of scope
-        // for this extraction; `Pitch` already degrades to initials for exactly this case.
-        imageUrl: null,
+        imageUrl: portraits.get(player.id) ?? null,
         figure: figure(player),
         marks: marksFor(player),
       })),
@@ -118,12 +116,19 @@ export function LineupBoard({
   metric,
   teamId,
   ownershipKnown,
+  portraits,
 }: {
   ranked: RankedFormation[];
   showing: RankedFormation | null;
   metric: LineupMetric;
   teamId: string;
   ownershipKnown: boolean;
+  /**
+   * Player id to portrait, for the squad this board is drawing. Absent means the API has
+   * never pictured them and the pitch draws initials — see `loadPortraits`, which explains
+   * why these do not ride along on `CatalogueRow`.
+   */
+  portraits: Map<string, string>;
 }) {
   if (!ownershipKnown) {
     return (
@@ -163,7 +168,7 @@ export function LineupBoard({
                   : `${showing.total.toFixed(1)} avg`}
             </span>
           </h2>
-          <Eleven showing={showing} metric={metric} />
+          <Eleven showing={showing} metric={metric} portraits={portraits} />
         </>
       )}
 

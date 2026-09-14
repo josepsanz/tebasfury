@@ -29,7 +29,12 @@ const full = [
   ...[1, 2, 3].map((n) => row(`f${n}`, { position: "Forward" })),
 ];
 
-const render = (rows: CatalogueRow[], ownershipKnown = true, metric: "points" | "average" = "points") => {
+const render = (
+  rows: CatalogueRow[],
+  ownershipKnown = true,
+  metric: "points" | "average" = "points",
+  portraits: Map<string, string> = new Map(),
+) => {
   const ranked = rankFormations(rows, metric);
   const showing = ranked.find((r) => r.shortfall === null) ?? null;
   return renderToStaticMarkup(
@@ -39,6 +44,7 @@ const render = (rows: CatalogueRow[], ownershipKnown = true, metric: "points" | 
       metric={metric}
       teamId="t1"
       ownershipKnown={ownershipKnown}
+      portraits={portraits}
     />,
   );
 };
@@ -155,5 +161,17 @@ describe("LineupBoard", () => {
     // beside the formation's name.
     expect(dashes.length).toBeGreaterThanOrEqual(2);
     expect(html).not.toContain("NaN");
+  });
+
+  it("wears the squad's faces when the page has them", () => {
+    // The portraits arrive by id from `loadPortraits` rather than riding on the catalogue
+    // rows, so this board draws a face for whoever the map knows and initials for the
+    // rest — the same pitch the round lineups use, fed from a different place.
+    const html = render(full, true, "points", new Map([["gk", "https://assets-fantasy.llt-services.com/players/gk.png"]]));
+    expect(html).toContain("<img");
+  });
+
+  it("draws initials when the page has no face for a player", () => {
+    expect(render(full)).not.toContain("<img");
   });
 });
