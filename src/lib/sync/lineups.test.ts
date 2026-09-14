@@ -6,10 +6,6 @@ import { captureLineups, type LineupClient } from "./lineups";
 
 const NOW = new Date("2026-09-14T04:00:00Z");
 
-/** The fixed roster seeded in `beforeEach`, standing in for `runPlayerSweep`'s own
- *  `knownPlayerIds` — the set built from that sweep's freshly-written catalogue. */
-const KNOWN_PLAYER_IDS = new Set(["p1", "p2", "p3"]);
-
 /**
  * A client that records every call it gets, so a test can assert exactly which
  * (team, week) pairs were asked for and in what order.
@@ -84,7 +80,7 @@ describe("captureLineups", () => {
     await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Ana" });
 
     const client = fakeClient();
-    await captureLineups(h.db, client, { now: NOW, knownPlayerIds: KNOWN_PLAYER_IDS });
+    await captureLineups(h.db, client, { now: NOW });
 
     expect(client.asked).toEqual([
       { teamId: "t1", week: 4 },
@@ -102,9 +98,9 @@ describe("captureLineups", () => {
     await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Ana" });
 
     const first = fakeClient();
-    await captureLineups(h.db, first, { now: NOW, knownPlayerIds: KNOWN_PLAYER_IDS });
+    await captureLineups(h.db, first, { now: NOW });
     const second = fakeClient();
-    const counts = await captureLineups(h.db, second, { now: NOW, knownPlayerIds: KNOWN_PLAYER_IDS });
+    const counts = await captureLineups(h.db, second, { now: NOW });
 
     expect(second.asked).toEqual([{ teamId: "t1", week: 5 }]);
     expect(counts).toMatchObject({ captured: 1, skipped: 1 });
@@ -114,8 +110,8 @@ describe("captureLineups", () => {
     await h.db.insert(gameweeks).values({ number: 5, isLive: true });
     await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Ana" });
 
-    await captureLineups(h.db, fakeClient({ points: 12 }), { now: NOW, knownPlayerIds: KNOWN_PLAYER_IDS });
-    await captureLineups(h.db, fakeClient({ points: 48 }), { now: NOW, knownPlayerIds: KNOWN_PLAYER_IDS });
+    await captureLineups(h.db, fakeClient({ points: 12 }), { now: NOW });
+    await captureLineups(h.db, fakeClient({ points: 48 }), { now: NOW });
 
     const [stored] = await h.db.select().from(roundLineups);
     expect(stored.points).toBe(48);
@@ -127,8 +123,8 @@ describe("captureLineups", () => {
     await h.db.insert(gameweeks).values({ number: 5, isLive: true });
     await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Ana" });
 
-    await captureLineups(h.db, fakeClient({ playerIds: ["p1", "p2"] }), { now: NOW, knownPlayerIds: KNOWN_PLAYER_IDS });
-    await captureLineups(h.db, fakeClient({ playerIds: ["p1", "p3"] }), { now: NOW, knownPlayerIds: KNOWN_PLAYER_IDS });
+    await captureLineups(h.db, fakeClient({ playerIds: ["p1", "p2"] }), { now: NOW });
+    await captureLineups(h.db, fakeClient({ playerIds: ["p1", "p3"] }), { now: NOW });
 
     const rows = await h.db.select().from(roundLineupPlayers);
     expect(rows.map((r) => r.playerId).sort()).toEqual(["p1", "p3"]);
@@ -145,7 +141,7 @@ describe("captureLineups", () => {
     ]);
 
     const client = fakeClient({ failFor: "t1" });
-    const counts = await captureLineups(h.db, client, { now: NOW, knownPlayerIds: KNOWN_PLAYER_IDS });
+    const counts = await captureLineups(h.db, client, { now: NOW });
 
     expect(counts).toMatchObject({ captured: 1, failed: 1 });
     expect(await h.db.select().from(roundLineups)).toHaveLength(1);
@@ -168,10 +164,7 @@ describe("captureLineups", () => {
     });
 
     const client = fakeClient();
-    const counts = await captureLineups(h.db, client, {
-      now: NOW,
-      knownPlayerIds: KNOWN_PLAYER_IDS,
-    });
+    const counts = await captureLineups(h.db, client, { now: NOW });
 
     expect(client.asked).toEqual([{ teamId: "t1", week: 4 }]);
     expect(counts).toMatchObject({ captured: 1, skipped: 0 });
@@ -187,13 +180,59 @@ describe("captureLineups", () => {
     await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Ana" });
 
     const client = fakeClient({ playerIds: ["p1", "p2", "unknown-player"] });
-    const counts = await captureLineups(h.db, client, {
-      now: NOW,
-      knownPlayerIds: KNOWN_PLAYER_IDS,
-    });
+    const counts = await captureLineups(h.db, client, { now: NOW });
 
     expect(counts).toMatchObject({ captured: 1, failed: 0, droppedPlayers: 1 });
     const rows = await h.db.select().from(roundLineupPlayers);
     expect(rows.map((r) => r.playerId).sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("keeps a player the fresh catalogue no longer returns but `players` still holds", async () => {
+    // The defect this whole change fixes: the filter used to run against
+    // `runPlayerSweep`'s catalogue-only `knownPlayerIds` (`new Set(catalogue.map((p) =>
+    // p.id))`), built fresh from this sweep's `getPlayers` response. A player fielded in
+    // an earlier round who has since left LaLiga is correctly absent from today's
+    // catalogue — but `upsertCatalogue` never deletes a row, it only moves `status`, so
+    // that player is still sitting right here in `players`, which is the table
+    // `round_lineup_players.player_id`'s foreign key actually targets. Filtering against
+    // the catalogue was stricter than the constraint it exists to protect, and it
+    // silently erased real history the moment a career ended.
+    //
+    // "retired-vet" stands in for that player: present in `players` (seeded below, not
+    // by the shared `beforeEach` roster, precisely to prove this does not depend on any
+    // catalogue-shaped hint) and fielded in the lineup — they must be stored.
+    await h.db.insert(players).values({
+      id: "retired-vet",
+      nickname: "retired-vet",
+      position: "Forward",
+      realTeamId: "rt1",
+      status: "left",
+    });
+    await h.db.insert(gameweeks).values({ number: 5, isLive: true });
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Ana" });
+
+    const client = fakeClient({ playerIds: ["p1", "retired-vet"] });
+    const counts = await captureLineups(h.db, client, { now: NOW });
+
+    expect(counts).toMatchObject({ captured: 1, droppedPlayers: 0 });
+    const rows = await h.db.select().from(roundLineupPlayers);
+    expect(rows.map((r) => r.playerId).sort()).toEqual(["p1", "retired-vet"]);
+  });
+
+  it("writes no header at all when every fielded id is unknown, and counts it as failed", async () => {
+    // A header with zero player rows is exactly the shape the last review's Finding 1
+    // was about, and `loadStoredLineupWeeks` never counts that pair as stored (see the
+    // "asks again for a settled week whose header was written with no eleven behind it"
+    // test above) — so it would be re-fetched forever, quietly breaking the
+    // thirteen-calls-per-week budget for that team. Treating an empty eleven as a
+    // failure keeps the retry honest instead of endless.
+    await h.db.insert(gameweeks).values({ number: 5, isLive: true });
+    await h.db.insert(teams).values({ id: "t1", managerId: 1, managerName: "Ana" });
+
+    const client = fakeClient({ playerIds: ["nobody-knows-this-one"] });
+    const counts = await captureLineups(h.db, client, { now: NOW });
+
+    expect(counts).toMatchObject({ captured: 0, failed: 1 });
+    expect(await h.db.select().from(roundLineups)).toHaveLength(0);
   });
 });

@@ -110,6 +110,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
     realTeamsKnown,
     operationsCaptured,
     lineupsFailed,
+    droppedLineupPlayers,
     nextRunAt,
   } = outcome.result;
   // The counts below are usually all zero and add nothing when they are — they only
@@ -121,6 +122,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
     squadsSkipped > 0 ? `${squadsSkipped} squad(s) left unchanged (empty response)` : null,
     droppedSquadPlayers > 0 ? `${droppedSquadPlayers} unknown squad id(s) dropped` : null,
     lineupsFailed > 0 ? `${lineupsFailed} lineup(s) failed (retried next sweep)` : null,
+    droppedLineupPlayers > 0 ? `${droppedLineupPlayers} unknown lineup id(s) dropped` : null,
   ].filter((note): note is string => note !== null);
 
   return {

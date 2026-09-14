@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
-import { gameweeks, roundLineupPlayers, roundLineups, teams } from "@/lib/db/schema";
+import { gameweeks, players, roundLineupPlayers, roundLineups, teams } from "@/lib/db/schema";
 import { loadStoredLineupWeeks } from "@/lib/db/queries";
 import type { FantasyClient, LineupRow } from "@/lib/fantasy-client";
 
@@ -21,11 +21,15 @@ export type LineupSweepResult = {
   captured: number;
   /** A settled week already stored, and correctly left alone — see the budget below. */
   skipped: number;
-  /** One team's fetch or write that failed, counted rather than raised. */
+  /**
+   * One team's fetch or write that failed, counted rather than raised — including an
+   * eleven that filtered down to nobody at all (see `captureLineups`'s doc comment).
+   */
   failed: number;
   /**
-   * Fielded ids the catalogue did not recognise, dropped rather than failing the
-   * whole eleven — the same tolerance `replaceSquads` applies to a squad response.
+   * Fielded ids `players` did not recognise, dropped rather than failing the whole
+   * eleven — the same tolerance `replaceSquads` applies to a squad response, but
+   * checked against a different set. See `captureLineups` for why.
    */
   droppedPlayers: number;
 };
@@ -49,26 +53,41 @@ export type LineupSweepResult = {
  * the sweep that called this. See `runPlayerSweep`, which hangs this call with the
  * comment explaining why this ruling is the opposite of `getActivity`'s.
  *
- * `knownPlayerIds` is the same set `runPlayerSweep` builds from this sweep's own
- * catalogue for `replaceSquads`, passed in rather than re-read here. `round_lineup_players
- * .player_id` carries the identical foreign key to `players.id` that `squad_members
- * .player_id` does, and the eleven go in as one multi-row insert — one id the catalogue
- * does not recognise would otherwise throw and fail all eleven, after the delete has
- * already run.
+ * The eleven is filtered against `players` — read here, fresh, not against
+ * `runPlayerSweep`'s catalogue-only `knownPlayerIds` that `replaceSquads` uses. That
+ * difference is deliberate, not an oversight to "harmonise" away:
+ *
+ *   - A squad is CURRENT state. A player no longer in today's catalogue should not
+ *     still be sitting in someone's squad, so the catalogue itself IS the right
+ *     universe to check a squad against.
+ *   - A lineup is a HISTORICAL record of a round already played. A player fielded in
+ *     week 2 who has since left LaLiga is correctly absent from today's catalogue —
+ *     but `upsertCatalogue` never deletes a row, it only moves `status`, so that
+ *     player is still sitting in `players`, which is what `round_lineup_players
+ *     .player_id`'s foreign key actually targets. Filtering against the catalogue
+ *     would be stricter than the constraint it exists to protect, and it would
+ *     silently and permanently erase real history the moment a player's career ends —
+ *     a settled round is written once, so there is no later sweep to correct it.
+ *
+ * Read after `upsertCatalogue` has run (see `runPlayerSweep`), `players` already holds
+ * this sweep's fresh catalogue plus every id the portal has ever seen, so this one
+ * query is both the looser and the correct universe for a lineup.
  */
 export async function captureLineups(
   db: Db,
   client: LineupClient,
-  { now, knownPlayerIds }: { now: Date; knownPlayerIds: Set<string> },
+  { now }: { now: Date },
 ): Promise<LineupSweepResult> {
-  const [weeks, knownTeams, stored] = await Promise.all([
+  const [weeks, knownTeams, stored, everKnownPlayers] = await Promise.all([
     db
       .select({ number: gameweeks.number, isLive: gameweeks.isLive })
       .from(gameweeks)
       .orderBy(gameweeks.number),
     db.select({ id: teams.id }).from(teams),
     loadStoredLineupWeeks(db),
+    db.select({ id: players.id }).from(players),
   ]);
+  const knownPlayerIds = new Set(everKnownPlayers.map((p) => p.id));
 
   let captured = 0;
   let skipped = 0;
@@ -87,6 +106,19 @@ export async function captureLineups(
         const lineup = await client.getLineup(team.id, week.number);
         const validPlayers = lineup.players.filter((p) => knownPlayerIds.has(p.playerId));
         droppedPlayers += lineup.players.length - validPlayers.length;
+
+        if (validPlayers.length === 0) {
+          // Every fielded id was unknown even to `players` — not one plausible eleven
+          // to store. Writing the header alone here would produce exactly the empty
+          // pitch Finding 1 was about, and `loadStoredLineupWeeks` only counts a pair
+          // as stored when it has player rows behind it (see its own comment), so that
+          // header would never be seen as done and would be re-fetched every sweep,
+          // for ever — quietly burning the thirteen-calls-per-week budget for this one
+          // team. Counting it as failed instead keeps the retry bounded and honest.
+          failed += 1;
+          continue;
+        }
+
         await writeLineup(db, { ...lineup, players: validPlayers }, now);
         captured += 1;
       } catch {

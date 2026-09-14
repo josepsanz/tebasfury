@@ -179,9 +179,11 @@ export async function runPlayerSweep(deps: {
     // throws, because a missing lineup costs a page section and the next sweep asks again.
     // The market log above is the opposite ruling for the opposite reason.
     //
-    // `knownPlayerIds` is the same set `replaceSquads` just used, above: one call to
-    // `getPlayers`, one FK to guard against, one set built to guard it.
-    const lineups = await captureLineups(db, client, { now, knownPlayerIds });
+    // Deliberately NOT passed `knownPlayerIds`: that set is this sweep's catalogue
+    // response, correct for `replaceSquads`'s CURRENT-state question but wrong for a
+    // lineup's HISTORICAL one. `captureLineups` reads `players` itself instead — see its
+    // doc comment for why the two must not be harmonised onto one set.
+    const lineups = await captureLineups(db, client, { now });
 
     const nextRunAt = nextPlayerSweep(now);
     await db

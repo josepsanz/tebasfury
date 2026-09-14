@@ -656,15 +656,29 @@ describe("runPlayerSweep", () => {
 
   it("captures lineups as part of the sweep and carries the counts in its result", async () => {
     // `captureLineups` gets its own exhaustive tests in lineups.test.ts; this only
-    // proves the sweep is actually wired to it and reports what it did.
+    // proves the sweep is actually wired to it and reports what it did. It has to
+    // field a real catalogue id — "p0", which `catalogue()` always writes — because
+    // an eleven that filters down to nobody is now a failure, not a capture (see
+    // `captureLineups`), and the shared `fakeClient` fields nobody at all by default.
     await h.db.insert(gameweeks).values({ number: 5, isLive: true });
     await h.db.insert(teams).values([
       { id: "t1", managerId: 1, managerName: "Manager A" },
       { id: "t2", managerId: 2, managerName: "Manager B" },
     ]);
 
+    const client: PlayerClient = {
+      ...fakeClient(catalogue(MINIMUM_CATALOGUE)),
+      getLineup: async (teamId, week) => ({
+        teamId,
+        gameweek: week,
+        formation: "1-4-4-2",
+        points: 0,
+        snapshotTookOn: now,
+        players: [{ playerId: "p0", line: "midfield", weekPoints: 0, inIdeal: false }],
+      }),
+    };
     const result = await runPlayerSweep({
-      db: h.db, client: fakeClient(catalogue(MINIMUM_CATALOGUE)), now,
+      db: h.db, client, now,
       runId: "s1", trigger: "players-schedule",
     });
 
