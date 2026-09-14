@@ -446,21 +446,45 @@ export const necroporraVotes = pgTable(
   "necroporra_votes",
   {
     gameweek: integer("gameweek").notNull(),
-    userId: text("user_id")
+    /**
+     * Whose ballot this is — the TEAM, not the account.
+     *
+     * Two of the thirteen managers have no portal account and vote in the group chat, so
+     * an account-keyed row had nowhere to put what they said: they were not late voters,
+     * they were outside the model. Keying on the team also means a manager's history
+     * survives their claim — what an admin entered for them is already theirs the day
+     * they sign in.
+     */
+    teamId: text("team_id")
       .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+      .references(() => teams.id, { onDelete: "cascade" }),
     firstTeamId: text("first_team_id").references(() => teams.id, { onDelete: "set null" }),
     secondTeamId: text("second_team_id").references(() => teams.id, { onDelete: "set null" }),
+    /**
+     * The admin who typed this ballot for somebody else, or null when the manager cast it.
+     *
+     * Who, not whether: the same nullable column either way, and it answers the question
+     * the league will actually ask. The page draws it for everyone to read, which is the
+     * price of being allowed to enter a ballot after the round has closed.
+     */
+    enteredBy: text("entered_by").references(() => user.id, { onDelete: "set null" }),
     castAt: timestamp("cast_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    primaryKey({ columns: [table.gameweek, table.userId] }),
+    primaryKey({ columns: [table.gameweek, table.teamId] }),
     // Naming the same team twice is one vote wearing two hats, and would read on the
     // page as a voter who had used both picks. Checked here as well as in the domain:
     // the domain protects the person, this protects the table.
     check(
       "necroporra_votes_distinct_teams",
       sql`${table.firstTeamId} is null or ${table.secondTeamId} is null or ${table.firstTeamId} <> ${table.secondTeamId}`,
+    ),
+    // Only expressible now that the row knows whose ballot it is: before the re-key, "you
+    // cannot pick your own team" lived in the domain alone, because the table had no idea
+    // who "you" were. The domain still protects the person; this protects the table.
+    check(
+      "necroporra_votes_not_own_team",
+      sql`(${table.firstTeamId} is null or ${table.firstTeamId} <> ${table.teamId}) and (${table.secondTeamId} is null or ${table.secondTeamId} <> ${table.teamId})`,
     ),
   ],
 );

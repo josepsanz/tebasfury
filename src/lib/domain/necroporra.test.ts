@@ -21,11 +21,12 @@ const snap = (teamId: string, points: number, roundPosition: number | null): Sna
   teamValue: null,
 });
 
-const ballot = (userId: string, first: string | null, second: string | null = null): Ballot => ({
+const ballot = (teamId: string, first: string | null, second: string | null = null): Ballot => ({
   gameweek: 4,
-  userId,
+  teamId,
   firstTeamId: first,
   secondTeamId: second,
+  enteredBy: null,
 });
 
 describe("isOpen", () => {
@@ -142,26 +143,26 @@ describe("lastPlaced", () => {
 
 describe("scoreRound", () => {
   it("gives a point for naming the team that finished last", () => {
-    expect(scoreRound([ballot("u1", "a", "b")], "b")).toEqual(new Map([["u1", 1]]));
+    expect(scoreRound([ballot("t1", "a", "b")], "b")).toEqual(new Map([["t1", 1]]));
   });
 
   it("gives the same point whichever of the two slots holds it", () => {
-    expect(scoreRound([ballot("u1", "b", "a")], "b")).toEqual(new Map([["u1", 1]]));
+    expect(scoreRound([ballot("t1", "b", "a")], "b")).toEqual(new Map([["t1", 1]]));
   });
 
   it("gives one point, not two, and never more than one per round", () => {
     // The rule is "one point only if the actual last-placed team is among them".
-    expect(scoreRound([ballot("u1", "b", null)], "b")).toEqual(new Map([["u1", 1]]));
+    expect(scoreRound([ballot("t1", "b", null)], "b")).toEqual(new Map([["t1", 1]]));
   });
 
   it("gives nothing for missing", () => {
-    expect(scoreRound([ballot("u1", "a", "c")], "b")).toEqual(new Map([["u1", 0]]));
+    expect(scoreRound([ballot("t1", "a", "c")], "b")).toEqual(new Map([["t1", 0]]));
   });
 
   it("scores nobody at all when the round is unresolved", () => {
     // Deliberately empty rather than everyone on zero: "nobody guessed right" and "we do
     // not know yet" are different claims, and a season table must not average them.
-    expect(scoreRound([ballot("u1", "a", "b")], null)).toEqual(new Map());
+    expect(scoreRound([ballot("t1", "a", "b")], null)).toEqual(new Map());
   });
 });
 
@@ -173,26 +174,26 @@ describe("seasonTable", () => {
     { gameweek: 6, lastTeamId: null },
   ];
   const ballots: Ballot[] = [
-    { gameweek: 4, userId: "u1", firstTeamId: "b", secondTeamId: "a" },
-    { gameweek: 5, userId: "u1", firstTeamId: "c", secondTeamId: "a" },
-    { gameweek: 6, userId: "u1", firstTeamId: "a", secondTeamId: "b" },
-    { gameweek: 4, userId: "u2", firstTeamId: "a", secondTeamId: "c" },
-    { gameweek: 5, userId: "u2", firstTeamId: "c", secondTeamId: "a" },
+    { gameweek: 4, teamId: "t1", firstTeamId: "b", secondTeamId: "a", enteredBy: null },
+    { gameweek: 5, teamId: "t1", firstTeamId: "c", secondTeamId: "a", enteredBy: null },
+    { gameweek: 6, teamId: "t1", firstTeamId: "a", secondTeamId: "b", enteredBy: null },
+    { gameweek: 4, teamId: "t2", firstTeamId: "a", secondTeamId: "c", enteredBy: null },
+    { gameweek: 5, teamId: "t2", firstTeamId: "c", secondTeamId: "a", enteredBy: null },
   ];
 
   it("sums points across resolved rounds only", () => {
-    const table = seasonTable(ballots, rounds, new Map([["u1", "Ada"], ["u2", "Bruno"]]));
-    expect(table.map((r) => [r.userId, r.points, r.rounds])).toEqual([
-      ["u1", 2, 2],
-      ["u2", 1, 2],
+    const table = seasonTable(ballots, rounds, new Map([["t1", "Ada"], ["t2", "Bruno"]]));
+    expect(table.map((r) => [r.teamId, r.points, r.rounds])).toEqual([
+      ["t1", 2, 2],
+      ["t2", 1, 2],
     ]);
   });
 
   it("counts rounds voted in, not rounds played, so a late joiner is not punished silently", () => {
     const table = seasonTable(
-      [{ gameweek: 4, userId: "u3", firstTeamId: "b", secondTeamId: null }],
+      [{ gameweek: 4, teamId: "t3", firstTeamId: "b", secondTeamId: null, enteredBy: null }],
       rounds,
-      new Map([["u3", "Cleo"]]),
+      new Map([["t3", "Cleo"]]),
     );
     expect(table[0]).toMatchObject({ points: 1, rounds: 1 });
   });
@@ -200,13 +201,22 @@ describe("seasonTable", () => {
   it("breaks a tie on the name, so the order never wobbles between renders", () => {
     const table = seasonTable(
       [
-        { gameweek: 4, userId: "z", firstTeamId: "b", secondTeamId: null },
-        { gameweek: 4, userId: "a", firstTeamId: "b", secondTeamId: null },
+        { gameweek: 4, teamId: "tz", firstTeamId: "b", secondTeamId: null, enteredBy: null },
+        { gameweek: 4, teamId: "ta", firstTeamId: "b", secondTeamId: null, enteredBy: null },
       ],
       rounds,
-      new Map([["z", "Zoe"], ["a", "Ada"]]),
+      new Map([["tz", "Zoe"], ["ta", "Ada"]]),
     );
     expect(table.map((r) => r.name)).toEqual(["Ada", "Zoe"]);
+  });
+
+  it("scores a ballot an admin entered exactly like one its manager cast", () => {
+    const table = seasonTable(
+      [{ gameweek: 4, teamId: "t1", firstTeamId: "b", secondTeamId: null, enteredBy: "u-admin" }],
+      rounds,
+      new Map([["t1", "Ada"]]),
+    );
+    expect(table).toEqual([{ teamId: "t1", name: "Ada", points: 1, rounds: 1 }]);
   });
 
   it("is empty before anybody has voted", () => {
@@ -216,14 +226,14 @@ describe("seasonTable", () => {
 
 describe("roundBallots", () => {
   const voters = [
-    { userId: "u2", name: "Bruno" },
-    { userId: "u1", name: "Ada" },
-    { userId: "u3", name: "Cleo" },
+    { teamId: "t2", name: "Bruno" },
+    { teamId: "t1", name: "Ada" },
+    { teamId: "t3", name: "Cleo" },
   ];
   const cast = [
-    { gameweek: 4, userId: "u1", firstTeamId: "a", secondTeamId: "b" },
-    { gameweek: 4, userId: "u2", firstTeamId: "c", secondTeamId: null },
-    { gameweek: 5, userId: "u3", firstTeamId: "a", secondTeamId: null },
+    { gameweek: 4, teamId: "t1", firstTeamId: "a", secondTeamId: "b", enteredBy: null },
+    { gameweek: 4, teamId: "t2", firstTeamId: "c", secondTeamId: null, enteredBy: null },
+    { gameweek: 5, teamId: "t3", firstTeamId: "a", secondTeamId: null, enteredBy: null },
   ];
 
   it("shows every manager's picks, in name order", () => {
@@ -260,6 +270,24 @@ describe("roundBallots", () => {
 
   it("is every voter and nothing else when a round has no ballots at all", () => {
     expect(roundBallots(voters, [], 9, null).map((r) => r.picks)).toEqual([[], [], []]);
+  });
+
+  it("returns a team nobody has claimed, so an absent manager is still a row", () => {
+    // The whole point of the re-key. Before it, "everyone" meant everyone with an
+    // account, and the two managers who vote in the group chat were not in the list at
+    // all — not shown as silent, simply absent.
+    const unclaimed = [...voters, { teamId: "t9", name: "Dani" }];
+    const rows = roundBallots(unclaimed, cast, 4, null);
+    expect(rows.find((r) => r.name === "Dani")).toMatchObject({ teamId: "t9", picks: [] });
+  });
+
+  it("carries who entered a ballot through to the row", () => {
+    const entered = [
+      { gameweek: 4, teamId: "t3", firstTeamId: "c", secondTeamId: null, enteredBy: "u-admin" },
+    ];
+    const rows = roundBallots(voters, entered, 4, null);
+    expect(rows.find((r) => r.name === "Cleo")?.enteredBy).toBe("u-admin");
+    expect(rows.find((r) => r.name === "Ada")?.enteredBy).toBeNull();
   });
 
   it("does not disturb the caller's voter array", () => {

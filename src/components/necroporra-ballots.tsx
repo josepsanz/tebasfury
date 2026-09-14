@@ -14,19 +14,20 @@ import type { RoundBallot } from "@/lib/domain/necroporra";
 export function NecroporraBallots({
   rows,
   teamName,
-  viewerId,
+  viewerTeamId,
   resolved,
 }: {
   rows: RoundBallot[];
   teamName: Map<string, string>;
-  viewerId: string;
+  /** The reader's own team, so their row can be marked — null for an account with no claim. */
+  viewerTeamId: string | null;
   /** Whether the round has a last-placed team yet — a tick means nothing before that. */
   resolved: boolean;
 }) {
   if (rows.length === 0) {
     return (
       <p className="mt-3 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
-        Nobody can vote yet: no manager has claimed a team.
+        Nobody can vote yet: the league has no teams.
       </p>
     );
   }
@@ -35,19 +36,19 @@ export function NecroporraBallots({
     <ul className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
       {rows.map((row) => (
         <li
-          key={row.userId}
+          key={row.teamId}
           className="flex items-baseline justify-between gap-3 border-b px-2 py-[6px] text-[12.5px]"
           style={{
             borderColor: "var(--board-line)",
             background:
-              row.userId === viewerId
+              row.teamId === viewerTeamId
                 ? "color-mix(in srgb, var(--board-you) 10%, transparent)"
                 : undefined,
           }}
         >
           <span
             className="min-w-0 shrink-0 truncate"
-            style={{ color: row.userId === viewerId ? "var(--board-you)" : undefined }}
+            style={{ color: row.teamId === viewerTeamId ? "var(--board-you)" : undefined }}
           >
             {row.name}
           </span>

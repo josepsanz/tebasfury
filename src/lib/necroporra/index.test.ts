@@ -9,7 +9,6 @@ import {
   loadRound,
   loadRounds,
   loadVoters,
-  loadVoterNames,
   openRound,
 } from "./index";
 
@@ -78,16 +77,16 @@ describe("castVotes", () => {
   });
 
   it("records a pair", async () => {
-    await castVotes(h.db, { gameweek: 5, userId: "alice", picks: ["t2", "t3"], now: BEFORE });
-    expect(await loadMyBallot(h.db, { gameweek: 5, userId: "alice" })).toMatchObject({
+    await castVotes(h.db, { gameweek: 5, teamId: "t1", picks: ["t2", "t3"], now: BEFORE, enteredBy: null });
+    expect(await loadMyBallot(h.db, { gameweek: 5, teamId: "t1" })).toMatchObject({
       firstTeamId: "t2",
       secondTeamId: "t3",
     });
   });
 
   it("records a single pick, leaving the other slot empty", async () => {
-    await castVotes(h.db, { gameweek: 5, userId: "alice", picks: ["t2"], now: BEFORE });
-    expect(await loadMyBallot(h.db, { gameweek: 5, userId: "alice" })).toMatchObject({
+    await castVotes(h.db, { gameweek: 5, teamId: "t1", picks: ["t2"], now: BEFORE, enteredBy: null });
+    expect(await loadMyBallot(h.db, { gameweek: 5, teamId: "t1" })).toMatchObject({
       firstTeamId: "t2",
       secondTeamId: null,
     });
@@ -97,17 +96,17 @@ describe("castVotes", () => {
     // The reason the pair lives in one row: Neon's HTTP driver has no transactions, so
     // delete-then-insert would leave a window with no votes at all, opened for exactly
     // the person who was mid-change.
-    await castVotes(h.db, { gameweek: 5, userId: "alice", picks: ["t2", "t3"], now: BEFORE });
-    await castVotes(h.db, { gameweek: 5, userId: "alice", picks: ["t3"], now: BEFORE });
+    await castVotes(h.db, { gameweek: 5, teamId: "t1", picks: ["t2", "t3"], now: BEFORE, enteredBy: null });
+    await castVotes(h.db, { gameweek: 5, teamId: "t1", picks: ["t3"], now: BEFORE, enteredBy: null });
 
     const ballots = await loadBallots(h.db, [5]);
     expect(ballots).toHaveLength(1);
     expect(ballots[0]).toMatchObject({ firstTeamId: "t3", secondTeamId: null });
   });
 
-  it("keeps voters apart", async () => {
-    await castVotes(h.db, { gameweek: 5, userId: "alice", picks: ["t2"], now: BEFORE });
-    await castVotes(h.db, { gameweek: 5, userId: "bruno", picks: ["t3"], now: BEFORE });
+  it("keeps teams apart", async () => {
+    await castVotes(h.db, { gameweek: 5, teamId: "t1", picks: ["t2"], now: BEFORE, enteredBy: null });
+    await castVotes(h.db, { gameweek: 5, teamId: "t3", picks: ["t2"], now: BEFORE, enteredBy: null });
     expect(await loadBallots(h.db, [5])).toHaveLength(2);
   });
 
@@ -115,12 +114,43 @@ describe("castVotes", () => {
     // The check constraint. The domain protects the person; this protects the table from
     // any future caller that forgets to ask.
     await expect(
-      castVotes(h.db, { gameweek: 5, userId: "alice", picks: ["t2", "t2"], now: BEFORE }),
+      castVotes(h.db, { gameweek: 5, teamId: "t1", picks: ["t2", "t2"], now: BEFORE, enteredBy: null }),
     ).rejects.toThrow();
   });
 
-  it("reads back nothing for a voter who has not voted", async () => {
-    expect(await loadMyBallot(h.db, { gameweek: 5, userId: "bruno" })).toBeNull();
+  it("refuses a team picking itself at the table, which the row can finally say", async () => {
+    // Before the re-key the table had no idea whose ballot it was, so this rule lived in
+    // the domain alone. Now it is a check constraint as well.
+    await expect(
+      castVotes(h.db, { gameweek: 5, teamId: "t1", picks: ["t1"], now: BEFORE, enteredBy: null }),
+    ).rejects.toThrow();
+  });
+
+  it("records who entered a ballot on somebody's behalf", async () => {
+    await castVotes(h.db, {
+      gameweek: 5,
+      teamId: "t2",
+      picks: ["t1"],
+      now: BEFORE,
+      enteredBy: "alice",
+    });
+
+    const [ballot] = await loadBallots(h.db, [5]);
+    expect(ballot).toMatchObject({ teamId: "t2", firstTeamId: "t1", enteredBy: "alice" });
+  });
+
+  it("clears the mark when the manager replaces what was typed for them", async () => {
+    // The row says who spoke LAST. A manager correcting an entered ballot owns it from
+    // that moment, and the page must stop saying otherwise.
+    await castVotes(h.db, { gameweek: 5, teamId: "t2", picks: ["t1"], now: BEFORE, enteredBy: "alice" });
+    await castVotes(h.db, { gameweek: 5, teamId: "t2", picks: ["t3"], now: BEFORE, enteredBy: null });
+
+    const [ballot] = await loadBallots(h.db, [5]);
+    expect(ballot.enteredBy).toBeNull();
+  });
+
+  it("reads back nothing for a team that has not voted", async () => {
+    expect(await loadMyBallot(h.db, { gameweek: 5, teamId: "t2" })).toBeNull();
   });
 
   it("asks for no rounds and gets no ballots, without hitting the database", async () => {
@@ -128,31 +158,21 @@ describe("castVotes", () => {
   });
 });
 
-describe("loadVoterNames", () => {
-  it("prefers the manager name, which is how the league knows each other", async () => {
-    const names = await loadVoterNames(h.db);
-    expect(names.get("alice")).toBe("La rataneta");
-  });
-
-  it("falls back to the account name for somebody holding no team", async () => {
-    // So a past round's ballot never renders as a bare id after a team is released.
-    const names = await loadVoterNames(h.db);
-    expect(names.get("bruno")).toBe("Bruno B");
-  });
-});
-
 describe("loadVoters", () => {
-  it("is every manager who has claimed a team, in name order", async () => {
-    await h.db.update(teams).set({ userId: "bruno" }).where(eq(teams.id, "t3"));
+  it("is every team in the league, in name order", async () => {
+    // Including the ones nobody has claimed. Holding a team is what makes somebody a
+    // voter; having an account is what lets them vote for themselves, and those are
+    // different questions — the second is what an admin answers on their behalf.
     const voters = await loadVoters(h.db);
     expect(voters).toEqual([
-      { userId: "bruno", name: "La Agustineta 96" },
-      { userId: "alice", name: "La rataneta" },
+      { teamId: "t3", name: "La Agustineta 96" },
+      { teamId: "t1", name: "La rataneta" },
+      { teamId: "t2", name: "LamineTheTuareg" },
     ]);
   });
 
-  it("leaves out unclaimed teams, which have nobody to vote for them", async () => {
-    const voters = await loadVoters(h.db);
-    expect(voters).toEqual([{ userId: "alice", name: "La rataneta" }]);
+  it("does not change when a team is claimed, because the claim is not what makes a voter", async () => {
+    await h.db.update(teams).set({ userId: "bruno" }).where(eq(teams.id, "t3"));
+    expect(await loadVoters(h.db)).toHaveLength(3);
   });
 });

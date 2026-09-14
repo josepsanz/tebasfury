@@ -203,6 +203,37 @@ migration lands.
 After it lands, add the league's addresses on `/admin/sync`. `LEAGUE_ALLOWLIST` can then
 be deleted from Vercel — nothing reads it any more.
 
+### `0013` and `0014` — the Necroporra votes by team, and they must go in BEFORE the code
+
+Together they re-key `necroporra_votes` from `(gameweek, user_id)` to `(gameweek,
+team_id)`: `0013` adds `team_id` and `entered_by` and backfills the existing rows through
+`teams.user_id`; `0014` sets `team_id` NOT NULL, swaps the primary key, drops `user_id`
+and adds the check that stops a team picking itself.
+
+**Two files rather than one, and not for safety** — they are applied together and in
+order. `drizzle-kit generate` stops to ask whether a removed column and an added one are
+a rename, and it asks on a terminal this repo's tooling cannot answer from; splitting the
+change into one diff that only adds and one that only removes is what keeps the
+generation reproducible. The backfill in `0013` is hand-written, because drizzle-kit
+generates schema and never data.
+
+**`0014` drops a column the running code still writes**, so the order is not negotiable
+and the window is not permanent: apply both while **no round is open**, then deploy. A
+round is open from the moment a sync names it until that gameweek kicks off, and the top
+of `/necroporra` says which state the league is in. Between the migration and the deploy
+the Necroporra page is the only thing that breaks, and only for whoever loads it in those
+two minutes.
+
+Check the backfill between the two, or after both — either way, before the deploy:
+
+```sql
+select count(*) as votes, count(team_id) as mapped from necroporra_votes;
+```
+
+Both figures must match. If `mapped` is short, a voter released their team: `0014` will
+have stopped at its primary key with nothing dropped, and the missing row needs a decision
+rather than a workaround.
+
 ## 5. Redeploy and verify
 
 The code is already on GitHub, so there is nothing to push. Trigger a new build from

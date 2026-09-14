@@ -1,7 +1,7 @@
-import { and, eq, gt, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
-import { necroporraRounds, necroporraVotes, teams, user } from "@/lib/db/schema";
+import { necroporraRounds, necroporraVotes, teams } from "@/lib/db/schema";
 import type { Ballot, Round, Voter } from "@/lib/domain/necroporra";
 
 /** Neon HTTP in production, PGlite in tests. Generic over the driver, like the claims module. */
@@ -68,18 +68,28 @@ export async function castVotes(
   db: Db,
   {
     gameweek,
-    userId,
+    teamId,
     picks,
     now,
-  }: { gameweek: number; userId: string; picks: string[]; now: Date },
+    enteredBy,
+  }: {
+    gameweek: number;
+    teamId: string;
+    picks: string[];
+    now: Date;
+    enteredBy: string | null;
+  },
 ): Promise<void> {
   const [firstTeamId = null, secondTeamId = null] = picks;
   await db
     .insert(necroporraVotes)
-    .values({ gameweek, userId, firstTeamId, secondTeamId, castAt: now })
+    .values({ gameweek, teamId, firstTeamId, secondTeamId, enteredBy, castAt: now })
     .onConflictDoUpdate({
-      target: [necroporraVotes.gameweek, necroporraVotes.userId],
-      set: { firstTeamId, secondTeamId, castAt: now },
+      target: [necroporraVotes.gameweek, necroporraVotes.teamId],
+      // `enteredBy` is in the SET on purpose: the row records who spoke LAST. A manager
+      // replacing what an admin typed for them owns the ballot from that moment, and the
+      // page stops saying it was entered.
+      set: { firstTeamId, secondTeamId, enteredBy, castAt: now },
     });
 }
 
@@ -89,68 +99,48 @@ export async function loadBallots(db: Db, gameweeks: number[]): Promise<Ballot[]
   return db
     .select({
       gameweek: necroporraVotes.gameweek,
-      userId: necroporraVotes.userId,
+      teamId: necroporraVotes.teamId,
       firstTeamId: necroporraVotes.firstTeamId,
       secondTeamId: necroporraVotes.secondTeamId,
+      enteredBy: necroporraVotes.enteredBy,
     })
     .from(necroporraVotes)
     .where(inArray(necroporraVotes.gameweek, gameweeks));
 }
 
-/** One voter's ballot for one round, or null if they have not voted. */
+/** One team's ballot for one round, or null if nobody has voted for it. */
 export async function loadMyBallot(
   db: Db,
-  { gameweek, userId }: { gameweek: number; userId: string },
+  { gameweek, teamId }: { gameweek: number; teamId: string },
 ): Promise<Ballot | null> {
   const [row] = await db
     .select({
       gameweek: necroporraVotes.gameweek,
-      userId: necroporraVotes.userId,
+      teamId: necroporraVotes.teamId,
       firstTeamId: necroporraVotes.firstTeamId,
       secondTeamId: necroporraVotes.secondTeamId,
+      enteredBy: necroporraVotes.enteredBy,
     })
     .from(necroporraVotes)
     .where(
-      and(eq(necroporraVotes.gameweek, gameweek), eq(necroporraVotes.userId, userId)),
+      and(eq(necroporraVotes.gameweek, gameweek), eq(necroporraVotes.teamId, teamId)),
     );
   return row ?? null;
 }
 
 /**
- * Voter names, for the season table and for a closed round's ballots.
+ * Who may be voted for: every team in the league.
  *
- * The manager's name from `teams`, not the Google display name from `user`: the league
- * knows each other by manager name, and this table sits beside the standings, which uses
- * the same one. Falls back to the account name for a voter who has since released their
- * team, so a past round's ballot never renders as a bare id.
- */
-export async function loadVoterNames(db: Db): Promise<Map<string, string>> {
-  const [managers, accounts] = await Promise.all([
-    db
-      .select({ userId: teams.userId, managerName: teams.managerName })
-      .from(teams),
-    db.select({ id: user.id, name: user.name }).from(user),
-  ]);
-
-  const names = new Map(accounts.map((a) => [a.id, a.name]));
-  for (const m of managers) if (m.userId !== null) names.set(m.userId, m.managerName);
-  return names;
-}
-
-/**
- * Who may vote: every manager who has claimed a team.
+ * It used to be every team with a claim, because a ballot hung off an account. The ballot
+ * hangs off the team now, so a manager with no account is a voter who cannot yet vote for
+ * themselves — and the page says exactly that, by drawing their row with no picks until
+ * an admin enters what they sent by other means.
  *
- * The eligible set, not the set who voted — the page shows a manager with no ballot as
- * exactly that, and it cannot do so without knowing who was expected. Read from `teams`
- * rather than from `user`, because holding a team is what makes somebody a voter: an
- * account with no claim can read the Necroporra and cannot vote in it.
+ * The name comes from `teams.manager_name`, which is how this league knows each other and
+ * what the standings print. That also retired `loadVoterNames`, whose whole job was
+ * mapping accounts to manager names with a fallback for somebody who had released a team.
  */
 export async function loadVoters(db: Db): Promise<Voter[]> {
-  const rows = await db
-    .select({ userId: teams.userId, name: teams.managerName })
-    .from(teams)
-    .where(isNotNull(teams.userId));
-  return rows
-    .filter((row): row is { userId: string; name: string } => row.userId !== null)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const rows = await db.select({ teamId: teams.id, name: teams.managerName }).from(teams);
+  return rows.sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -19,15 +19,22 @@ export type Round = { gameweek: number; closesAt: Date };
 
 export type Ballot = {
   gameweek: number;
-  userId: string;
+  /**
+   * Whose ballot it is: the TEAM. Not the account, because two managers in this league
+   * have none and vote in the group chat — an admin enters what they said, and it has to
+   * hang off something that exists for every one of the thirteen.
+   */
+  teamId: string;
   firstTeamId: string | null;
   secondTeamId: string | null;
+  /** The admin who typed it for them, or null when the manager cast it themselves. */
+  enteredBy: string | null;
 };
 
 export type PairRejection = "empty" | "too-many" | "duplicate" | "own-team" | "unknown-team";
 export type PairVerdict = { ok: true } | { ok: false; reason: PairRejection };
 
-export type SeasonRow = { userId: string; name: string; points: number; rounds: number };
+export type SeasonRow = { teamId: string; name: string; points: number; rounds: number };
 
 /** The teams on a ballot, in order, with the empty slots dropped. */
 export const picksOf = (ballot: Ballot): string[] =>
@@ -99,7 +106,7 @@ export function lastPlaced(snapshots: Snapshot[], gameweek: number): string | nu
 export function scoreRound(ballots: Ballot[], lastTeamId: string | null): Map<string, number> {
   if (lastTeamId === null) return new Map();
   return new Map(
-    ballots.map((ballot) => [ballot.userId, picksOf(ballot).includes(lastTeamId) ? 1 : 0]),
+    ballots.map((ballot) => [ballot.teamId, picksOf(ballot).includes(lastTeamId) ? 1 : 0]),
   );
 }
 
@@ -136,32 +143,34 @@ export function seasonTable(
     // who has ONLY picked for undecided rounds is absent from the table rather than
     // sitting at the bottom on nought.
     if (lastTeamId === undefined) continue;
-    voted.set(ballot.userId, (voted.get(ballot.userId) ?? 0) + 1);
+    voted.set(ballot.teamId, (voted.get(ballot.teamId) ?? 0) + 1);
     points.set(
-      ballot.userId,
-      (points.get(ballot.userId) ?? 0) + (picksOf(ballot).includes(lastTeamId) ? 1 : 0),
+      ballot.teamId,
+      (points.get(ballot.teamId) ?? 0) + (picksOf(ballot).includes(lastTeamId) ? 1 : 0),
     );
   }
 
   return [...voted.entries()]
-    .map(([userId, roundsVoted]): SeasonRow => ({
-      userId,
-      name: names.get(userId) ?? userId,
-      points: points.get(userId) ?? 0,
+    .map(([teamId, roundsVoted]): SeasonRow => ({
+      teamId,
+      name: names.get(teamId) ?? teamId,
+      points: points.get(teamId) ?? 0,
       rounds: roundsVoted,
     }))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
 }
 
-export type Voter = { userId: string; name: string };
+export type Voter = { teamId: string; name: string };
 
 export type RoundBallot = {
-  userId: string;
+  teamId: string;
   name: string;
   /** The teams picked, in order. Empty for a manager who has not voted. */
   picks: string[];
   /** True once the round is decided and this ballot named the team that finished last. */
   hit: boolean;
+  /** The admin who entered it, or null — drawn on the page for everyone to read. */
+  enteredBy: string | null;
 };
 
 /**
@@ -175,7 +184,9 @@ export type RoundBallot = {
  *
  * A manager who has not voted is RETURNED, with no picks, rather than left out. "Nobody
  * has heard from Bruno" is as much of a prod as the picks themselves, and an absence
- * shown as an absence cannot be mistaken for a manager who does not play.
+ * shown as an absence cannot be mistaken for a manager who does not play. Since the vote
+ * became the team's, that now includes the managers with no portal account at all: they
+ * are voters whose ballot somebody else types, not people the poll has never heard of.
  *
  * `hit` is false for every ballot while the round is undecided — not unknown, because
  * nothing renders it until there is a last-placed team to compare against.
@@ -186,19 +197,21 @@ export function roundBallots(
   gameweek: number,
   lastTeamId: string | null,
 ): RoundBallot[] {
-  const byUser = new Map(
-    ballots.filter((b) => b.gameweek === gameweek).map((b) => [b.userId, b]),
+  const byTeam = new Map(
+    ballots.filter((b) => b.gameweek === gameweek).map((b) => [b.teamId, b]),
   );
 
   return [...voters]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((voter) => {
-      const picks = byUser.has(voter.userId) ? picksOf(byUser.get(voter.userId)!) : [];
+      const ballot = byTeam.get(voter.teamId) ?? null;
+      const picks = ballot === null ? [] : picksOf(ballot);
       return {
-        userId: voter.userId,
+        teamId: voter.teamId,
         name: voter.name,
         picks,
         hit: lastTeamId !== null && picks.includes(lastTeamId),
+        enteredBy: ballot?.enteredBy ?? null,
       };
     });
 }

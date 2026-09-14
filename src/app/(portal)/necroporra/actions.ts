@@ -56,7 +56,7 @@ export async function vote(formData: FormData): Promise<VoteResult> {
   });
   if (!verdict.ok) return { ok: false, message: REFUSALS[verdict.reason] };
 
-  await castVotes(db, { gameweek, userId: session.user.id, picks, now });
+  await castVotes(db, { gameweek, teamId: myTeam.teamId, picks, now, enteredBy: null });
   revalidatePath("/necroporra");
 
   return { ok: true, message: "Your picks are in." };

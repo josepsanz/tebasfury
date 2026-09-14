@@ -2,13 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { loadSnapshots } from "@/lib/db/queries";
 import { loadMyTeam } from "@/lib/claims";
-import {
-  loadBallots,
-  loadMyBallot,
-  loadRounds,
-  loadVoterNames,
-  loadVoters,
-} from "@/lib/necroporra";
+import { loadBallots, loadMyBallot, loadRounds, loadVoters } from "@/lib/necroporra";
 import {
   isOpen,
   lastPlaced,
@@ -44,13 +38,17 @@ export default async function NecroporraPage({
   const session = await requireSession();
   const now = new Date();
 
-  const [rounds, { snapshots, teams }, myTeam, names, voters] = await Promise.all([
+  const [rounds, { snapshots, teams }, myTeam, voters] = await Promise.all([
     loadRounds(db),
     loadSnapshots(db),
     loadMyTeam(db, { userId: session.user.id }),
-    loadVoterNames(db),
     loadVoters(db),
   ]);
+
+  // The season table's names come from the voters themselves now. `loadVoterNames` existed
+  // to map accounts to manager names; with the ballot on the team, the voter list already
+  // carries both.
+  const names = new Map(voters.map((voter) => [voter.teamId, voter.name]));
 
   const resolved = rounds.map((round) => ({
     ...round,
@@ -61,9 +59,8 @@ export default async function NecroporraPage({
   // At most one round takes votes: the sync opens the week the API calls current, and the
   // previous one closed when it kicked off.
   const open = resolved.find((round) => isOpen(round, now)) ?? null;
-  const myBallot = open
-    ? await loadMyBallot(db, { gameweek: open.gameweek, userId: session.user.id })
-    : null;
+  const myBallot =
+    open && myTeam ? await loadMyBallot(db, { gameweek: open.gameweek, teamId: myTeam.teamId }) : null;
 
   const teamName = new Map(teams.map((t) => [t.id, t.managerName]));
   const table = seasonTable(ballots, resolved, names);
@@ -123,7 +120,7 @@ export default async function NecroporraPage({
           <NecroporraBallots
             rows={roundBallots(voters, ballots, open.gameweek, null)}
             teamName={teamName}
-            viewerId={session.user.id}
+            viewerTeamId={myTeam?.teamId ?? null}
             resolved={false}
           />
         </>
@@ -140,12 +137,12 @@ export default async function NecroporraPage({
         <ol className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
           {table.map((row, i) => (
             <li
-              key={row.userId}
+              key={row.teamId}
               className="grid grid-cols-[24px_1fr_auto] items-baseline gap-2 border-b px-2 py-[6px]"
               style={{
                 borderColor: "var(--board-line)",
                 background:
-                  row.userId === session.user.id
+                  row.teamId === myTeam?.teamId
                     ? "color-mix(in srgb, var(--board-you) 10%, transparent)"
                     : undefined,
               }}
@@ -208,7 +205,7 @@ export default async function NecroporraPage({
           <NecroporraBallots
             rows={roundBallots(voters, ballots, looking.gameweek, looking.lastTeamId)}
             teamName={teamName}
-            viewerId={session.user.id}
+            viewerTeamId={myTeam?.teamId ?? null}
             resolved={looking.lastTeamId !== null}
           />
         </>

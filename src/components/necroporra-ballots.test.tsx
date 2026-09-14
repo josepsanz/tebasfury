@@ -4,16 +4,17 @@ import type { RoundBallot } from "@/lib/domain/necroporra";
 import { NecroporraBallots } from "./necroporra-ballots";
 
 const names = new Map([["t1", "LILTEAM"], ["t2", "Villaone"]]);
-const render = (rows: RoundBallot[], resolved = false, viewerId = "nobody") =>
+const render = (rows: RoundBallot[], resolved = false, viewerTeamId: string | null = null) =>
   renderToStaticMarkup(
-    <NecroporraBallots rows={rows} teamName={names} viewerId={viewerId} resolved={resolved} />,
+    <NecroporraBallots rows={rows} teamName={names} viewerTeamId={viewerTeamId} resolved={resolved} />,
   );
 
 const row = (over: Partial<RoundBallot> = {}): RoundBallot => ({
-  userId: "u1",
+  teamId: "t9",
   name: "Ada",
   picks: ["t1", "t2"],
   hit: false,
+  enteredBy: null,
   ...over,
 });
 
@@ -32,7 +33,7 @@ describe("NecroporraBallots", () => {
   });
 
   it("marks your own row in amber", () => {
-    expect(render([row()], false, "u1")).toContain("var(--board-you)");
+    expect(render([row()], false, "t9")).toContain("var(--board-you)");
   });
 
   it("ticks the managers who named the team that finished last", () => {
@@ -48,7 +49,10 @@ describe("NecroporraBallots", () => {
     expect(html).not.toContain("✓");
   });
 
-  it("says why the list is empty when nobody may vote", () => {
-    expect(render([])).toContain("no manager has claimed a team");
+  it("says why the list is empty, which now means the league itself is", () => {
+    // It used to read "no manager has claimed a team", because a claim was what made a
+    // voter. Every team is a voter now, so the only way to have no rows is to have no
+    // teams — which happens before the first sync and never again.
+    expect(render([])).toContain("the league has no teams");
   });
 });
