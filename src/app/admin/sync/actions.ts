@@ -45,15 +45,16 @@ export async function triggerSyncNow(): Promise<ActionResult> {
   await requirePermission({ sync: ["trigger"] });
 
   const now = new Date();
+  const runId = randomUUID();
   // Through `runAndSchedule` like the endpoint, so a manual run that fails also
   // leaves a successor behind: the chain may well be the thing that is broken, and
   // this button is where someone comes to find out.
   const outcome = await runAndSchedule({
     now,
-    schedule: (at) => scheduleNextRun(at, now),
+    schedule: (at) => scheduleNextRun(at, now, runId),
     run: async () => {
       const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
-      return runSync({ db, client, now, runId: randomUUID(), trigger: "manual" });
+      return runSync({ db, client, now, runId, trigger: "manual" });
     },
   });
 
@@ -78,15 +79,16 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
   await requirePermission({ sync: ["trigger"] });
 
   const now = new Date();
+  const runId = randomUUID();
   // Through `runAndSchedule` like the endpoint, and for the same reason: the daily
   // chain has to be started by hand once, and this button is where that happens.
   const outcome = await runAndSchedule({
     now,
-    schedule: (at) => schedulePlayerSweep(at, now),
+    schedule: (at) => schedulePlayerSweep(at, now, runId),
     nextAfterFailure: nextPlayerSweepAfterFailure,
     run: async () => {
       const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
-      return runPlayerSweep({ db, client, now, runId: randomUUID(), trigger: "players-manual" });
+      return runPlayerSweep({ db, client, now, runId, trigger: "players-manual" });
     },
   });
 

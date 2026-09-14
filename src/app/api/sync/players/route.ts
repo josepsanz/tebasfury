@@ -45,13 +45,14 @@ export async function POST(request: Request) {
     });
   }
 
+  const runId = randomUUID();
   const outcome = await runAndSchedule({
     now,
-    schedule: (at) => schedulePlayerSweep(at, now),
+    schedule: (at) => schedulePlayerSweep(at, now, runId),
     nextAfterFailure: nextPlayerSweepAfterFailure,
     run: async () => {
       const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
-      return runPlayerSweep({ db, client, now, runId: randomUUID(), trigger: "players-schedule" });
+      return runPlayerSweep({ db, client, now, runId, trigger: "players-schedule" });
     },
   });
 

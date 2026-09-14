@@ -13,7 +13,15 @@ import {
   teamGameweekStats,
   teams,
 } from "./schema";
-import { loadLeagueStatus, loadMarket, loadPlayer, loadPlayerCatalogue, loadSnapshots } from "./queries";
+import {
+  claimStandingsRun,
+  loadLeagueStatus,
+  markClaimedRunFailed,
+  loadMarket,
+  loadPlayer,
+  loadPlayerCatalogue,
+  loadSnapshots,
+} from "./queries";
 import { buildCatalogue } from "@/lib/domain/players";
 
 describe("loadSnapshots", () => {
@@ -393,5 +401,150 @@ describe("loadLeagueStatus", () => {
       isLive: true,
       lastSync: new Date("2026-09-09T01:00:04Z"),
     });
+  });
+});
+
+describe("claimStandingsRun", () => {
+  let h: TestDatabase;
+  const WINDOW = 2 * 60 * 1000;
+  // The fork's own instant: gameweek 5's kickoff, where one booking arrived twice.
+  const kickoff = new Date("2026-09-11T19:00:05Z");
+  const after = (ms: number) => new Date(kickoff.getTime() + ms);
+
+  beforeAll(async () => {
+    h = await createTestDatabase();
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("claims when nothing has run, and writes the run's own row", async () => {
+    expect(
+      await claimStandingsRun(h.db, {
+        runId: "st-first",
+        trigger: "schedule",
+        now: kickoff,
+        collapseWindowMs: WINDOW,
+      }),
+    ).toBe(true);
+
+    const [row] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "st-first"));
+    expect(row).toMatchObject({ trigger: "schedule", status: "running" });
+    expect(row.startedAt).toEqual(kickoff);
+  });
+
+  it("refuses the twin that arrives while the first run is still in flight", async () => {
+    // The race the whole design turns on. The first delivery has written a `running` row
+    // and has no result yet; a guard that read finished runs would let this through, and
+    // two reads racing two writes would let it through as well.
+    expect(
+      await claimStandingsRun(h.db, {
+        runId: "st-twin",
+        trigger: "schedule",
+        now: after(70),
+        collapseWindowMs: WINDOW,
+      }),
+    ).toBe(false);
+
+    const rows = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "st-twin"));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("claims again once the window has passed, so the surviving chain keeps going", async () => {
+    expect(
+      await claimStandingsRun(h.db, {
+        runId: "st-next",
+        trigger: "schedule",
+        now: after(WINDOW),
+        collapseWindowMs: WINDOW,
+      }),
+    ).toBe(true);
+  });
+
+  it("is not blocked by the player chain, which runs on its own cadence", async () => {
+    await h.db.insert(syncRuns).values({
+      id: "pl-recent",
+      trigger: "players-schedule",
+      status: "running",
+      startedAt: after(WINDOW + 1000),
+    });
+
+    expect(
+      await claimStandingsRun(h.db, {
+        runId: "st-beside-sweep",
+        trigger: "schedule",
+        now: after(2 * WINDOW),
+        collapseWindowMs: WINDOW,
+      }),
+    ).toBe(true);
+  });
+
+  it("is not blocked by a failed run, so QStash's retry of one still recovers", async () => {
+    await h.db.insert(syncRuns).values({
+      id: "st-failed",
+      trigger: "schedule",
+      status: "failed",
+      startedAt: after(3 * WINDOW),
+      finishedAt: after(3 * WINDOW + 1000),
+    });
+
+    expect(
+      await claimStandingsRun(h.db, {
+        runId: "st-recovery",
+        trigger: "schedule",
+        now: after(3 * WINDOW + 2000),
+        collapseWindowMs: WINDOW,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("markClaimedRunFailed", () => {
+  let h: TestDatabase;
+  const at = new Date("2026-09-14T10:00:00Z");
+
+  beforeAll(async () => {
+    h = await createTestDatabase();
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("closes a run that failed before it could record anything itself", async () => {
+    // The gap the claim opened: the row is written before the LaLiga client is built, so
+    // an expired credential now throws with a `running` row already in the table. Left
+    // alone it would sit there for ever, and the history would never show the one error
+    // an admin most needs to see.
+    await h.db.insert(syncRuns).values({
+      id: "st-stuck",
+      trigger: "schedule",
+      status: "running",
+      startedAt: new Date("2026-09-14T09:59:58Z"),
+    });
+
+    await markClaimedRunFailed(h.db, { runId: "st-stuck", now: at, error: "CredentialError: expired" });
+
+    const [row] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "st-stuck"));
+    expect(row).toMatchObject({ status: "failed", error: "CredentialError: expired" });
+    expect(row.finishedAt).toEqual(at);
+  });
+
+  it("does not overwrite a run that recorded its own outcome", async () => {
+    // `runSync` writes its own failure, with the detail this caller does not have. Only
+    // a row still claiming to be running is this function's business.
+    await h.db.insert(syncRuns).values({
+      id: "st-own",
+      trigger: "schedule",
+      status: "failed",
+      startedAt: new Date("2026-09-14T09:00:00Z"),
+      finishedAt: new Date("2026-09-14T09:00:03Z"),
+      error: "Parse error: gameweek",
+    });
+
+    await markClaimedRunFailed(h.db, { runId: "st-own", now: at, error: "something else" });
+
+    const [row] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "st-own"));
+    expect(row).toMatchObject({ error: "Parse error: gameweek" });
+    expect(row.finishedAt).toEqual(new Date("2026-09-14T09:00:03Z"));
   });
 });

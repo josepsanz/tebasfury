@@ -106,10 +106,44 @@ export const SWEEP_COLLAPSE_WINDOW_MS = 5 * 60 * 60 * 1000;
  * risks one redundant sweep. So it runs.
  */
 export function isRedundantSweep(lastSuccessAt: Date | null, now: Date): boolean {
+  return withinWindow(lastSuccessAt, now, SWEEP_COLLAPSE_WINDOW_MS);
+}
+
+/**
+ * How recently another standings run must have STARTED for this one to be redundant.
+ *
+ * Two minutes, and neither the number nor the shape of the rule is the sweep's. That
+ * window is a fraction under a single cadence; this chain books two intervals — ten
+ * minutes while a gameweek is live, five after a failed run — and the window has to clear
+ * the SHORTER of them. At or above it, every run would suppress its own successor and the
+ * chain would stop with no error anywhere, which is the one failure this whole file
+ * exists to prevent. Two minutes is still enormous next to what it collapses: the fork
+ * this window was measured against fired its twins 70 ms apart, and no twin pair since
+ * has landed further apart than 1.7 s.
+ *
+ * There is deliberately no `isRedundantSync` beside `isRedundantSweep` to use it, because
+ * a guard that READS and then writes cannot win this race. The sweep's duplicates are
+ * hours apart, so a read always finds the other chain's finished row; these twins are
+ * milliseconds apart and each spends a few hundred more fetching a token before writing
+ * anything, so both would read an empty window and both would proceed. The guard is
+ * `claimStandingsRun` instead — one statement that tests this window and writes the run's
+ * row together, the same no-transactions reasoning as the team claim and the Necroporra's
+ * vote upsert.
+ */
+export const SYNC_COLLAPSE_WINDOW_MS = 2 * 60 * 1000;
+
+/**
+ * The shared shape of a collapse window: recent enough, and not in the future.
+ *
+ * The clock-skew branch lives here rather than in each caller because it is the rule most
+ * easily lost in a copy — and the one whose loss locks a chain out for as long as the
+ * skew lasts.
+ */
+function withinWindow(lastSuccessAt: Date | null, now: Date, window: number): boolean {
   if (lastSuccessAt === null) return false;
 
   const elapsed = now.getTime() - lastSuccessAt.getTime();
   if (elapsed < 0) return false;
 
-  return elapsed < SWEEP_COLLAPSE_WINDOW_MS;
+  return elapsed < window;
 }

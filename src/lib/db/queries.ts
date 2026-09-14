@@ -1,4 +1,4 @@
-import { and, count, desc, eq, like, notLike, sum } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, like, notExists, notLike, sql, sum } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "./schema";
 import type { Snapshot, TeamRef } from "@/lib/domain/standings";
@@ -143,6 +143,130 @@ export async function loadLeagueStatus(db: Db): Promise<LeagueStatus> {
     isLive: week?.isLive ?? false,
     lastSync: sync?.finishedAt ?? null,
   };
+}
+
+/**
+ * When the newest standings run STARTED — whether it has finished or is still working.
+ *
+ * Deliberately not `loadLeagueStatus`'s `lastSync`, which is the newest SUCCESS and the
+ * right answer to a different question ("how old is the table in front of me?"). The
+ * collapse guard asks whether this delivery has a twin, and a twin arrives 70 milliseconds
+ * into a run that takes seconds: at that instant the first delivery has written its
+ * `running` row and has no result at all. Reading finishes would find the previous
+ * cadence ten minutes back, call the twin legitimate, and let the fork run forever.
+ *
+ * A FAILED run is left out on purpose. It did no work, so it cannot make another run
+ * redundant — and QStash's retry of the delivery that failed is the fast recovery the
+ * endpoint's 500 exists to invite. Runs still in flight and runs that worked both count.
+ */
+export async function loadLastStandingsRunAt(db: Db): Promise<Date | null> {
+  const [run] = await db
+    .select({ startedAt: syncRuns.startedAt })
+    .from(syncRuns)
+    .where(
+      and(
+        inArray(syncRuns.status, ["running", "succeeded"]),
+        notLike(syncRuns.trigger, "players-%"),
+      ),
+    )
+    .orderBy(desc(syncRuns.startedAt))
+    .limit(1);
+
+  return run?.startedAt ?? null;
+}
+
+/**
+ * Claims the right to run a scheduled standings sync, and writes the run's row doing it.
+ *
+ * ONE statement, and that is the whole point. The chain forked on 2026-09-11 when a
+ * single booking was delivered twice, 70 ms apart, and both deliveries became permanent
+ * chains. A guard that read the table and then decided could not have stopped it: each
+ * delivery spends a few hundred milliseconds fetching a token before it writes anything,
+ * so both would have read an empty window and both would have proceeded. Testing the
+ * window and inserting the row in the same `INSERT ... SELECT ... WHERE NOT EXISTS` makes
+ * the row itself the claim — the same answer the team claim and the Necroporra's vote
+ * upsert give to a driver that has no transactions.
+ *
+ * Returns false when another standings run started inside the window; the caller's
+ * contract is to stand down **without booking a successor**, which is what collapses the
+ * extra chain. It cannot collapse the last one: whichever delivery inserts first is the
+ * one that runs, and it books the next run as usual.
+ *
+ * A run still in flight blocks, a run that succeeded blocks, a FAILED one does not: it
+ * did no work, and QStash's retry of the delivery that failed is the fast recovery the
+ * endpoint's 500 exists to invite. The player chain never blocks this one.
+ */
+export async function claimStandingsRun(
+  db: Db,
+  {
+    runId,
+    trigger,
+    now,
+    collapseWindowMs,
+  }: { runId: string; trigger: string; now: Date; collapseWindowMs: number },
+): Promise<boolean> {
+  const windowOpenedAt = new Date(now.getTime() - collapseWindowMs);
+
+  const claimed = await db
+    .insert(syncRuns)
+    .select((qb) =>
+      qb
+        // Every column of the table, in its own order: an insert-select is positional,
+        // and the query builder refuses anything else. The three a run fills in as it
+        // goes are named here as the nulls they start out as.
+        .select({
+          id: sql<string>`${runId}::text`.as("id"),
+          trigger: sql<string>`${trigger}::text`.as("trigger"),
+          status: sql<string>`'running'`.as("status"),
+          startedAt: sql<Date>`${now}::timestamptz`.as("started_at"),
+          finishedAt: sql<Date | null>`null::timestamptz`.as("finished_at"),
+          weeksSynced: sql<number | null>`null::integer`.as("weeks_synced"),
+          error: sql<string | null>`null::text`.as("error"),
+        })
+        // A one-row source to hang the WHERE on: `SELECT ... WHERE NOT EXISTS` is legal
+        // SQL with no FROM at all, but the query builder only offers `where` on a select
+        // that has one.
+        .from(sql`(select 1) as one_row`)
+        .where(
+          notExists(
+            db
+              .select({ one: sql`1` })
+              .from(syncRuns)
+              .where(
+                and(
+                  notLike(syncRuns.trigger, "players-%"),
+                  inArray(syncRuns.status, ["running", "succeeded"]),
+                  gt(syncRuns.startedAt, windowOpenedAt),
+                ),
+              ),
+          ),
+        ),
+    )
+    .returning({ id: syncRuns.id });
+
+  return claimed.length > 0;
+}
+
+/**
+ * Closes a claimed run that failed before it could record its own outcome.
+ *
+ * The claim writes the row before the LaLiga client is built, which is deliberate — that
+ * is where the milliseconds two twin deliveries would race through go — but it means an
+ * expired credential now throws with a `running` row already in the table. Nothing else
+ * would ever close it, and the admin history would show a run that never ended instead of
+ * the one error that most needs acting on.
+ *
+ * Conditional on the row still being `running`, so it can never overwrite what `runSync`
+ * recorded for itself: that failure carries the detail this caller does not have.
+ */
+export async function markClaimedRunFailed(
+  db: Db,
+  { runId, now, error }: { runId: string; now: Date; error: string },
+): Promise<void> {
+  await db
+    .update(syncRuns)
+    .set({ status: "failed", finishedAt: now, error })
+    .where(and(eq(syncRuns.id, runId), eq(syncRuns.status, "running")));
 }
 
 /**

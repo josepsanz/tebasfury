@@ -41,7 +41,14 @@ export async function runSync(deps: {
 }): Promise<SyncResult> {
   const { db, client, now, runId, trigger } = deps;
 
-  await db.insert(syncRuns).values({ id: runId, trigger, status: "running" });
+  // `onConflictDoNothing` because the scheduled endpoint has already written this row:
+  // there, the insert IS the collapse guard (`claimStandingsRun`), and it happens before
+  // a client is built so that two deliveries cannot both get past it. Every other caller
+  // — the manual button, the tests — still creates the row here.
+  await db
+    .insert(syncRuns)
+    .values({ id: runId, trigger, status: "running" })
+    .onConflictDoNothing();
 
   try {
     const week = await client.getCurrentWeek();

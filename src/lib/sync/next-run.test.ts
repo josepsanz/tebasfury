@@ -10,6 +10,7 @@ import {
   MAX_INTERVAL_MS,
   PLAYER_SWEEP_INTERVAL_MS,
   SWEEP_COLLAPSE_WINDOW_MS,
+  SYNC_COLLAPSE_WINDOW_MS,
 } from "./next-run";
 
 const week = (over: Partial<Parameters<typeof decideNextRun>[0]> = {}) => ({
@@ -111,5 +112,18 @@ describe("isRedundantSweep", () => {
   it("runs when the clock says the last sweep is in the future, rather than locking out", () => {
     const skewed = new Date(sweepNow.getTime() + 60 * 60 * 1000);
     expect(isRedundantSweep(skewed, sweepNow)).toBe(false);
+  });
+});
+
+describe("SYNC_COLLAPSE_WINDOW_MS", () => {
+  it("stays a clear fraction inside the shortest interval the standings chain books", () => {
+    // A ratio rather than a number of minutes, for the reason the sweep's twin test
+    // states: an absolute assertion passes a cadence change while failing to protect the
+    // property. Five minutes after a failure is shorter than ten while live, so it is the
+    // one the window has to clear — at or above it, every run would suppress its own
+    // successor and the chain would stop with no error anywhere.
+    expect(SYNC_COLLAPSE_WINDOW_MS).toBeLessThan(FAILURE_INTERVAL_MS);
+    const margin = FAILURE_INTERVAL_MS - SYNC_COLLAPSE_WINDOW_MS;
+    expect(margin / FAILURE_INTERVAL_MS).toBeGreaterThanOrEqual(0.15);
   });
 });
