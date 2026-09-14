@@ -80,7 +80,7 @@ describe("LineupBoard", () => {
     // own wording, on the row — and the caption below the pitch explains the shape once,
     // aggregated, for whichever marks actually appear.
     expect(html).toMatch(/role="img"\s+aria-label="Doubtful"/);
-    expect(html).toContain("! marks a flagged status (1)");
+    expect(html).toContain("! injured, doubtful or suspended (1)");
   });
 
   it("marks a player whose average rests on fewer than three gameweeks", () => {
@@ -89,7 +89,7 @@ describe("LineupBoard", () => {
     );
     const html = render(rows);
     expect(html).toMatch(/role="img"\s+aria-label="Average from 1 gameweek"/);
-    expect(html).toContain("~ marks an average from fewer than 3 gameweeks (1)");
+    expect(html).toContain("~ an average from fewer than 3 gameweeks (1)");
   });
 
   it("says nothing extra below the pitch when nobody in the eleven carries a mark", () => {
@@ -97,8 +97,8 @@ describe("LineupBoard", () => {
     // flagged status, no thin sample. No mark, no caption: there is nothing to explain.
     const html = render(full);
     expect(html).not.toContain('role="img"');
-    expect(html).not.toContain("marks a flagged status");
-    expect(html).not.toContain("marks an average from fewer than");
+    expect(html).not.toContain("injured, doubtful or suspended");
+    expect(html).not.toContain("an average from fewer than");
   });
 
   it("says which line is short when nothing can be fielded, and names the nearest", () => {

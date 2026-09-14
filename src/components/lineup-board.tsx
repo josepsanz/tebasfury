@@ -101,10 +101,10 @@ function Eleven({
       <Pitch lines={lines} />
       {flaggedCount === 0 && thinCount === 0 ? null : (
         <p className="mt-2 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
-          {flaggedCount > 0 ? `! marks a flagged status (${flaggedCount})` : null}
+          {flaggedCount > 0 ? `! injured, doubtful or suspended (${flaggedCount})` : null}
           {flaggedCount > 0 && thinCount > 0 ? " · " : null}
           {thinCount > 0
-            ? `~ marks an average from fewer than ${THIN_SAMPLE} gameweeks (${thinCount})`
+            ? `~ an average from fewer than ${THIN_SAMPLE} gameweeks (${thinCount})`
             : null}
         </p>
       )}
