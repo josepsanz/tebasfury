@@ -58,6 +58,16 @@ describe("RoundLineup", () => {
     );
   });
 
+  it("makes every player on the pitch a way into their own page", () => {
+    const html = renderToStaticMarkup(
+      <RoundLineup lineup={lineup({ players: [player({ playerId: "38126770" })] })} />,
+    );
+    expect(html).toContain('href="/players/38126770"');
+    // The face is inside the link, not beside it: on a phone the thumb aims at the shirt.
+    const link = html.slice(html.indexOf("<a "), html.indexOf("</a>"));
+    expect(link).toContain("Courtois");
+  });
+
   it("puts each player's face on the pitch", () => {
     const html = renderToStaticMarkup(
       <RoundLineup

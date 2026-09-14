@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { FieldedRow, RoundLineup as RoundLineupData } from "@/lib/db/queries";
 import { formatLeagueMoment } from "@/lib/domain/clock";
 
@@ -28,49 +29,60 @@ function OnThePitch({ player }: { player: FieldedRow }) {
     .join("");
 
   return (
-    <li className="flex min-w-0 flex-col items-center gap-1" style={{ width: "19%" }}>
-      <span
-        className="block h-8 w-8 shrink-0 overflow-hidden rounded-full border"
-        style={{ borderColor: "var(--board-line)", background: "var(--board-panel)" }}
+    <li className="flex min-w-0 flex-col items-center" style={{ width: "19%" }}>
+      {/* The whole player is the link, face included: a thumb on a phone aims at the shirt,
+          not at eight pixels of underlined text. `LineupBoard` links its names the same way
+          and to the same place — one player, one page, however you arrived. */}
+      <Link
+        href={`/players/${player.playerId}`}
+        className="flex min-w-0 w-full flex-col items-center gap-1"
       >
-        {player.imageUrl === null ? (
-          <span
-            className="flex h-full w-full items-center justify-center text-[9px]"
-            style={{ color: "var(--board-ink-dim)" }}
-          >
-            {initials}
-          </span>
-        ) : (
-          <Image
-            src={player.imageUrl}
-            alt=""
-            width={32}
-            height={32}
-            // The source is 256×256; at 32 CSS pixels the optimizer is asked for 64 as
-            // well, for retina, and never upscales. Eleven of these to a round.
-            className="block h-8 w-8 object-cover"
-          />
-        )}
-      </span>
+        <span
+          className="block h-8 w-8 shrink-0 overflow-hidden rounded-full border"
+          style={{ borderColor: "var(--board-line)", background: "var(--board-panel)" }}
+        >
+          {player.imageUrl === null ? (
+            <span
+              className="flex h-full w-full items-center justify-center text-[9px]"
+              style={{ color: "var(--board-ink-dim)" }}
+            >
+              {initials}
+            </span>
+          ) : (
+            <Image
+              src={player.imageUrl}
+              alt=""
+              width={32}
+              height={32}
+              // The source is 256×256; at 32 CSS pixels the optimizer is asked for 64 as
+              // well, for retina, and never upscales. Eleven of these to a round.
+              className="block h-8 w-8 object-cover"
+            />
+          )}
+        </span>
 
-      <span className="block w-full truncate text-center text-[10px]" title={player.nickname}>
-        {player.nickname}
-        {/* The shape half of "a shape and a word": the caption below the pitch says the
-            word once, aggregated, and cannot say WHICH row it belongs to — so this mark
-            carries its own accessible name, exactly as `HoldIcon` does on `SquadList`. */}
-        {player.inIdeal ? (
-          <span role="img" aria-label="Made the round's ideal eleven">
-            {" "}★
-          </span>
-        ) : null}
-      </span>
+        <span
+          className="block w-full truncate text-center text-[10px] underline decoration-[var(--board-line)] underline-offset-4"
+          title={player.nickname}
+        >
+          {player.nickname}
+          {/* The shape half of "a shape and a word": the caption below the pitch says the
+              word once, aggregated, and cannot say WHICH row it belongs to — so this mark
+              carries its own accessible name, exactly as `HoldIcon` does on `SquadList`. */}
+          {player.inIdeal ? (
+            <span role="img" aria-label="Made the round's ideal eleven">
+              {" "}★
+            </span>
+          ) : null}
+        </span>
 
-      <span
-        className="block text-[10px] tabular-nums"
-        style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
-      >
-        {player.weekPoints}
-      </span>
+        <span
+          className="block text-[10px] tabular-nums"
+          style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
+        >
+          {player.weekPoints}
+        </span>
+      </Link>
     </li>
   );
 }
