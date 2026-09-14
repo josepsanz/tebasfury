@@ -55,6 +55,16 @@ describe("RoundLineup", () => {
     expect(html).toContain("ideal eleven");
   });
 
+  it("gives the per-row mark its own accessible name, not just the aggregate caption", () => {
+    // The caption below the pitch is aggregate ("ideal eleven (1)") and cannot say
+    // WHICH row it belongs to. A screen-reader user needs the mark on the row itself
+    // named, the way HoldIcon names its own per-row icon on SquadList.
+    const html = renderToStaticMarkup(
+      <RoundLineup lineup={lineup({ players: [player({ inIdeal: true })] })} />,
+    );
+    expect(html).toMatch(/role="img"\s+aria-label="[^"]*ideal eleven[^"]*"/);
+  });
+
   it("says a round has no lineup rather than drawing an empty pitch", () => {
     const html = renderToStaticMarkup(<RoundLineup lineup={null} />);
     expect(html).toContain("No lineup");

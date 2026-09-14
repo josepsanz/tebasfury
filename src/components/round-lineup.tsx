@@ -60,10 +60,19 @@ function Column({ line, players }: { line: (typeof LINES)[number]; players: Fiel
           <li key={player.playerId} className="min-w-0 text-center">
             <span className="block truncate text-[10.5px]" title={player.nickname}>
               {player.nickname}
-              {/* The shape half of "a shape and a word" (I3): the word is the caption
-                  below the pitch, said once rather than spelled out under every name —
-                  the same trade `HoldIcon`'s caption already makes for the squad list. */}
-              {player.inIdeal ? <span aria-hidden> ★</span> : null}
+              {/* The shape half of "a shape and a word" (I3): the caption below the
+                  pitch says the word once, aggregated, rather than spelling it out
+                  under every name. But that caption cannot say WHICH row it belongs
+                  to, so — exactly as `HoldIcon` does for its own per-row mark on
+                  `SquadList` — this mark carries its own accessible name; it is only
+                  the SUMMARY mark (there `HoldIcon` with no `label`, here the caption's
+                  own bare "★") that stays silent, because the words beside it already
+                  say what it means. */}
+              {player.inIdeal ? (
+                <span role="img" aria-label="Made the round's ideal eleven">
+                  {" "}★
+                </span>
+              ) : null}
             </span>
             <span
               className="block text-[10px] tabular-nums"
