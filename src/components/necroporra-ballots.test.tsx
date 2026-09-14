@@ -8,7 +8,7 @@ const render = (
   rows: RoundBallot[],
   resolved = false,
   viewerTeamId: string | null = null,
-  over: { enteredByName?: Map<string, string>; castFor?: ((row: RoundBallot) => React.ReactNode) | null } = {},
+  over: { castFor?: ((row: RoundBallot) => React.ReactNode) | null } = {},
 ) =>
   renderToStaticMarkup(
     <NecroporraBallots
@@ -16,7 +16,6 @@ const render = (
       teamName={names}
       viewerTeamId={viewerTeamId}
       resolved={resolved}
-      enteredByName={over.enteredByName ?? new Map()}
       castFor={over.castFor ?? null}
     />,
   );
@@ -69,20 +68,17 @@ describe("NecroporraBallots", () => {
     expect(render([])).toContain("the league has no teams");
   });
 
-  it("names who entered a ballot, and when, for everyone to read", () => {
-    // Not an admin-only detail. Entering a ballot after the round has closed is a real
-    // privilege, and a privilege nobody can see is not one the league has agreed to.
-    const html = render([row({ enteredBy: "u-admin", castAt: new Date("2026-09-12T10:30:00Z") })], false, null, {
-      enteredByName: new Map([["u-admin", "Josep Sanz"]]),
-    });
-    expect(html).toContain("entered by Josep Sanz");
-    expect(html).toContain("12 Sep");
-  });
-
-  it("falls back to saying an admin did it, rather than printing an id", () => {
-    const html = render([row({ enteredBy: "u-gone" })]);
+  it("says a ballot was entered, and when, without naming who did it", () => {
+    // Not an admin-only detail: entering a ballot after the round has closed is a real
+    // privilege, and a privilege nobody can see is not one the league has agreed to. But
+    // WHICH admin is not the league's business — the owner asked for the act, not the
+    // person. `necroporra_votes.entered_by` still records who, where accountability lives.
+    const html = render([
+      row({ enteredBy: "u-admin", castAt: new Date("2026-09-12T10:30:00Z") }),
+    ]);
     expect(html).toContain("entered by an admin");
-    expect(html).not.toContain("u-gone");
+    expect(html).toContain("12 Sep");
+    expect(html).not.toContain("u-admin");
   });
 
   it("says nothing extra about a ballot its own manager cast", () => {

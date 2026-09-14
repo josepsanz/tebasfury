@@ -18,7 +18,6 @@ export function NecroporraBallots({
   teamName,
   viewerTeamId,
   resolved,
-  enteredByName,
   castFor,
 }: {
   rows: RoundBallot[];
@@ -27,8 +26,6 @@ export function NecroporraBallots({
   viewerTeamId: string | null;
   /** Whether the round has a last-placed team yet — a tick means nothing before that. */
   resolved: boolean;
-  /** Account names for whoever entered a ballot on somebody's behalf. */
-  enteredByName: Map<string, string>;
   /**
    * What to draw for a row this reader may fill in, or null for a reader who may not.
    *
@@ -86,11 +83,18 @@ export function NecroporraBallots({
 
           {/* Shown to EVERYBODY, not only to admins. An entered ballot may be typed after
               the round has closed, and a privilege nobody can see is not one the league
-              has agreed to. Words and no colour: the amber belongs to the reader's own
-              row, and a second meaning would empty it of the first. */}
+              has agreed to.
+
+              WHICH admin is deliberately not said — the owner's call, and a good one: the
+              act is what the league needs to see, and the row would otherwise put one
+              person's name against somebody else's picks. `necroporra_votes.entered_by`
+              still records who, where accountability belongs.
+
+              Words and no colour: the amber belongs to the reader's own row, and a second
+              meaning would empty it of the first. */}
           {row.enteredBy === null ? null : (
             <p className="mt-[2px] text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
-              entered by {enteredByName.get(row.enteredBy) ?? "an admin"}
+              entered by an admin
               {row.castAt === null ? "" : ` · ${formatLeagueMoment(row.castAt)}`}
             </p>
           )}

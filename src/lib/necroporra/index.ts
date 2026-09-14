@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
-import { necroporraRounds, necroporraVotes, teams, user } from "@/lib/db/schema";
+import { necroporraRounds, necroporraVotes, teams } from "@/lib/db/schema";
 import type { Ballot, Round, Voter } from "@/lib/domain/necroporra";
 
 /** Neon HTTP in production, PGlite in tests. Generic over the driver, like the claims module. */
@@ -128,26 +128,6 @@ export async function loadMyBallot(
       and(eq(necroporraVotes.gameweek, gameweek), eq(necroporraVotes.teamId, teamId)),
     );
   return row ?? null;
-}
-
-/**
- * The names of whoever entered a ballot for somebody else.
- *
- * The ACCOUNT name, deliberately, where everything else on this page uses the manager
- * name: an admin typing a ballot is acting as themselves and not as a team, and in this
- * league the admin holds no team at all. "entered by Josep Sanz" is the true sentence;
- * "entered by La rataneta" would not be.
- *
- * Asked for by id rather than loaded wholesale, because the answer is needed only for the
- * handful of rows that carry a mark — usually none.
- */
-export async function loadEntererNames(db: Db, userIds: string[]): Promise<Map<string, string>> {
-  if (userIds.length === 0) return new Map();
-  const rows = await db
-    .select({ id: user.id, name: user.name })
-    .from(user)
-    .where(inArray(user.id, userIds));
-  return new Map(rows.map((row) => [row.id, row.name]));
 }
 
 /**

@@ -2,13 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { loadSnapshots } from "@/lib/db/queries";
 import { loadMyTeam } from "@/lib/claims";
-import {
-  loadBallots,
-  loadEntererNames,
-  loadMyBallot,
-  loadRounds,
-  loadVoters,
-} from "@/lib/necroporra";
+import { loadBallots, loadMyBallot, loadRounds, loadVoters } from "@/lib/necroporra";
 import type { RoundBallot } from "@/lib/domain/necroporra";
 import {
   isOpen,
@@ -103,13 +97,9 @@ export default async function NecroporraPage({
   const teamName = new Map(teams.map((t) => [t.id, t.managerName]));
   const table = seasonTable(ballots, resolved, names);
 
-  // Who may fill in somebody else's row — and the names for the marks, which everybody
-  // sees. The lookup is skipped entirely on the usual page, where no ballot was entered.
+  // Who may fill in somebody else's row. The mark the rows draw needs no lookup: it names
+  // the act and not the person.
   const mayCastForOthers = decideAccess(session, { poll: ["voteFor"] }).kind === "allow";
-  const enteredByName = await loadEntererNames(
-    db,
-    [...new Set(ballots.map((ballot) => ballot.enteredBy).filter((id) => id !== null))],
-  );
 
   // Newest first, so the picker opens on the round just decided rather than on August.
   const closed = resolved
@@ -168,7 +158,6 @@ export default async function NecroporraPage({
             teamName={teamName}
             viewerTeamId={myTeam?.teamId ?? null}
             resolved={false}
-            enteredByName={enteredByName}
             castFor={
               mayCastForOthers
                 ? (row) => <BallotForRow gameweek={open.gameweek} row={row} teams={teams} />
@@ -259,7 +248,6 @@ export default async function NecroporraPage({
             teamName={teamName}
             viewerTeamId={myTeam?.teamId ?? null}
             resolved={looking.lastTeamId !== null}
-            enteredByName={enteredByName}
             castFor={
               mayCastForOthers
                 ? (row) => <BallotForRow gameweek={looking.gameweek} row={row} teams={teams} />
