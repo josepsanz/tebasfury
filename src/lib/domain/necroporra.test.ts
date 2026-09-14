@@ -12,6 +12,8 @@ import {
 } from "./necroporra";
 import type { Snapshot } from "./standings";
 
+const CAST_AT = new Date("2026-09-10T12:00:00Z");
+
 const snap = (teamId: string, points: number, roundPosition: number | null): Snapshot => ({
   teamId,
   gameweek: 4,
@@ -28,6 +30,7 @@ const ballot = (teamId: string, first: string | null, second: string | null = nu
   firstTeamId: first,
   secondTeamId: second,
   enteredBy: null,
+  castAt: CAST_AT,
 });
 
 describe("isOpen", () => {
@@ -175,11 +178,11 @@ describe("seasonTable", () => {
     { gameweek: 6, lastTeamId: null },
   ];
   const ballots: Ballot[] = [
-    { gameweek: 4, teamId: "t1", firstTeamId: "b", secondTeamId: "a", enteredBy: null },
-    { gameweek: 5, teamId: "t1", firstTeamId: "c", secondTeamId: "a", enteredBy: null },
-    { gameweek: 6, teamId: "t1", firstTeamId: "a", secondTeamId: "b", enteredBy: null },
-    { gameweek: 4, teamId: "t2", firstTeamId: "a", secondTeamId: "c", enteredBy: null },
-    { gameweek: 5, teamId: "t2", firstTeamId: "c", secondTeamId: "a", enteredBy: null },
+    { gameweek: 4, teamId: "t1", firstTeamId: "b", secondTeamId: "a", enteredBy: null, castAt: CAST_AT },
+    { gameweek: 5, teamId: "t1", firstTeamId: "c", secondTeamId: "a", enteredBy: null, castAt: CAST_AT },
+    { gameweek: 6, teamId: "t1", firstTeamId: "a", secondTeamId: "b", enteredBy: null, castAt: CAST_AT },
+    { gameweek: 4, teamId: "t2", firstTeamId: "a", secondTeamId: "c", enteredBy: null, castAt: CAST_AT },
+    { gameweek: 5, teamId: "t2", firstTeamId: "c", secondTeamId: "a", enteredBy: null, castAt: CAST_AT },
   ];
 
   it("sums points across resolved rounds only", () => {
@@ -192,7 +195,7 @@ describe("seasonTable", () => {
 
   it("counts rounds voted in, not rounds played, so a late joiner is not punished silently", () => {
     const table = seasonTable(
-      [{ gameweek: 4, teamId: "t3", firstTeamId: "b", secondTeamId: null, enteredBy: null }],
+      [{ gameweek: 4, teamId: "t3", firstTeamId: "b", secondTeamId: null, enteredBy: null, castAt: CAST_AT }],
       rounds,
       new Map([["t3", "Cleo"]]),
     );
@@ -202,8 +205,8 @@ describe("seasonTable", () => {
   it("breaks a tie on the name, so the order never wobbles between renders", () => {
     const table = seasonTable(
       [
-        { gameweek: 4, teamId: "tz", firstTeamId: "b", secondTeamId: null, enteredBy: null },
-        { gameweek: 4, teamId: "ta", firstTeamId: "b", secondTeamId: null, enteredBy: null },
+        { gameweek: 4, teamId: "tz", firstTeamId: "b", secondTeamId: null, enteredBy: null, castAt: CAST_AT },
+        { gameweek: 4, teamId: "ta", firstTeamId: "b", secondTeamId: null, enteredBy: null, castAt: CAST_AT },
       ],
       rounds,
       new Map([["tz", "Zoe"], ["ta", "Ada"]]),
@@ -213,7 +216,16 @@ describe("seasonTable", () => {
 
   it("scores a ballot an admin entered exactly like one its manager cast", () => {
     const table = seasonTable(
-      [{ gameweek: 4, teamId: "t1", firstTeamId: "b", secondTeamId: null, enteredBy: "u-admin" }],
+      [
+        {
+          gameweek: 4,
+          teamId: "t1",
+          firstTeamId: "b",
+          secondTeamId: null,
+          enteredBy: "u-admin",
+          castAt: CAST_AT,
+        },
+      ],
       rounds,
       new Map([["t1", "Ada"]]),
     );
@@ -232,9 +244,9 @@ describe("roundBallots", () => {
     { teamId: "t3", name: "Cleo" },
   ];
   const cast = [
-    { gameweek: 4, teamId: "t1", firstTeamId: "a", secondTeamId: "b", enteredBy: null },
-    { gameweek: 4, teamId: "t2", firstTeamId: "c", secondTeamId: null, enteredBy: null },
-    { gameweek: 5, teamId: "t3", firstTeamId: "a", secondTeamId: null, enteredBy: null },
+    { gameweek: 4, teamId: "t1", firstTeamId: "a", secondTeamId: "b", enteredBy: null, castAt: CAST_AT },
+    { gameweek: 4, teamId: "t2", firstTeamId: "c", secondTeamId: null, enteredBy: null, castAt: CAST_AT },
+    { gameweek: 5, teamId: "t3", firstTeamId: "a", secondTeamId: null, enteredBy: null, castAt: CAST_AT },
   ];
 
   it("shows every manager's picks, in name order", () => {
@@ -282,12 +294,22 @@ describe("roundBallots", () => {
     expect(rows.find((r) => r.name === "Dani")).toMatchObject({ teamId: "t9", picks: [] });
   });
 
-  it("carries who entered a ballot through to the row", () => {
+  it("carries who entered a ballot, and when, through to the row", () => {
+    // The date is half the mark. An entered ballot may legitimately be typed after the
+    // round closed, so "when" is what lets the league see the privilege being used.
+    const castAt = new Date("2026-09-12T10:30:00Z");
     const entered = [
-      { gameweek: 4, teamId: "t3", firstTeamId: "c", secondTeamId: null, enteredBy: "u-admin" },
+      {
+        gameweek: 4,
+        teamId: "t3",
+        firstTeamId: "c",
+        secondTeamId: null,
+        enteredBy: "u-admin",
+        castAt,
+      },
     ];
     const rows = roundBallots(voters, entered, 4, null);
-    expect(rows.find((r) => r.name === "Cleo")?.enteredBy).toBe("u-admin");
+    expect(rows.find((r) => r.name === "Cleo")).toMatchObject({ enteredBy: "u-admin", castAt });
     expect(rows.find((r) => r.name === "Ada")?.enteredBy).toBeNull();
   });
 

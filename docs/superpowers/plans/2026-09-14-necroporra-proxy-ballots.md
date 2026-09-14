@@ -569,11 +569,22 @@ git commit -m "feat: an admin can record the ballot a manager sent by other mean
 - Modify: `src/components/necroporra-ballot.tsx`
 - Modify: `src/app/(portal)/necroporra/page.tsx`
 
+**Done 2026-09-14.** Three deviations worth knowing:
+
+- The mark carries a DATE as well as a name, which meant `castAt` had to travel through
+  `Ballot` and `RoundBallot` — the plan had only `enteredBy`. Without it the mark cannot
+  show the one thing that matters about an entered ballot: whether it was typed after the
+  round had closed.
+- The control is a native `<details>`, not a button with state. The list stays a server
+  component, the disclosure costs no JavaScript, and the keyboard works for free.
+- `castForRow` as a curried builder tripped `react/display-name`, which was right: it was
+  a component pretending to be a closure. It is `BallotForRow` at module scope now.
+
 **Interfaces:**
 - Consumes: `RoundBallot` with `teamId` and `enteredBy` (Task 1), `vote` accepting `forTeamId` (Task 3).
 - Produces: nothing later tasks depend on.
 
-- [ ] **Step 1: Write the failing component tests**
+- [x] **Step 1: Write the failing component tests**
 
 In `src/components/necroporra-ballots.test.tsx` (it renders with `renderToStaticMarkup`, like `nav-links.test.tsx`):
 
@@ -621,12 +632,12 @@ it("offers no control to a reader who may not enter ballots", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `pnpm vitest run src/components/necroporra-ballots.test.tsx`
 Expected: FAIL — the props do not exist and nothing renders "entered by".
 
-- [ ] **Step 3: Draw the mark and the control**
+- [x] **Step 3: Draw the mark and the control**
 
 `NecroporraBallots` gains three props: `enteredByName: Map<string, string>`, `viewerTeamId: string | null` (renamed in Task 1), and
 
@@ -645,12 +656,12 @@ Each row renders, after the picks: the mark when `row.enteredBy` is set — `ent
 
 `NecroporraBallot` gains an optional `forTeamId?: string` that it appends to the form data as `forTeamId`, and an optional `submitLabel?: string` defaulting to today's "Save my picks" (an admin filling in Ana's row should read "Save Ana's picks"). Nothing else about it changes: the same component, the same rules.
 
-- [ ] **Step 4: Run to verify they pass**
+- [x] **Step 4: Run to verify they pass**
 
 Run: `pnpm vitest run src/components/necroporra-ballots.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Wire the page**
+- [x] **Step 5: Wire the page**
 
 In `src/app/(portal)/necroporra/page.tsx`:
 
@@ -676,11 +687,11 @@ const castForRow = (gameweek: number) => (row: RoundBallot) => (
   on the open round's, and `castFor={mayCastForOthers ? castForRow(looking.gameweek) : null}`
   on the past round's. The past round's is the whole point of decision 2.
 
-- [ ] **Step 6: Verify the tree**
+- [x] **Step 6: Verify the tree**
 
 Run: `npx tsc --noEmit`, `pnpm vitest run --maxWorkers=2`, `pnpm lint`, `pnpm build`. All clean.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A

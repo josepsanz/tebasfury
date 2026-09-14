@@ -4,9 +4,21 @@ import type { RoundBallot } from "@/lib/domain/necroporra";
 import { NecroporraBallots } from "./necroporra-ballots";
 
 const names = new Map([["t1", "LILTEAM"], ["t2", "Villaone"]]);
-const render = (rows: RoundBallot[], resolved = false, viewerTeamId: string | null = null) =>
+const render = (
+  rows: RoundBallot[],
+  resolved = false,
+  viewerTeamId: string | null = null,
+  over: { enteredByName?: Map<string, string>; castFor?: ((row: RoundBallot) => React.ReactNode) | null } = {},
+) =>
   renderToStaticMarkup(
-    <NecroporraBallots rows={rows} teamName={names} viewerTeamId={viewerTeamId} resolved={resolved} />,
+    <NecroporraBallots
+      rows={rows}
+      teamName={names}
+      viewerTeamId={viewerTeamId}
+      resolved={resolved}
+      enteredByName={over.enteredByName ?? new Map()}
+      castFor={over.castFor ?? null}
+    />,
   );
 
 const row = (over: Partial<RoundBallot> = {}): RoundBallot => ({
@@ -15,6 +27,7 @@ const row = (over: Partial<RoundBallot> = {}): RoundBallot => ({
   picks: ["t1", "t2"],
   hit: false,
   enteredBy: null,
+  castAt: null,
   ...over,
 });
 
@@ -54,5 +67,40 @@ describe("NecroporraBallots", () => {
     // voter. Every team is a voter now, so the only way to have no rows is to have no
     // teams — which happens before the first sync and never again.
     expect(render([])).toContain("the league has no teams");
+  });
+
+  it("names who entered a ballot, and when, for everyone to read", () => {
+    // Not an admin-only detail. Entering a ballot after the round has closed is a real
+    // privilege, and a privilege nobody can see is not one the league has agreed to.
+    const html = render([row({ enteredBy: "u-admin", castAt: new Date("2026-09-12T10:30:00Z") })], false, null, {
+      enteredByName: new Map([["u-admin", "Josep Sanz"]]),
+    });
+    expect(html).toContain("entered by Josep Sanz");
+    expect(html).toContain("12 Sep");
+  });
+
+  it("falls back to saying an admin did it, rather than printing an id", () => {
+    const html = render([row({ enteredBy: "u-gone" })]);
+    expect(html).toContain("entered by an admin");
+    expect(html).not.toContain("u-gone");
+  });
+
+  it("says nothing extra about a ballot its own manager cast", () => {
+    expect(render([row()])).not.toContain("entered by");
+  });
+
+  it("offers no control to a reader who may not enter ballots", () => {
+    expect(render([row({ picks: [] })])).not.toContain("Enter picks");
+  });
+
+  it("offers an empty row a way to be filled in, and a full one a way to be changed", () => {
+    const castFor = (r: RoundBallot) => <p>form for {r.teamId}</p>;
+    expect(render([row({ picks: [] })], false, null, { castFor })).toContain("Enter picks");
+    expect(render([row()], false, null, { castFor })).toContain("Edit picks");
+  });
+
+  it("hands the control the row it belongs to", () => {
+    const castFor = (r: RoundBallot) => <p>form for {r.teamId}</p>;
+    expect(render([row({ teamId: "t7" })], false, null, { castFor })).toContain("form for t7");
   });
 });

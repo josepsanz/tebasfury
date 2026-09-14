@@ -2,7 +2,14 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { loadSnapshots } from "@/lib/db/queries";
 import { loadMyTeam } from "@/lib/claims";
-import { loadBallots, loadMyBallot, loadRounds, loadVoters } from "@/lib/necroporra";
+import {
+  loadBallots,
+  loadEntererNames,
+  loadMyBallot,
+  loadRounds,
+  loadVoters,
+} from "@/lib/necroporra";
+import type { RoundBallot } from "@/lib/domain/necroporra";
 import {
   isOpen,
   lastPlaced,
@@ -10,9 +17,9 @@ import {
   roundBallots,
   seasonTable,
 } from "@/lib/domain/necroporra";
-import { requireSession } from "@/lib/auth/guards";
+import { decideAccess, requireSession } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
-import { NecroporraBallot } from "@/components/necroporra-ballot";
+import { NecroporraBallot, type BallotTeam } from "@/components/necroporra-ballot";
 import { NecroporraBallots } from "@/components/necroporra-ballots";
 import { RoundPicker } from "@/components/round-picker";
 import { vote } from "./actions";
@@ -29,6 +36,37 @@ const madrid = (at: Date) =>
   }).format(at);
 
 const HEADING = "mt-10 text-[11px] uppercase tracking-[0.06em]";
+
+/**
+ * The ballot form as it appears inside somebody else's row.
+ *
+ * The same form a manager uses for themselves, told whose row it is filling in and
+ * labelled with their name — "Save Ana's picks" is a different promise from "Save my
+ * picks", and the button should keep it. Both lists on this page hand it the round they
+ * are drawing, which is how an admin can fill in a CLOSED round's row: the action lets
+ * that through for an entered ballot and refuses it for your own.
+ */
+function BallotForRow({
+  gameweek,
+  row,
+  teams,
+}: {
+  gameweek: number;
+  row: RoundBallot;
+  teams: BallotTeam[];
+}) {
+  return (
+    <NecroporraBallot
+      gameweek={gameweek}
+      forTeamId={row.teamId}
+      submitLabel={`Save ${row.name}'s picks`}
+      // A team may not pick itself, so its own name has no business in its own ballot.
+      teams={teams.filter((team) => team.id !== row.teamId)}
+      chosen={row.picks}
+      action={vote}
+    />
+  );
+}
 
 export default async function NecroporraPage({
   searchParams,
@@ -64,6 +102,14 @@ export default async function NecroporraPage({
 
   const teamName = new Map(teams.map((t) => [t.id, t.managerName]));
   const table = seasonTable(ballots, resolved, names);
+
+  // Who may fill in somebody else's row — and the names for the marks, which everybody
+  // sees. The lookup is skipped entirely on the usual page, where no ballot was entered.
+  const mayCastForOthers = decideAccess(session, { poll: ["voteFor"] }).kind === "allow";
+  const enteredByName = await loadEntererNames(
+    db,
+    [...new Set(ballots.map((ballot) => ballot.enteredBy).filter((id) => id !== null))],
+  );
 
   // Newest first, so the picker opens on the round just decided rather than on August.
   const closed = resolved
@@ -122,6 +168,12 @@ export default async function NecroporraPage({
             teamName={teamName}
             viewerTeamId={myTeam?.teamId ?? null}
             resolved={false}
+            enteredByName={enteredByName}
+            castFor={
+              mayCastForOthers
+                ? (row) => <BallotForRow gameweek={open.gameweek} row={row} teams={teams} />
+                : null
+            }
           />
         </>
       )}
@@ -207,6 +259,12 @@ export default async function NecroporraPage({
             teamName={teamName}
             viewerTeamId={myTeam?.teamId ?? null}
             resolved={looking.lastTeamId !== null}
+            enteredByName={enteredByName}
+            castFor={
+              mayCastForOthers
+                ? (row) => <BallotForRow gameweek={looking.gameweek} row={row} teams={teams} />
+                : null
+            }
           />
         </>
       )}

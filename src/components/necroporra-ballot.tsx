@@ -26,11 +26,22 @@ export function NecroporraBallot({
   teams,
   chosen,
   action,
+  forTeamId,
+  submitLabel,
 }: {
   gameweek: number;
   teams: BallotTeam[];
   chosen: string[];
   action: VoteAction;
+  /**
+   * Whose ballot this form fills in, when it is not the reader's own.
+   *
+   * Sent as `forTeamId` and never as `teamId`: the picks themselves are posted as repeated
+   * `teamId` entries, so a target under that name would come back to the action as a third
+   * pick and be refused for being one too many.
+   */
+  forTeamId?: string;
+  submitLabel?: string;
 }) {
   const [picks, setPicks] = useState<string[]>(chosen);
   const [result, setResult] = useState<VoteResult | null>(null);
@@ -52,6 +63,7 @@ export function NecroporraBallot({
         event.preventDefault();
         const formData = new FormData();
         formData.set("gameweek", String(gameweek));
+        if (forTeamId !== undefined) formData.set("forTeamId", forTeamId);
         for (const id of picks) formData.append("teamId", id);
         startTransition(async () => setResult(await action(formData)));
       }}
@@ -90,7 +102,7 @@ export function NecroporraBallot({
           disabled={pending || picks.length === 0}
           className="board-button board-button-primary disabled:opacity-40"
         >
-          {pending ? "Saving…" : "Save my picks"}
+          {pending ? "Saving…" : (submitLabel ?? "Save my picks")}
         </button>
         <span className="text-[11px] tabular-nums" style={{ color: "var(--board-ink-dim)" }}>
           {picks.length} of {MAX_VOTES} picked

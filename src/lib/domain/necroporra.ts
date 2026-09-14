@@ -29,6 +29,8 @@ export type Ballot = {
   secondTeamId: string | null;
   /** The admin who typed it for them, or null when the manager cast it themselves. */
   enteredBy: string | null;
+  /** When it was recorded — the other half of an entered ballot's mark. */
+  castAt: Date;
 };
 
 export type PairRejection = "empty" | "too-many" | "duplicate" | "own-team" | "unknown-team";
@@ -191,6 +193,8 @@ export type RoundBallot = {
   hit: boolean;
   /** The admin who entered it, or null — drawn on the page for everyone to read. */
   enteredBy: string | null;
+  /** When it was recorded. Null for a manager who has not voted at all. */
+  castAt: Date | null;
 };
 
 /**
@@ -232,6 +236,7 @@ export function roundBallots(
         picks,
         hit: lastTeamId !== null && picks.includes(lastTeamId),
         enteredBy: ballot?.enteredBy ?? null,
+        castAt: ballot?.castAt ?? null,
       };
     });
 }

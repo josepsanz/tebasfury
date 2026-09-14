@@ -8,6 +8,7 @@ import {
   loadMyBallot,
   loadRound,
   loadRounds,
+  loadEntererNames,
   loadVoters,
   openRound,
 } from "./index";
@@ -136,7 +137,12 @@ describe("castVotes", () => {
     });
 
     const [ballot] = await loadBallots(h.db, [5]);
-    expect(ballot).toMatchObject({ teamId: "t2", firstTeamId: "t1", enteredBy: "alice" });
+    expect(ballot).toMatchObject({
+      teamId: "t2",
+      firstTeamId: "t1",
+      enteredBy: "alice",
+      castAt: BEFORE,
+    });
   });
 
   it("clears the mark when the manager replaces what was typed for them", async () => {
@@ -174,5 +180,19 @@ describe("loadVoters", () => {
   it("does not change when a team is claimed, because the claim is not what makes a voter", async () => {
     await h.db.update(teams).set({ userId: "bruno" }).where(eq(teams.id, "t3"));
     expect(await loadVoters(h.db)).toHaveLength(3);
+  });
+});
+
+describe("loadEntererNames", () => {
+  it("names the admins who entered ballots, and nobody else", async () => {
+    // The account name, not a manager name: whoever typed a ballot for somebody else is
+    // acting as themselves, and may hold no team at all — this league's admin does not.
+    const names = await loadEntererNames(h.db, ["alice"]);
+    expect(names.get("alice")).toBe("Alice A");
+    expect(names.has("bruno")).toBe(false);
+  });
+
+  it("asks for nobody and gets nobody, without hitting the database", async () => {
+    expect(await loadEntererNames(h.db, [])).toEqual(new Map());
   });
 });
