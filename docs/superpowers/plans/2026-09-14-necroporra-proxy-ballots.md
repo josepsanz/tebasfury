@@ -35,11 +35,18 @@ The whole re-key, in one commit, because nothing here compiles without the rest 
 - Modify: `src/components/necroporra-ballots.tsx`, `src/components/necroporra-ballots.test.tsx`
 - Modify: `docs/deployment.md`
 
+**Done 2026-09-14, commit `198b5cd`.** One deviation from the steps below: it took TWO
+migrations, `0013_necroporra_vote_team_columns` and `0014_necroporra_votes_by_team`, not
+one. `drizzle-kit generate` stops to ask whether a removed column and an added one are a
+rename, and it asks through a TUI that cannot be answered from this tooling; splitting the
+change into a diff that only adds and a diff that only removes avoids the question
+entirely and keeps generation reproducible. The hand-written backfill lives in `0013`.
+
 **Interfaces:**
 - Consumes: nothing from other tasks.
 - Produces: `Ballot = { gameweek: number; teamId: string; firstTeamId: string | null; secondTeamId: string | null; enteredBy: string | null }`; `Voter = { teamId: string; name: string }`; `SeasonRow = { teamId: string; name: string; points: number; rounds: number }`; `RoundBallot = { teamId: string; name: string; picks: string[]; hit: boolean; enteredBy: string | null }`; `castVotes(db, { gameweek, teamId, picks, now, enteredBy })`; `loadVoters(db): Promise<Voter[]>` returning **every** team; `loadMyBallot(db, { gameweek, teamId })`.
 
-- [ ] **Step 1: Re-key the table in the schema**
+- [x] **Step 1: Re-key the table in the schema**
 
 In `src/lib/db/schema.ts`, replace the `necroporraVotes` definition's key columns and add the two new things. Keep the existing doc comment about two columns rather than two rows, and add the paragraphs below to it.
 
@@ -87,7 +94,7 @@ export const necroporraVotes = pgTable(
 );
 ```
 
-- [ ] **Step 2: Generate the migration, then write its SQL by hand**
+- [x] **Step 2: Generate the migration, then write its SQL by hand**
 
 Run: `pnpm drizzle-kit generate --name necroporra_votes_by_team`
 
@@ -109,13 +116,13 @@ ALTER TABLE "necroporra_votes" ADD CONSTRAINT "necroporra_votes_not_own_team" CH
 
 The `SET NOT NULL` is third on purpose: a vote whose voter has released their team stops the migration instead of being silently dropped.
 
-- [ ] **Step 3: Prove the SQL applies**
+- [x] **Step 3: Prove the SQL applies**
 
 Run: `pnpm vitest run src/lib/db/queries.test.ts`
 
 Expected: PASS. Every integration test builds its database by running `drizzle/` through PGlite (`src/lib/db/testing.ts`), so a migration that does not apply turns the whole integration suite red. This proves the DDL; it does **not** prove the backfill, which runs against an empty table here. The backfill is checked against production in Task 5.
 
-- [ ] **Step 4: Re-key the domain's tests**
+- [x] **Step 4: Re-key the domain's tests**
 
 In `src/lib/domain/necroporra.test.ts`, replace every `userId` in a `Ballot`, `Voter` or `SeasonRow` with `teamId`, and add `enteredBy: null` to the ballots the fixtures build. Add this test to the `roundBallots` block:
 
@@ -150,24 +157,24 @@ it("scores a ballot an admin entered exactly like one its manager cast", () => {
 });
 ```
 
-- [ ] **Step 5: Run the domain tests to verify they fail**
+- [x] **Step 5: Run the domain tests to verify they fail**
 
 Run: `pnpm vitest run src/lib/domain/necroporra.test.ts`
 
 Expected: FAIL — TypeScript-shaped failures about `teamId` not existing on the fixtures' types are fine here; what matters is that the assertions keyed on `teamId` do not pass yet.
 
-- [ ] **Step 6: Re-key the domain**
+- [x] **Step 6: Re-key the domain**
 
 In `src/lib/domain/necroporra.ts`: `Ballot` gains `teamId` in place of `userId` and a `enteredBy: string | null`; `Voter` becomes `{ teamId: string; name: string }`; `SeasonRow` and `RoundBallot` swap `userId` for `teamId`; `RoundBallot` gains `enteredBy: string | null`, taken from the ballot that produced it (null for a manager who has not voted). `scoreRound`, `seasonTable` and `roundBallots` change only what they key on. Update the doc comment on `loadVoters`' counterpart rule in `roundBallots` to say that a team with no account is returned like any other.
 
 `validatePair` does not change.
 
-- [ ] **Step 7: Run the domain tests to verify they pass**
+- [x] **Step 7: Run the domain tests to verify they pass**
 
 Run: `pnpm vitest run src/lib/domain/necroporra.test.ts`
 Expected: PASS.
 
-- [ ] **Step 8: Re-key the data layer's tests**
+- [x] **Step 8: Re-key the data layer's tests**
 
 In `src/lib/necroporra/index.test.ts`, replace the `userId` arguments to `castVotes` and `loadMyBallot` with `teamId`, and drop the `loadVoterNames` block entirely. Add:
 
@@ -206,12 +213,12 @@ it("counts every team as a voter, claimed or not", async () => {
 
 (The fixtures in this file already create teams and users; follow whatever `beforeEach` it has rather than inventing a second style. `u-admin` must exist in `user` for the foreign key — insert it beside the others.)
 
-- [ ] **Step 9: Run the data-layer tests to verify they fail**
+- [x] **Step 9: Run the data-layer tests to verify they fail**
 
 Run: `pnpm vitest run src/lib/necroporra/index.test.ts`
 Expected: FAIL — `castVotes` does not accept `teamId` or `enteredBy` yet.
 
-- [ ] **Step 10: Re-key the data layer**
+- [x] **Step 10: Re-key the data layer**
 
 In `src/lib/necroporra/index.ts`:
 
@@ -265,12 +272,12 @@ export async function loadVoters(db: Db): Promise<Voter[]> {
 
 Delete `loadVoterNames` and its import of `user`.
 
-- [ ] **Step 11: Run the data-layer tests to verify they pass**
+- [x] **Step 11: Run the data-layer tests to verify they pass**
 
 Run: `pnpm vitest run src/lib/necroporra/index.test.ts`
 Expected: PASS.
 
-- [ ] **Step 12: Follow the key through the page, the action and the list**
+- [x] **Step 12: Follow the key through the page, the action and the list**
 
 Nothing new, just the same key everywhere:
 
@@ -278,7 +285,7 @@ Nothing new, just the same key everywhere:
 - `src/components/necroporra-ballots.tsx`: the prop `viewerId: string` becomes `viewerTeamId: string | null`, and `row.userId` becomes `row.teamId` in the key, the highlight and the name colour. Update its test file's props to match.
 - `src/app/(portal)/necroporra/actions.ts`: `castVotes(db, { gameweek, teamId: myTeam.teamId, picks, now, enteredBy: null })`. Nothing else changes in this task — authority arrives in Task 3.
 
-- [ ] **Step 13: Record the migration in the deployment doc**
+- [x] **Step 13: Record the migration in the deployment doc**
 
 Add a section to `docs/deployment.md` after the `0012` one, in the voice of the sections around it:
 
@@ -306,14 +313,14 @@ Both figures must be equal. If `mapped` is short, a voter released their team �
 migration will have stopped at `SET NOT NULL` and nothing was dropped.
 ```
 
-- [ ] **Step 14: Verify the whole tree**
+- [x] **Step 14: Verify the whole tree**
 
 Run: `npx tsc --noEmit` → no output.
 Run: `pnpm vitest run --maxWorkers=2` → all files pass.
 Run: `pnpm lint` → no output.
 Run: `pnpm build` → compiles.
 
-- [ ] **Step 15: Commit**
+- [x] **Step 15: Commit**
 
 ```bash
 git add -A
