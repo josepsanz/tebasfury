@@ -234,6 +234,15 @@ Both figures must match. If `mapped` is short, a voter released their team: `001
 have stopped at its primary key with nothing dropped, and the missing row needs a decision
 rather than a workaround.
 
+### `0015` — the round lineups, and it can go in either order
+
+Two new tables, `round_lineups` and `round_lineup_players`. It drops nothing and alters
+nothing, so the order does not matter: the code reads empty tables until the first sweep
+fills them, and the sweep writes nothing anywhere the tables do not exist yet.
+
+The first sweep after the deploy backfills every started week — thirteen calls per week,
+once — so expect that run to take noticeably longer than the ones after it.
+
 ## 5. Redeploy and verify
 
 The code is already on GitHub, so there is nothing to push. Trigger a new build from

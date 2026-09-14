@@ -490,6 +490,61 @@ export const necroporraVotes = pgTable(
 );
 
 /**
+ * What one team fielded in one round.
+ *
+ * `gameweek` deliberately references nothing, exactly as `necroporra_votes` and
+ * `player_gameweek_points` do: the cadence that writes this must not be able to fail the
+ * cadence that writes `gameweeks`.
+ *
+ * A row exists only for a round that has STARTED. The API answers for the round to come —
+ * a rival's intended eleven, before kickoff — and the league ruled that the portal does not
+ * show what the official app refuses to. The rule lives in the query that picks weeks to
+ * fetch, and this table simply never receives one.
+ */
+export const roundLineups = pgTable(
+  "round_lineups",
+  {
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    gameweek: integer("gameweek").notNull(),
+    /** The label the client builds from the API's `tacticalFormation` array: `[5,3,2]`
+     *  becomes "1-5-3-2". Stored as the label rather than the array because every reader
+     *  of it wants the words, and the goalkeeper is implied by the endpoint, not optional. */
+    formation: text("formation").notNull(),
+    points: integer("points").notNull(),
+    /** When the lineup froze. A reader comparing two managers needs to know both are
+     *  frozen, and a live round's snapshot is what says so. */
+    snapshotTookOn: timestamp("snapshot_took_on", { withTimezone: true }).notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.teamId, table.gameweek] })],
+);
+
+/**
+ * The eleven, one row each.
+ *
+ * `weekPoints` is STORED rather than joined from `player_gameweek_points`, for the reason
+ * `market_operations` stores what a sale made: it is what was true of that round, and a
+ * row that carries its own figures cannot be rewritten by a correction elsewhere.
+ */
+export const roundLineupPlayers = pgTable(
+  "round_lineup_players",
+  {
+    teamId: text("team_id").notNull(),
+    gameweek: integer("gameweek").notNull(),
+    playerId: text("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    /** Which line they were fielded in: the shape of the pitch, kept per row. */
+    line: text("line").notNull(),
+    weekPoints: integer("week_points").notNull(),
+    inIdeal: boolean("in_ideal").notNull().default(false),
+  },
+  (table) => [primaryKey({ columns: [table.teamId, table.gameweek, table.playerId] })],
+);
+
+/**
  * Who may sign in, besides the owner.
  *
  * Started life as `LEAGUE_ALLOWLIST`, an environment variable, and moved here on
