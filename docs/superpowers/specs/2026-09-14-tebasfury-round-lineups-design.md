@@ -26,8 +26,13 @@ A response is:
   id, teamValue, points, initialPoints, teamSnapshotTookOn }
 ```
 
-- `tacticalFormation` is a string — `"1-5-3-2"` — and the four arrays hold the players
-  fielded in each line.
+- `tacticalFormation` is an **array of the outfield line sizes** — `[5, 3, 2]` — and the
+  four arrays hold the players fielded in each line. **Corrected 2026-09-14**, after the
+  captured fixture disagreed with what this document first claimed: the probe that mapped
+  this endpoint printed the array interpolated into a template beside a hyphenated string
+  the probe itself had built, and the two were read as one. The client turns the array
+  into the label the rest of the portal uses, `"1-5-3-2"`, by putting the goalkeeper back
+  in front.
 - A player is `{ playerMaster, buyoutClause, playerTeamId }`, and `playerMaster` carries
   `id, nickname, positionId, position, marketValue, playerStatus, points, averagePoints,
   images`, plus the two that matter here: **`weekPoints`**, what they scored that round,
@@ -36,7 +41,7 @@ A response is:
 - 30–36 KB per team per week, almost all of it a `lastStats` block we do not need.
 
 Measured for week 4 across the league: thirteen answers, thirteen formations, from
-`1-3-4-3` to `1-5-4-1`, points from 24 to 71.
+`[3,4,3]` to `[5,4,1]`, points from 24 to 71.
 
 ## The ruling: the round has to have started
 
@@ -62,7 +67,7 @@ Two tables, because a lineup is one row and its eleven players are eleven.
 | --- | --- |
 | `team_id` | `text not null references teams(id) on delete cascade` |
 | `gameweek` | `integer not null` |
-| `formation` | `text not null` — `"1-5-3-2"`, as the API states it |
+| `formation` | `text not null` — the label `"1-5-3-2"`, built by the client from the API's `[5,3,2]` |
 | `points` | `integer not null` — the round's total for that team |
 | `snapshot_took_on` | `timestamptz not null` — when the lineup froze |
 | `fetched_at` | `timestamptz not null default now()` |
@@ -108,7 +113,7 @@ and the Necroporra already use. It opens on the most recent started round.
 
 For the round being read:
 
-- The **formation** as the API states it, and the round's **points**.
+- The **formation** label — `1-5-3-2` — and the round's **points**.
 - The eleven, in four lines, each player with their **`weekPoints`** and a mark for
   `isInIdealFormation`. The marks are shapes and words, never colour alone — the amber is
   the reader's own team and the green is a gain, and neither means "ideal eleven".

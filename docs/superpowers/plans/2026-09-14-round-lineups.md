@@ -294,8 +294,9 @@ export const roundLineups = pgTable(
       .notNull()
       .references(() => teams.id, { onDelete: "cascade" }),
     gameweek: integer("gameweek").notNull(),
-    /** As the API states it — "1-5-3-2" — and not derived from the line counts, which
-     *  would be the portal's opinion of a fact the API already reports. */
+    /** The label the client builds from the API's `tacticalFormation` array: `[5,3,2]`
+     *  becomes "1-5-3-2". Stored as the label rather than the array because every reader
+     *  of it wants the words, and the goalkeeper is implied by the endpoint, not optional. */
     formation: text("formation").notNull(),
     points: integer("points").notNull(),
     /** When the lineup froze. A reader comparing two managers needs to know both are
