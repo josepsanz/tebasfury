@@ -9,7 +9,6 @@ import { getEnv } from "@/lib/env";
 import { requirePermission } from "@/lib/auth/guards";
 import { addAllowedEmails, existingAllowedEmails, removeAllowedEmail } from "@/lib/access";
 import { parseAllowlist } from "@/lib/auth/allowlist";
-import { schedulePlayerSweep, scheduleNextRun } from "@/lib/scheduler";
 import { runSync } from "@/lib/sync";
 import { nextPlayerSweepAfterFailure } from "@/lib/sync/next-run";
 import { runPlayerSweep } from "@/lib/sync/players";
@@ -46,12 +45,19 @@ export async function triggerSyncNow(): Promise<ActionResult> {
 
   const now = new Date();
   const runId = randomUUID();
-  // Through `runAndSchedule` like the endpoint, so a manual run that fails also
-  // leaves a successor behind: the chain may well be the thing that is broken, and
-  // this button is where someone comes to find out.
+  // This button syncs. It does NOT book a successor, and that is a change made on
+  // 2026-09-14 after watching it fork the chain in production: a manual run that books one
+  // starts a SECOND chain, offset from the first by however long ago the button was
+  // pressed, and the collapse guard in `/api/sync` only catches deliveries within two
+  // minutes of each other — sized for twins born milliseconds apart, useless against five
+  // minutes of offset. The league then paid for two of every call, exactly as it had that
+  // morning for a different reason.
+  //
+  // Booking was only ever here to revive a chain that had died. `/api/sync/wake` does that
+  // now, from outside, every half hour — so the button can go back to meaning what it says.
   const outcome = await runAndSchedule({
     now,
-    schedule: (at) => scheduleNextRun(at, now, runId),
+    schedule: async () => {},
     run: async () => {
       const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
       return runSync({ db, client, now, runId, trigger: "manual" });
@@ -80,11 +86,14 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
 
   const now = new Date();
   const runId = randomUUID();
-  // Through `runAndSchedule` like the endpoint, and for the same reason: the daily
-  // chain has to be started by hand once, and this button is where that happens.
+  // No successor booked, for the reason the standings button above gives at length. This
+  // chain's own collapse window (five hours against a six-hour cadence) would have absorbed
+  // a forked chain within one revolution, so this one was never doing harm — but the rule
+  // is worth being the same in both places: the buttons sync, the chains schedule
+  // themselves, and the watchdog revives whichever has stopped.
   const outcome = await runAndSchedule({
     now,
-    schedule: (at) => schedulePlayerSweep(at, now, runId),
+    schedule: async () => {},
     nextAfterFailure: nextPlayerSweepAfterFailure,
     run: async () => {
       const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);

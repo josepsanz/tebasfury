@@ -350,6 +350,35 @@ so it does more work than the ones after it. Market value is different: it has n
 history anywhere in LaLiga's API, so the value chart starts on the day of the first
 sweep and fills in one day at a time. There is no way to recover the days before it.
 
+### "Sync now" syncs; it does not start a chain
+
+Changed on 2026-09-14, after watching the button fork the standings chain in production.
+
+A manual run used to book its own successor, so pressing the button opened a SECOND chain,
+offset from the first by however long ago it was pressed. The collapse guard in `/api/sync`
+only stands down deliveries within two minutes of each other — it was sized for twins born
+milliseconds apart — so two chains five minutes out of phase never see each other, and the
+league pays for two of every call until somebody notices. The evidence was a `sync_runs`
+table that went from a row every 10.1 minutes to a row every 5 minutes, starting at the
+manual run.
+
+**Both buttons now run and stop.** The chains schedule themselves, and `/api/sync/wake`
+revives whichever has stopped — which is the only job the booking was ever doing.
+
+**So if a chain is ever dead and the watchdog is not registered**, pressing the button will
+sync once and change nothing else. Register the schedule (below) before relying on it.
+
+To collapse a forked chain by hand — the state this change prevents, in case it is ever
+reached another way — list the pending messages and cancel one:
+
+```bash
+curl -s -H "Authorization: Bearer $QSTASH_TOKEN" "https://qstash.upstash.io/v2/events?count=60"
+curl -X DELETE -H "Authorization: Bearer $QSTASH_TOKEN" "https://qstash.upstash.io/v2/messages/<messageId>"
+```
+
+A message with a `CREATED` event and no `DELIVERED` is one chain's pending successor; there
+is one per chain. Cancelling either leaves exactly one chain running.
+
 ## 9. Register the watchdog
 
 Both cadences are self-scheduling: each run books its successor, and there is no cron
