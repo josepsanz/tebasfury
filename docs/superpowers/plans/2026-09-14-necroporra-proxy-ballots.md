@@ -412,11 +412,15 @@ git commit -m "feat: entering another manager's ballot is an admin's alone"
 - Modify: `src/lib/domain/necroporra.ts`, `src/lib/domain/necroporra.test.ts`
 - Modify: `src/app/(portal)/necroporra/actions.ts`
 
+**Done 2026-09-14.** The form field is `forTeamId`, not `teamId` as the prose above said:
+the picks themselves are posted as repeated `teamId` entries, so a target named `teamId`
+would be read back by `formData.getAll("teamId")` as a third pick.
+
 **Interfaces:**
 - Consumes: `castVotes(db, { gameweek, teamId, picks, now, enteredBy })` from Task 1; `{ poll: ["voteFor"] }` from Task 2.
 - Produces: `canCastFor({ teamId, mayCastForOthers }, teamId: string): boolean`; the action `vote(formData)` reading an optional `teamId` field.
 
-- [ ] **Step 1: Write the failing tests for the rule**
+- [x] **Step 1: Write the failing tests for the rule**
 
 In `src/lib/domain/necroporra.test.ts`:
 
@@ -446,12 +450,12 @@ describe("canCastFor", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `pnpm vitest run src/lib/domain/necroporra.test.ts`
 Expected: FAIL — `canCastFor is not a function`.
 
-- [ ] **Step 3: Implement the rule**
+- [x] **Step 3: Implement the rule**
 
 In `src/lib/domain/necroporra.ts`:
 
@@ -473,12 +477,12 @@ export function canCastFor(
 }
 ```
 
-- [ ] **Step 4: Run to verify they pass**
+- [x] **Step 4: Run to verify they pass**
 
 Run: `pnpm vitest run src/lib/domain/necroporra.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Rewrite the action around the target team**
+- [x] **Step 5: Rewrite the action around the target team**
 
 In `src/app/(portal)/necroporra/actions.ts`. The existing refusal texts stay; add one for the two new refusals.
 
@@ -543,13 +547,13 @@ export async function vote(formData: FormData): Promise<VoteResult> {
 
 Imports to add: `canCastFor` from the domain, `decideAccess` from `@/lib/auth/guards`.
 
-- [ ] **Step 6: Verify the tree**
+- [x] **Step 6: Verify the tree**
 
 Run: `npx tsc --noEmit` → no output.
 Run: `pnpm vitest run --maxWorkers=2` → all pass.
 Expected: the action has no test of its own — this repo tests server actions through their domain and data layers, both of which are covered. Task 5's manual walk is what exercises it end to end.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A

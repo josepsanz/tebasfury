@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_VOTES,
+  canCastFor,
   isOpen,
   lastPlaced,
   roundBallots,
@@ -294,5 +295,29 @@ describe("roundBallots", () => {
     const original = [...voters];
     roundBallots(voters, cast, 4, null);
     expect(voters).toEqual(original);
+  });
+});
+
+describe("canCastFor", () => {
+  it("lets a manager cast for their own team", () => {
+    expect(canCastFor({ teamId: "t1", mayCastForOthers: false }, "t1")).toBe(true);
+  });
+
+  it("refuses a manager casting for somebody else", () => {
+    expect(canCastFor({ teamId: "t1", mayCastForOthers: false }, "t2")).toBe(false);
+  });
+
+  it("lets an admin cast for any team", () => {
+    expect(canCastFor({ teamId: "t1", mayCastForOthers: true }, "t2")).toBe(true);
+  });
+
+  it("lets an admin with no team of their own cast for a team", () => {
+    // The portal's owner need not be a manager — and in this league, is not. An admin who
+    // has claimed nothing still has to be able to enter what the group chat said.
+    expect(canCastFor({ teamId: null, mayCastForOthers: true }, "t2")).toBe(true);
+  });
+
+  it("refuses somebody with neither a team nor the permission", () => {
+    expect(canCastFor({ teamId: null, mayCastForOthers: false }, "t2")).toBe(false);
   });
 });

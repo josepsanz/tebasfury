@@ -73,6 +73,26 @@ export function validatePair(
 }
 
 /**
+ * Whether this actor may record a ballot for this team.
+ *
+ * Two ways to be allowed and no third: it is your own team, or you hold the permission to
+ * enter somebody else's. Pure, so the page and the action ask the same question of the
+ * same function rather than each deciding for itself — the control being hidden from a
+ * reader who may not use it is a courtesy, and this is the control.
+ *
+ * `teamId: null` is an account with no claim, which includes this league's own admin. It
+ * is not a reason to refuse an admin: entering what the group chat said is the whole
+ * point, and holding a team has nothing to do with it.
+ */
+export function canCastFor(
+  actor: { teamId: string | null; mayCastForOthers: boolean },
+  teamId: string,
+): boolean {
+  if (actor.teamId !== null && actor.teamId === teamId) return true;
+  return actor.mayCastForOthers;
+}
+
+/**
  * The team that finished the round last, or null while that is not yet knowable.
  *
  * The API's own `roundPosition`, never a rank derived from points. Measured against
