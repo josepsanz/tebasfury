@@ -187,6 +187,53 @@ export const activityEntrySchema = z.object({
 
 export const activitySchema = z.array(activityEntrySchema);
 
+const fieldedPlayerSchema = z.object({
+  playerMaster: z
+    .object({
+      /** OPTIONAL, not required: a row the API named without an id is one unusable
+       *  slot on the pitch, not a reason to fail the other ten around it. `getLineup`
+       *  is what drops it. */
+      id: z.coerce.string().optional(),
+      /** What they scored that round. Optional like every extra: a missing figure costs
+       *  one player's points, not the thirteen lineups being read beside it. */
+      weekPoints: z.coerce.number().optional(),
+      /** Whether they made the round's ideal eleven. Free from the API, and the one
+       *  detail here nothing else in the portal can work out. */
+      isInIdealFormation: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * The formation label, as the API actually sends it.
+ *
+ * Measured against a live capture: it is a bare array of counts — `[5, 3, 2]` for
+ * defenders, midfielders, strikers, with the goalkeeper always 1 and left out — not
+ * the hyphenated string ("1-4-4-2") the position tables elsewhere print. A string is
+ * accepted too, since one capture is not a specification; `getLineup` is where either
+ * shape becomes the hyphenated label every caller actually wants.
+ */
+const tacticalFormationSchema = z.union([z.array(z.coerce.number()), z.string()]);
+
+/**
+ * One team's fielded lineup for one round.
+ *
+ * The four position arrays are read separately rather than flattened here: `getLineup`
+ * needs to know which line each entry came from, and that is exactly what stays if the
+ * shape is kept as the API sends it.
+ */
+export const lineupSchema = z.object({
+  formation: z.object({
+    tacticalFormation: tacticalFormationSchema,
+    goalkeeper: z.array(fieldedPlayerSchema).default([]),
+    defender: z.array(fieldedPlayerSchema).default([]),
+    midfield: z.array(fieldedPlayerSchema).default([]),
+    striker: z.array(fieldedPlayerSchema).default([]),
+  }),
+  points: z.coerce.number().default(0),
+  teamSnapshotTookOn: z.coerce.date(),
+});
+
 /**
  * These types describe the API's own shape, and they are internal to
  * `lib/fantasy-client/`. Nothing outside this directory may import them: the mapped

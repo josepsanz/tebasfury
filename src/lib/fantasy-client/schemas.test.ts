@@ -6,11 +6,13 @@ import leagues from "./__fixtures__/leagues.json";
 import playersFixture from "./__fixtures__/players.json";
 import squadFixture from "./__fixtures__/squad.json";
 import fixture from "./__fixtures__/activity.json";
+import lineupWeek from "./__fixtures__/lineup-week.json";
 import {
   activityEntrySchema,
   activitySchema,
   currentWeekSchema,
   leaguesSchema,
+  lineupSchema,
   playersSchema,
   squadSchema,
   standingSchema,
@@ -113,5 +115,33 @@ describe("the activity schema", () => {
     // The fixture holds one entry per type the live feed actually carried, so this is
     // the assertion that the schema describes the real shape rather than one type of it.
     expect(() => activitySchema.parse(fixture)).not.toThrow();
+  });
+});
+
+describe("lineupSchema", () => {
+  it("parses a real week's lineup", () => {
+    const parsed = lineupSchema.parse(lineupWeek);
+    // Measured, not assumed: the API sends this as a bare array of counts — goalkeeper
+    // implied as 1 — not the hyphenated string the position tables print elsewhere.
+    // See `tacticalFormationSchema`.
+    expect(parsed.formation.tacticalFormation).toEqual([5, 3, 2]);
+    expect(parsed.formation.goalkeeper).toHaveLength(1);
+  });
+
+  it("survives a player whose extras are missing", () => {
+    // Thirteen of these are parsed per week. A missing `isInIdealFormation` must cost one
+    // mark, never the sweep — the same ruling `squadSchema` already makes for the clause.
+    const thin = {
+      formation: {
+        tacticalFormation: "1-4-4-2",
+        goalkeeper: [{ playerMaster: { id: 1, weekPoints: 4 } }],
+        defender: [],
+        midfield: [],
+        striker: [],
+      },
+      points: 0,
+      teamSnapshotTookOn: "2026-09-03T19:03:47+02:00",
+    };
+    expect(() => lineupSchema.parse(thin)).not.toThrow();
   });
 });

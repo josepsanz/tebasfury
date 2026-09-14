@@ -9,6 +9,7 @@ import {
   getAccessToken,
   getActivity,
   getCurrentWeek,
+  getLineup,
   MAX_ACTIVITY_PAGES,
   getPlayers,
   getSquad,
@@ -19,6 +20,7 @@ import settled from "./__fixtures__/standing-settled.json";
 import weekFixture from "./__fixtures__/week-current.json";
 import playersFixture from "./__fixtures__/players.json";
 import squadFixture from "./__fixtures__/squad.json";
+import lineupWeekFixture from "./__fixtures__/lineup-week.json";
 
 // `getEnv()` validates the whole application configuration as a single
 // object, so exercising CREDENTIALS_KEY here still requires stubbing the
@@ -130,7 +132,7 @@ function stubPages(pages: unknown[]) {
 }
 
 /** A `fetch` stub typed by parameters, so `mock.calls` carries the URL and init. */
-function stubFetch(body: unknown, status: number) {
+function stubFetch(body: unknown, status = 200) {
   const mock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(
     async () => new Response(JSON.stringify(body), { status }),
   );
@@ -507,6 +509,48 @@ describe("the activity mapping", () => {
 
     expect(fetchMock.mock.calls).toHaveLength(MAX_ACTIVITY_PAGES);
     expect(rows).toHaveLength(MAX_ACTIVITY_PAGES);
+  });
+});
+
+describe("the lineup mapping", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reads a week's lineup as a flat eleven", async () => {
+    stubFetch(lineupWeekFixture, 200);
+    const lineup = await getLineup("token", "38127827", 4);
+
+    expect(lineup).toMatchObject({ teamId: "38127827", gameweek: 4 });
+    expect(lineup.formation).toMatch(/^\d(-\d)+$/);
+    expect(lineup.players).toHaveLength(11);
+    expect(lineup.players.filter((p) => p.line === "goalkeeper")).toHaveLength(1);
+    // The line each player was fielded in is the shape of the pitch, and it is the one
+    // thing the flat list would lose.
+    expect(new Set(lineup.players.map((p) => p.line))).toEqual(
+      new Set(["goalkeeper", "defender", "midfield", "striker"]),
+    );
+  });
+
+  it("drops a fielded player the API named without an id, and keeps the rest", async () => {
+    // Same tolerance `getSquad` applies: one unusable row costs one slot on the pitch and
+    // not the lineup, and certainly not the twelve teams read after it.
+    stubFetch({
+      formation: {
+        tacticalFormation: [4, 4, 2],
+        goalkeeper: [{ playerMaster: { id: 1, weekPoints: 6 } }],
+        defender: [{ playerMaster: { weekPoints: 2 } }],
+        midfield: [],
+        striker: [],
+      },
+      points: 8,
+      teamSnapshotTookOn: "2026-09-03T19:03:47+02:00",
+    });
+
+    const lineup = await getLineup("token", "38127827", 4);
+
+    expect(lineup.players).toHaveLength(1);
+    expect(lineup.players[0]).toMatchObject({ playerId: "1", line: "goalkeeper" });
   });
 });
 

@@ -6,6 +6,7 @@ import {
   activitySchema,
   currentWeekSchema,
   leaguesSchema,
+  lineupSchema,
   playersSchema,
   squadSchema,
   standingSchema,
@@ -404,6 +405,82 @@ export async function getSquad(
   };
 }
 
+const LINES = ["goalkeeper", "defender", "midfield", "striker"] as const;
+
+/** One player as fielded in a round, carrying the line it was fielded in. */
+export type FieldedPlayer = {
+  playerId: string;
+  line: (typeof LINES)[number];
+  weekPoints: number;
+  inIdeal: boolean;
+};
+
+/**
+ * What one team fielded in one round, as everything outside this module sees it.
+ *
+ * The four lines the API keeps separate are flattened into one list that carries its
+ * own `line`, because that is how the rows are stored and drawn — the shape of the
+ * pitch survives as a column instead of four parallel arrays.
+ */
+export type LineupRow = {
+  teamId: string;
+  gameweek: number;
+  formation: string;
+  points: number;
+  snapshotTookOn: Date;
+  players: FieldedPlayer[];
+};
+
+/**
+ * The hyphenated label ("1-4-4-2") every caller wants. Measured: the API sends a bare
+ * array of counts — goalkeeper always 1 and left out — not the string this composes;
+ * a string is passed through unchanged in case a future response spells it out itself.
+ */
+function formationLabel(raw: string | number[]): string {
+  return Array.isArray(raw) ? ["1", ...raw].join("-") : raw;
+}
+
+/**
+ * What one team fielded in one round.
+ *
+ * `/lineup/week/{week}`, and never plain `/lineup`: that one is a 403 for every team, and
+ * rightly — it is the private, editable lineup. The week endpoint is the public record of
+ * what was put out, and it answers for all thirteen teams.
+ */
+export async function getLineup(
+  accessToken: string,
+  teamId: string,
+  week: number,
+): Promise<LineupRow> {
+  const lineup = await apiGet(
+    accessToken,
+    `/v1/competition/${COMPETITION}/teams/${teamId}/lineup/week/${week}`,
+    lineupSchema,
+  );
+
+  return {
+    teamId,
+    gameweek: week,
+    formation: formationLabel(lineup.formation.tacticalFormation),
+    points: lineup.points,
+    snapshotTookOn: lineup.teamSnapshotTookOn,
+    players: LINES.flatMap((line) =>
+      lineup.formation[line].flatMap((entry) => {
+        const playerId = entry.playerMaster?.id;
+        if (playerId === undefined) return [];
+        return [
+          {
+            playerId,
+            line,
+            weekPoints: entry.playerMaster?.weekPoints ?? 0,
+            inIdeal: entry.playerMaster?.isInIdealFormation ?? false,
+          },
+        ];
+      }),
+    ),
+  };
+}
+
 /**
  * One market operation, as everything outside this module sees it.
  *
@@ -492,6 +569,7 @@ export type FantasyClient = {
   getStanding(week?: number): Promise<Standing>;
   getPlayers(): Promise<PlayerRow[]>;
   getSquad(teamId: string): Promise<SquadRow>;
+  getLineup(teamId: string, week: number): Promise<LineupRow>;
   getActivity(): Promise<MarketOperationRow[]>;
 };
 
@@ -503,6 +581,7 @@ export async function createClient(db: Db, leagueId: string): Promise<FantasyCli
     getStanding: (week) => getStanding(accessToken, leagueId, week),
     getPlayers: () => getPlayers(accessToken),
     getSquad: (teamId) => getSquad(accessToken, leagueId, teamId),
+    getLineup: (teamId, week) => getLineup(accessToken, teamId, week),
     getActivity: () => getActivity(accessToken, leagueId),
   };
 }

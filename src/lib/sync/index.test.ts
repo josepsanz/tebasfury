@@ -32,6 +32,14 @@ import { runSync } from "./index";
 const unusedPlayerCalls = {
   getPlayers: async () => [],
   getSquad: async (teamId: string) => ({ teamId, holdings: [], realTeams: [] }),
+  getLineup: async (teamId: string, week: number) => ({
+    teamId,
+    gameweek: week,
+    formation: "",
+    points: 0,
+    snapshotTookOn: new Date(0),
+    players: [],
+  }),
   getActivity: async () => [],
 };
 

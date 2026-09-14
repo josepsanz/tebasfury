@@ -1,0 +1,310 @@
+{
+  "formation": {
+    "goalkeeper": [
+      {
+        "playerMaster": {
+          "points": 3,
+          "weekPoints": 1,
+          "averagePoints": 0.6,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t184/p2378/256x256/p2378_t184_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "2378",
+          "teamId": 14,
+          "name": "Dani Cárdenas",
+          "lastSeasonPoints": 35,
+          "nickname": "D. Cárdenas",
+          "positionId": 1,
+          "position": "Portero",
+          "marketValue": 1377464,
+          "playerStatus": "ok"
+        },
+        "buyoutClause": 1377464,
+        "playerTeamId": "39688719"
+      }
+    ],
+    "defender": [
+      {
+        "playerMaster": {
+          "points": 15,
+          "weekPoints": -2,
+          "averagePoints": 3,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t450/p2846/256x256/p2846_t450_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "2846",
+          "teamId": 13,
+          "name": "Iñigo Arguibide",
+          "lastSeasonPoints": 17,
+          "nickname": "Arguibide",
+          "positionId": 2,
+          "position": "Defensa",
+          "marketValue": 3486806,
+          "playerStatus": "ok"
+        },
+        "buyoutClause": 3486806,
+        "playerTeamId": "48627810"
+      },
+      {
+        "playerMaster": {
+          "points": 32,
+          "weekPoints": 6,
+          "averagePoints": 6.4,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t177/p1930/256x256/p1930_t177_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "1930",
+          "teamId": 8,
+          "name": "Omar El Hilali",
+          "lastSeasonPoints": 101,
+          "nickname": "El Hilali",
+          "positionId": 2,
+          "position": "Defensa",
+          "marketValue": 14990524,
+          "playerStatus": "ok"
+        },
+        "playerMarket": {
+          "id": "34332799",
+          "salePrice": 13611120,
+          "expirationDate": "2026-09-14T18:47:12+02:00"
+        },
+        "buyoutClause": 14990524,
+        "playerTeamId": "57749416"
+      },
+      {
+        "playerMaster": {
+          "points": 19,
+          "weekPoints": -2,
+          "averagePoints": 3.1666666666666665,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t188/p2443/256x256/p2443_t188_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "2443",
+          "teamId": 16,
+          "name": "Jon Aramburu",
+          "lastSeasonPoints": 83,
+          "nickname": "Aramburu",
+          "positionId": 2,
+          "position": "Defensa",
+          "marketValue": 18847896,
+          "playerStatus": "ok"
+        },
+        "playerMarket": {
+          "id": "34333974",
+          "salePrice": 18438679,
+          "expirationDate": "2026-09-14T18:48:59+02:00"
+        },
+        "buyoutClause": 18847896,
+        "playerTeamId": "59489854"
+      },
+      {
+        "playerMaster": {
+          "points": 13,
+          "weekPoints": 6,
+          "averagePoints": 2.6,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t954/p2596/256x256/p2596_t954_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "2596",
+          "teamId": 7,
+          "name": "Victor Chust",
+          "lastSeasonPoints": 96,
+          "nickname": "V. Chust",
+          "positionId": 2,
+          "position": "Defensa",
+          "marketValue": 4562694,
+          "playerStatus": "ok"
+        },
+        "playerMarket": {
+          "id": "34332944",
+          "salePrice": 4651684,
+          "expirationDate": "2026-09-14T18:47:24+02:00"
+        },
+        "buyoutClause": 5330100,
+        "playerTeamId": "59489858"
+      },
+      {
+        "playerMaster": {
+          "points": 29,
+          "weekPoints": 3,
+          "averagePoints": 5.8,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t175/p67/256x256/p67_t175_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "67",
+          "teamId": 2,
+          "name": "Marcos Llorente",
+          "lastSeasonPoints": 154,
+          "nickname": "Marcos Llorente",
+          "positionId": 2,
+          "position": "Defensa",
+          "marketValue": 39906890,
+          "playerStatus": "ok"
+        },
+        "buyoutClause": 44000100,
+        "playerTeamId": "61137303"
+      }
+    ],
+    "midfield": [
+      {
+        "playerMaster": {
+          "points": 28,
+          "weekPoints": 2,
+          "averagePoints": 7,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t185/p2548/256x256/p2548_t185_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "2548",
+          "teamId": 5,
+          "name": "Rodrigo Riquelme",
+          "lastSeasonPoints": 66,
+          "nickname": "Riquelme",
+          "positionId": 3,
+          "position": "Centrocampista",
+          "marketValue": 16940987,
+          "playerStatus": "ok"
+        },
+        "buyoutClause": 16940987,
+        "playerTeamId": "47149998"
+      },
+      {
+        "playerMaster": {
+          "points": 24,
+          "weekPoints": 2,
+          "averagePoints": 6,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t177/p3161/256x256/p3161_t177_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "3161",
+          "teamId": 8,
+          "name": "Javi Hernández",
+          "nickname": "Javi Hernández",
+          "positionId": 3,
+          "position": "Centrocampista",
+          "marketValue": 15251748,
+          "playerStatus": "ok"
+        },
+        "playerMarket": {
+          "id": "34334119",
+          "salePrice": 14531351,
+          "expirationDate": "2026-09-14T18:49:12+02:00"
+        },
+        "buyoutClause": 15251748,
+        "playerTeamId": "59489859"
+      },
+      {
+        "playerMaster": {
+          "points": 28,
+          "weekPoints": 4,
+          "averagePoints": 5.6,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t186/p2430/256x256/p2430_t186_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "2430",
+          "teamId": 15,
+          "name": "Federico Valverde",
+          "lastSeasonPoints": 249,
+          "nickname": "Valverde",
+          "positionId": 3,
+          "position": "Centrocampista",
+          "marketValue": 67318294,
+          "playerStatus": "ok"
+        },
+        "buyoutClause": 73881000,
+        "playerTeamId": "61137311"
+      }
+    ],
+    "striker": [
+      {
+        "playerMaster": {
+          "points": 75,
+          "weekPoints": 8,
+          "averagePoints": 15,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t178/p2522/256x256/p2522_t178_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "2522",
+          "teamId": 4,
+          "name": "Raphael Dias Belloli",
+          "lastSeasonPoints": 179,
+          "nickname": "Raphinha",
+          "positionId": 4,
+          "position": "Delantero",
+          "marketValue": 136766608,
+          "playerStatus": "ok"
+        },
+        "buyoutClause": 136766608,
+        "playerTeamId": "39688698"
+      },
+      {
+        "playerMaster": {
+          "points": 46,
+          "weekPoints": 3,
+          "averagePoints": 9.2,
+          "images": {
+            "transparent": {
+              "256x256": "https://assets-fantasy.llt-services.com/players/t177/p2520/256x256/p2520_t177_1_001_000.png"
+            }
+          },
+          "isInIdealFormation": false,
+          "id": "2520",
+          "teamId": 8,
+          "name": "Roberto Fernández",
+          "lastSeasonPoints": 151,
+          "nickname": "Roberto",
+          "positionId": 4,
+          "position": "Delantero",
+          "marketValue": 29318180,
+          "playerStatus": "ok"
+        },
+        "playerMarket": {
+          "id": "35107404",
+          "salePrice": 26358784,
+          "expirationDate": "2026-09-15T19:00:10+02:00"
+        },
+        "buyoutClause": 35171638,
+        "playerTeamId": "47115783"
+      }
+    ],
+    "tacticalFormation": [
+      5,
+      3,
+      2
+    ]
+  },
+  "id": "5891624",
+  "teamValue": 323693259,
+  "points": 31,
+  "initialPoints": 0,
+  "teamSnapshotTookOn": "2026-09-03T19:03:47+02:00"
+}
