@@ -1,8 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CatalogueRow } from "@/lib/domain/players";
 import type { ClauseStatus } from "@/lib/domain/market";
 import { paginateCatalogue, PlayerCatalogue } from "./player-catalogue";
+
+// The filters live in the address now, so the address is what a test has to set. Same
+// shape `nav-links.test.tsx` uses for `usePathname`.
+let search = "";
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(search) }));
+
+beforeEach(() => {
+  search = "";
+});
 
 const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   id,
@@ -128,12 +137,12 @@ describe("PlayerCatalogue", () => {
     expect(html).toContain("Goalkeeper · Manager A");
   });
 
-  it("opens on the sort and ownership it was given, not on the defaults", () => {
+  it("opens on the sort and ownership the address names, not on the defaults", () => {
     // This is what makes the home page's links land somewhere: the catalogue's opening
-    // view comes from the URL, read on the server and handed down as props.
-    const html = renderToStaticMarkup(
-      <PlayerCatalogue rows={[row("p1")]} ownershipKnown initialSort="perMillion" initialOwnership="free" />,
-    );
+    // view comes from the URL. It used to arrive as props read on the server; it is read
+    // by the catalogue itself now, so that a back navigation gets the same answer.
+    search = "sort=perMillion&ownership=free";
+    const html = renderToStaticMarkup(<PlayerCatalogue rows={[row("p1")]} ownershipKnown />);
     // Asserted through the control's own state rather than a copy of its markup: the
     // previous version of this test pasted the pill's exact class and style strings, so
     // restyling the control broke it while the behaviour it guards was untouched.
@@ -294,30 +303,51 @@ describe("PlayerCatalogue, the clause figure", () => {
     expect(html.match(/<svg/g)).toHaveLength(2);
   });
 
-  it("opens filtered to the position the address asked for", () => {
+  it("draws the catalogue the address asks for", () => {
+    search = "position=Goalkeeper";
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
-        rows={[row("p1", { position: "Goalkeeper" }), row("p2")]}
-        ownershipKnown
-        initialPosition="Goalkeeper"
-      />,
+      <PlayerCatalogue rows={[row("p1", { position: "Goalkeeper" }), row("p2")]} ownershipKnown />,
     );
     expect(html).toContain("Player p1");
     expect(html).not.toContain("Player p2");
+  });
+
+  it("reads the address on EVERY render, which is what makes the back button work", () => {
+    // The first version seeded `useState` from a prop and lost the filter the moment the
+    // reader came back from a player page: the address was right and nobody read it a
+    // second time. This is the test for the fix — the same component, rendered again,
+    // follows the address rather than its own memory.
+    const rows = [row("p1", { position: "Goalkeeper" }), row("p2")];
+    search = "position=Goalkeeper";
+    expect(renderToStaticMarkup(<PlayerCatalogue rows={rows} ownershipKnown />)).not.toContain(
+      "Player p2",
+    );
+    search = "";
+    expect(renderToStaticMarkup(<PlayerCatalogue rows={rows} ownershipKnown />)).toContain(
+      "Player p2",
+    );
   });
 
   it("shows every position when the address names one that does not exist", () => {
     // A filtered catalogue is a shareable link now, so it outlives the code that made it.
     // A position renamed away should hand the reader the whole catalogue, never an empty
     // one filtered by something they cannot see.
+    search = "position=Sweeper";
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
-        rows={[row("p1", { position: "Goalkeeper" }), row("p2")]}
-        ownershipKnown
-        initialPosition="Sweeper"
-      />,
+      <PlayerCatalogue rows={[row("p1", { position: "Goalkeeper" }), row("p2")]} ownershipKnown />,
     );
     expect(html).toContain("Player p1");
     expect(html).toContain("Player p2");
+  });
+
+  it("sorts by what the address asks for", () => {
+    search = "sort=name";
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue
+        rows={[row("p2", { nickname: "Zoe" }), row("p1", { nickname: "Ada" })]}
+        ownershipKnown
+      />,
+    );
+    expect(html.indexOf("Ada")).toBeLessThan(html.indexOf("Zoe"));
   });
 });

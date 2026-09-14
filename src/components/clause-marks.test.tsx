@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ClauseStatus } from "@/lib/domain/market";
 import type { CatalogueRow } from "@/lib/domain/players";
@@ -6,6 +6,11 @@ import { squadByPosition, squadValue } from "@/lib/domain/players";
 import { CLAUSE_COLOUR, ClauseNote } from "./clause-marks";
 import { PlayerCatalogue } from "./player-catalogue";
 import { SquadList } from "./squad-list";
+
+// `PlayerCatalogue` reads its filters from the address, so a test that renders it has to
+// give it one. Empty here: this file is about how a clause state is drawn, not about
+// which players a filter leaves standing.
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams("") }));
 
 const STATES: ClauseStatus[] = [
   { state: "takeable", label: "takeable", shielded: false },

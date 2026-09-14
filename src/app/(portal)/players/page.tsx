@@ -1,19 +1,17 @@
 import { db } from "@/lib/db";
 import { loadPlayerCatalogue } from "@/lib/db/queries";
-import { buildCatalogue, parseCatalogueEntry } from "@/lib/domain/players";
+import { buildCatalogue } from "@/lib/domain/players";
 import { clauseStatus, type ClauseStatus } from "@/lib/domain/market";
 import { requireSession } from "@/lib/auth/guards";
 import { PlayerCatalogue } from "@/components/player-catalogue";
 import { PageHeader } from "@/components/page-header";
 import { formatSyncedAt } from "@/lib/domain/clock";
 
-export default async function PlayersPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
+// The catalogue's filters are read from the address by the catalogue itself, so this page
+// takes no `searchParams`: one reader of them, and it is the component that has to follow
+// them on a back navigation.
+export default async function PlayersPage() {
   await requireSession();
-  const entry = parseCatalogueEntry(await searchParams);
   const { players, totals, values, ownership, clubs, ownershipKnown, lastSweep } =
     await loadPlayerCatalogue(db);
   const rows = buildCatalogue({ players, totals, values, ownership, clubs });
@@ -44,9 +42,6 @@ export default async function PlayersPage({
         rows={rows}
         ownershipKnown={ownershipKnown}
         clauses={clauses}
-        initialSort={entry.sort}
-        initialPosition={entry.position}
-        initialOwnership={entry.ownership}
       />
 
       <p className="mt-6 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>

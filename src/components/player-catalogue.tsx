@@ -2,9 +2,11 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   catalogueQuery,
   clubOrPosition,
+  parseCatalogueEntry,
   filterCatalogue,
   formatMoney,
   sortCatalogue,
@@ -100,9 +102,6 @@ export function PlayerCatalogue({
   rows,
   ownershipKnown,
   clauses,
-  initialSort = "value",
-  initialOwnership = "all",
-  initialPosition = null,
 }: {
   rows: CatalogueRow[];
   ownershipKnown: boolean;
@@ -115,35 +114,42 @@ export function PlayerCatalogue({
    * absent from it is unowned, and an unowned player has no lock to report.
    */
   clauses?: Record<string, ClauseStatus>;
-  initialSort?: SortKey;
-  initialOwnership?: CatalogueFilter["ownership"];
-  /**
-   * The position the address asked for, clamped HERE because this is where the list of
-   * positions is known. A stale or hand-typed link with a position that no longer exists
-   * degrades to "all positions" rather than to an empty catalogue.
-   */
-  initialPosition?: string | null;
 }) {
   const [query, setQuery] = useState("");
-  const [position, setPosition] = useState<string | null>(
-    POSITIONS.includes(initialPosition ?? "") ? initialPosition : null,
-  );
-  const [ownership, setOwnership] = useState<CatalogueFilter["ownership"]>(initialOwnership);
-  const [sort, setSort] = useState<SortKey>(initialSort);
   const [shown, setShown] = useState(PAGE);
 
   /**
-   * Mirrors the three filters into the address bar as they change.
+   * The three filters live in the ADDRESS, not in this component's state.
    *
-   * `history.replaceState` and not the router: nothing on the server depends on these,
-   * so a navigation would re-render the page to produce the list the browser is already
-   * showing. This only has to leave a trail the BACK button can follow — open a player,
-   * come back, and the catalogue is as you left it instead of reset to everybody.
+   * The first attempt kept them in `useState` and seeded them from the URL once, at mount.
+   * It looked right and was not: a reader who filtered, opened a player and came back
+   * found the catalogue reset, because the address was correct and nobody read it a second
+   * time. State that is copied from a source of truth stops being that source at the first
+   * navigation.
    *
-   * The search box is deliberately not in here. It would rewrite the address on every
+   * `useSearchParams` re-reads it on every render, so whatever the router does on a back
+   * navigation — remount the component or reuse it — the list follows the address.
+   */
+  const params = useSearchParams();
+  const entry = parseCatalogueEntry(Object.fromEntries(params.entries()));
+  const { ownership, sort } = entry;
+  // Clamped HERE, because this is the one place the list of positions is known. A stale or
+  // hand-typed link naming a position that no longer exists gives the reader the whole
+  // catalogue rather than an empty one filtered by something they cannot see.
+  const position = POSITIONS.includes(entry.position ?? "") ? entry.position : null;
+
+  /**
+   * Writes a filter into the address, which is the only way any of them change.
+   *
+   * `history.replaceState` and not the router: nothing on the server depends on these
+   * three, so a navigation would re-render the page to produce the list the browser is
+   * already showing. Next keeps `useSearchParams` in step with it, so this is a write to
+   * the same thing the render above reads.
+   *
+   * The search box is deliberately not in here: it would rewrite the address on every
    * keystroke, and a search is a one-off in a way a filter is not.
    */
-  const remember = (next: Partial<CatalogueEntry>) => {
+  const show = (next: Partial<CatalogueEntry>) => {
     const query = catalogueQuery({ sort, ownership, position, ...next });
     window.history.replaceState(null, "", query === "" ? window.location.pathname : `?${query}`);
   };
@@ -185,10 +191,8 @@ export function PlayerCatalogue({
           label="Position"
           value={position ?? "all"}
           onChange={(next) => {
-            const chosen = next === "all" ? null : next;
-            setPosition(chosen);
             setShown(PAGE);
-            remember({ position: chosen });
+            show({ position: next === "all" ? null : next });
           }}
         >
           <option value="all">All positions</option>
@@ -203,10 +207,8 @@ export function PlayerCatalogue({
           label="Owner"
           value={ownership}
           onChange={(next) => {
-            const chosen = next as CatalogueFilter["ownership"];
-            setOwnership(chosen);
             setShown(PAGE);
-            remember({ ownership: chosen });
+            show({ ownership: next as CatalogueFilter["ownership"] });
           }}
         >
           {OWNERSHIP.map((option) => (
@@ -219,10 +221,7 @@ export function PlayerCatalogue({
         <Control
           label="Sort"
           value={sort}
-          onChange={(next) => {
-            setSort(next as SortKey);
-            remember({ sort: next as SortKey });
-          }}
+          onChange={(next) => show({ sort: next as SortKey })}
         >
           {SORTS.map((option) => (
             <option key={option.key} value={option.key}>
