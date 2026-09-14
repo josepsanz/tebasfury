@@ -86,9 +86,10 @@ admin edits on `/admin/sync`:
 
 Underneath, two self-scheduling QStash chains keep it fed: standings every ten minutes
 while a gameweek is live (and asleep until the next one opens, with a 24-hour heartbeat),
-and a player-and-market sweep every six hours. There is no cron — each run books its own
-successor — so both endpoints carry a collapse guard that ends a duplicate chain without
-ending the last one.
+and a player-and-market sweep every six hours. Each run books its own successor, so both
+endpoints carry a collapse guard that ends a duplicate chain without ending the last one
+— and, since a booking that is rejected would otherwise end a chain for good, a QStash
+schedule pokes `/api/sync/wake` every half hour to revive one that has stopped.
 
 ## What is not built
 

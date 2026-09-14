@@ -176,6 +176,48 @@ export async function loadLastStandingsRunAt(db: Db): Promise<Date | null> {
 }
 
 /**
+ * The last sign of life from each chain, and whether a gameweek is being played.
+ *
+ * Everything the watchdog needs, in one read, because it runs on a schedule of its own
+ * and finds nothing to do almost every time: the cheapest possible answer to "is either
+ * chain dead?" is the point of it.
+ *
+ * A run of ANY status counts, failures included — the opposite of `claimStandingsRun`,
+ * which ignores failures because they did no work. The question here is not whether the
+ * data is fresh but whether the chain still exists, and a run that failed and booked its
+ * successor five minutes out is as alive as one that worked.
+ */
+export type ChainHeartbeats = { standingsAt: Date | null; sweepAt: Date | null; isLive: boolean };
+
+export async function loadChainHeartbeats(db: Db): Promise<ChainHeartbeats> {
+  const [standings, sweep, week] = await Promise.all([
+    db
+      .select({ startedAt: syncRuns.startedAt })
+      .from(syncRuns)
+      .where(notLike(syncRuns.trigger, "players-%"))
+      .orderBy(desc(syncRuns.startedAt))
+      .limit(1),
+    db
+      .select({ startedAt: syncRuns.startedAt })
+      .from(syncRuns)
+      .where(like(syncRuns.trigger, "players-%"))
+      .orderBy(desc(syncRuns.startedAt))
+      .limit(1),
+    db
+      .select({ isLive: gameweeks.isLive })
+      .from(gameweeks)
+      .orderBy(desc(gameweeks.number))
+      .limit(1),
+  ]);
+
+  return {
+    standingsAt: standings[0]?.startedAt ?? null,
+    sweepAt: sweep[0]?.startedAt ?? null,
+    isLive: week[0]?.isLive ?? false,
+  };
+}
+
+/**
  * Claims the right to run a scheduled standings sync, and writes the run's row doing it.
  *
  * ONE statement, and that is the whole point. The chain forked on 2026-09-11 when a

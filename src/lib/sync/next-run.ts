@@ -147,3 +147,74 @@ function withinWindow(lastSuccessAt: Date | null, now: Date, window: number): bo
 
   return elapsed < window;
 }
+
+/**
+ * How quiet a LIVE gameweek's standings chain may go before it is presumed dead.
+ *
+ * Two and a half cadences. While a week is being played the chain books itself every ten
+ * minutes, so twenty-five is far outside anything healthy and still inside the window
+ * where a reader would notice the table had stopped moving.
+ */
+export const STANDINGS_OVERDUE_LIVE_MS = 25 * 60 * 1000;
+
+/**
+ * The same question between gameweeks, where silence is the design rather than a symptom.
+ *
+ * An idle chain sleeps until the next week opens, capped at the 24-hour heartbeat, so the
+ * threshold is that cap plus half an hour of delivery drift. Anything tighter would wake a
+ * sleeping chain on schedule, which is a cron by another name and exactly what this
+ * project decided not to have.
+ */
+export const STANDINGS_OVERDUE_IDLE_MS = MAX_INTERVAL_MS + 30 * 60 * 1000;
+
+/** The sweep's six hours plus an hour, for the same reason and with the same margin. */
+export const SWEEP_OVERDUE_MS = PLAYER_SWEEP_INTERVAL_MS + 60 * 60 * 1000;
+
+/**
+ * Which chains have stopped and need starting again.
+ *
+ * The self-scheduling design has one hole, and on 2026-09-14 it opened: every run books
+ * its successor, so a booking that is REJECTED ends the chain, and the 24-hour heartbeat
+ * that would rediscover a lost schedule is itself a booked message. Nothing inside the
+ * design can notice — the standings simply stop, mid-gameweek, until a person presses
+ * "Sync now". This is what notices, from the outside.
+ *
+ * It answers "is this chain dead?", never "is it due?". A chain that is merely idle is
+ * left alone: the thresholds sit a clear margin beyond the longest healthy gap, so a
+ * watchdog firing every half hour finds nothing to do all season and costs one query.
+ *
+ * A run in the future is a clock this code cannot reason about, and reviving on a bad
+ * clock would start a second chain beside a healthy one. So it does nothing.
+ */
+export type ChainRevival = { standings: boolean; players: boolean };
+
+export function overdueChains({
+  standingsLastRunAt,
+  sweepLastRunAt,
+  isLive,
+  now,
+}: {
+  standingsLastRunAt: Date | null;
+  sweepLastRunAt: Date | null;
+  isLive: boolean;
+  now: Date;
+}): ChainRevival {
+  const overdue = (lastRunAt: Date | null, threshold: number): boolean => {
+    // Never run at all: a fresh database, or a chain nobody has started. Starting it is
+    // the whole job.
+    if (lastRunAt === null) return true;
+
+    const elapsed = now.getTime() - lastRunAt.getTime();
+    if (elapsed < 0) return false;
+
+    return elapsed >= threshold;
+  };
+
+  return {
+    standings: overdue(
+      standingsLastRunAt,
+      isLive ? STANDINGS_OVERDUE_LIVE_MS : STANDINGS_OVERDUE_IDLE_MS,
+    ),
+    players: overdue(sweepLastRunAt, SWEEP_OVERDUE_MS),
+  };
+}

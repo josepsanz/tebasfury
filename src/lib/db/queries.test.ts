@@ -15,6 +15,7 @@ import {
 } from "./schema";
 import {
   claimStandingsRun,
+  loadChainHeartbeats,
   loadLeagueStatus,
   markClaimedRunFailed,
   loadMarket,
@@ -546,5 +547,74 @@ describe("markClaimedRunFailed", () => {
     const [row] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "st-own"));
     expect(row).toMatchObject({ error: "Parse error: gameweek" });
     expect(row.finishedAt).toEqual(new Date("2026-09-14T09:00:03Z"));
+  });
+});
+
+describe("loadChainHeartbeats", () => {
+  let h: TestDatabase;
+  beforeAll(async () => {
+    h = await createTestDatabase();
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("reports both chains silent before anything has ever run", async () => {
+    expect(await loadChainHeartbeats(h.db)).toEqual({
+      standingsAt: null,
+      sweepAt: null,
+      isLive: false,
+    });
+  });
+
+  it("counts a FAILED run as a heartbeat, because a failed run still books a successor", async () => {
+    // The opposite of `claimStandingsRun`, which ignores failures because they did no
+    // work. Here the question is whether the chain is alive, and a run that failed and
+    // booked five minutes out is as alive as one that worked.
+    await h.db.insert(syncRuns).values({
+      id: "st-failed",
+      trigger: "schedule",
+      status: "failed",
+      startedAt: new Date("2026-09-14T11:00:00Z"),
+      finishedAt: new Date("2026-09-14T11:00:01Z"),
+      error: "CredentialError: expired",
+    });
+
+    expect((await loadChainHeartbeats(h.db)).standingsAt).toEqual(new Date("2026-09-14T11:00:00Z"));
+  });
+
+  it("keeps the two chains' heartbeats apart", async () => {
+    await h.db.insert(syncRuns).values({
+      id: "pl-1",
+      trigger: "players-schedule",
+      status: "succeeded",
+      startedAt: new Date("2026-09-14T09:00:00Z"),
+      finishedAt: new Date("2026-09-14T09:00:20Z"),
+    });
+
+    expect(await loadChainHeartbeats(h.db)).toMatchObject({
+      standingsAt: new Date("2026-09-14T11:00:00Z"),
+      sweepAt: new Date("2026-09-14T09:00:00Z"),
+    });
+  });
+
+  it("takes the newest run of each chain, and the latest gameweek's state", async () => {
+    await h.db.insert(syncRuns).values({
+      id: "st-manual",
+      trigger: "manual",
+      status: "succeeded",
+      startedAt: new Date("2026-09-14T11:54:10Z"),
+      finishedAt: new Date("2026-09-14T11:54:13Z"),
+    });
+    await h.db.insert(gameweeks).values([
+      { number: 4, isLive: false },
+      { number: 5, isLive: true },
+    ]);
+
+    expect(await loadChainHeartbeats(h.db)).toEqual({
+      standingsAt: new Date("2026-09-14T11:54:10Z"),
+      sweepAt: new Date("2026-09-14T09:00:00Z"),
+      isLive: true,
+    });
   });
 });

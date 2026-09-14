@@ -11,6 +11,10 @@ import {
   PLAYER_SWEEP_INTERVAL_MS,
   SWEEP_COLLAPSE_WINDOW_MS,
   SYNC_COLLAPSE_WINDOW_MS,
+  STANDINGS_OVERDUE_LIVE_MS,
+  STANDINGS_OVERDUE_IDLE_MS,
+  SWEEP_OVERDUE_MS,
+  overdueChains,
 } from "./next-run";
 
 const week = (over: Partial<Parameters<typeof decideNextRun>[0]> = {}) => ({
@@ -125,5 +129,78 @@ describe("SYNC_COLLAPSE_WINDOW_MS", () => {
     expect(SYNC_COLLAPSE_WINDOW_MS).toBeLessThan(FAILURE_INTERVAL_MS);
     const margin = FAILURE_INTERVAL_MS - SYNC_COLLAPSE_WINDOW_MS;
     expect(margin / FAILURE_INTERVAL_MS).toBeGreaterThanOrEqual(0.15);
+  });
+});
+
+describe("overdueChains", () => {
+  const now = new Date("2026-09-14T12:00:00Z");
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+  const healthy = {
+    standingsLastRunAt: ago(5 * 60 * 1000),
+    sweepLastRunAt: ago(2 * 60 * 60 * 1000),
+    isLive: true,
+    now,
+  };
+
+  it("revives nothing while both chains are running to cadence", () => {
+    expect(overdueChains(healthy)).toEqual({ standings: false, players: false });
+  });
+
+  it("calls the standings chain dead when a live gameweek has gone quiet", () => {
+    // The failure this exists for: on 2026-09-14 a booking was rejected, the chain ended
+    // mid-gameweek, and nothing noticed until a person did. Ten minutes is the cadence;
+    // anything past two and a half of them, while a week is being played, is not slow.
+    expect(overdueChains({ ...healthy, standingsLastRunAt: ago(STANDINGS_OVERDUE_LIVE_MS) }))
+      .toMatchObject({ standings: true });
+  });
+
+  it("gives an idle chain the whole heartbeat before judging it", () => {
+    // Between gameweeks the chain sleeps on purpose, capped at 24 hours. Waking it every
+    // half hour because it is quiet would replace the design with a cron.
+    const idle = { ...healthy, isLive: false, standingsLastRunAt: ago(20 * 60 * 60 * 1000) };
+    expect(overdueChains(idle)).toMatchObject({ standings: false });
+
+    expect(overdueChains({ ...idle, standingsLastRunAt: ago(STANDINGS_OVERDUE_IDLE_MS) }))
+      .toMatchObject({ standings: true });
+  });
+
+  it("does not mistake an idle week for a live one", () => {
+    // A quiet 40 minutes is death during a live week and nothing at all outside one.
+    const quiet = ago(40 * 60 * 1000);
+    expect(overdueChains({ ...healthy, standingsLastRunAt: quiet })).toMatchObject({ standings: true });
+    expect(overdueChains({ ...healthy, standingsLastRunAt: quiet, isLive: false })).toMatchObject({
+      standings: false,
+    });
+  });
+
+  it("calls the sweep dead an hour past its six", () => {
+    expect(overdueChains({ ...healthy, sweepLastRunAt: ago(SWEEP_OVERDUE_MS) })).toMatchObject({
+      players: true,
+    });
+  });
+
+  it("revives a chain that has never run at all", () => {
+    expect(overdueChains({ ...healthy, standingsLastRunAt: null, sweepLastRunAt: null })).toEqual({
+      standings: true,
+      players: true,
+    });
+  });
+
+  it("leaves a chain alone when the clock says it ran in the future", () => {
+    // Same refusal `withinWindow` makes: a clock this code cannot reason about is not a
+    // reason to start a second chain.
+    const skewed = new Date(now.getTime() + 60 * 60 * 1000);
+    expect(overdueChains({ ...healthy, standingsLastRunAt: skewed, sweepLastRunAt: skewed })).toEqual({
+      standings: false,
+      players: false,
+    });
+  });
+
+  it("keeps every threshold clear of the cadence it is watching", () => {
+    // Ratios, not numbers: a threshold at or under the cadence would call a healthy chain
+    // dead and start a second one on top of it every time the watchdog fired.
+    expect(STANDINGS_OVERDUE_LIVE_MS).toBeGreaterThan(2 * LIVE_INTERVAL_MS);
+    expect(STANDINGS_OVERDUE_IDLE_MS).toBeGreaterThan(MAX_INTERVAL_MS);
+    expect(SWEEP_OVERDUE_MS).toBeGreaterThan(PLAYER_SWEEP_INTERVAL_MS);
   });
 });

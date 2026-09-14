@@ -309,3 +309,49 @@ The first sweep also backfills every player's points for every gameweek played s
 so it does more work than the ones after it. Market value is different: it has no
 history anywhere in LaLiga's API, so the value chart starts on the day of the first
 sweep and fills in one day at a time. There is no way to recover the days before it.
+
+## 9. Register the watchdog
+
+Both cadences are self-scheduling: each run books its successor, and there is no cron
+behind either of them. On **2026-09-14** that design showed its one hole. A booking was
+rejected by QStash — the deduplication id contained a colon, which QStash reserves — so
+the run that made it ended without a successor and the standings chain stopped dead in
+the middle of a live gameweek. Nothing inside the design could notice: the 24-hour
+heartbeat that rediscovers a lost schedule is itself a booked message, so a lost booking
+takes the watchdog with it. It came back only because somebody pressed "Sync now".
+
+`/api/sync/wake` is the fix, and it has to be driven from outside the chains. **It is a
+QStash schedule, not a Vercel cron**: the Hobby plan refuses anything more frequent than
+daily, and a watchdog that fails the deploy is worse than none. Register it once, after
+the route is live:
+
+```bash
+curl -X POST \
+  "https://qstash.upstash.io/v2/schedules/https://tebasfury.vercel.app/api/sync/wake" \
+  -H "Authorization: Bearer $QSTASH_TOKEN" \
+  -H "Upstash-Cron: */30 * * * *"
+```
+
+Every half hour it asks one question — is either chain dead? — and almost always answers
+no, at the cost of a single query. It revives a chain only when the silence is far past
+anything healthy: **25 minutes** for the standings while a gameweek is live, **24½ hours**
+when no week is in play (the chain sleeps on purpose between gameweeks, and waking it
+early would replace the design with a cron), and **7 hours** for the player sweep. The
+thresholds and the argument for each are in `overdueChains`.
+
+Its runs show up in the admin history under the triggers `wake` and `players-wake`, so a
+revival is visible as what it was rather than looking like an ordinary sync.
+
+To change the cadence, replace the schedule — no deploy is needed:
+
+```bash
+curl -H "Authorization: Bearer $QSTASH_TOKEN" https://qstash.upstash.io/v2/schedules   # list, with ids
+curl -X DELETE -H "Authorization: Bearer $QSTASH_TOKEN" https://qstash.upstash.io/v2/schedules/<id>
+```
+
+**What this does not do.** A run that syncs correctly but fails to book its successor
+still ends its chain, and the watchdog is what picks it up — within about 55 minutes
+during a live gameweek. Marking such a run failed would let QStash's own retry recover it
+in seconds, but it would also record a sync that wrote real data as a failure, and the
+status bar would under-report how fresh the table is. One recovery mechanism that tells
+the truth beats two that argue.

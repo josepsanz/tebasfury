@@ -37,7 +37,12 @@ export async function runSync(deps: {
   client: FantasyClient;
   now: Date;
   runId: string;
-  trigger: "schedule" | "manual";
+  /**
+   * Who asked for this run, and it is read back as much as it is written: `claimStandingsRun`
+   * and the status bar tell the standings cadence from the sweep's by this string, and the
+   * admin history prints it. `wake` is the watchdog reviving a chain that had stopped.
+   */
+  trigger: "schedule" | "manual" | "wake";
 }): Promise<SyncResult> {
   const { db, client, now, runId, trigger } = deps;
 

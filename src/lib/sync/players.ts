@@ -128,7 +128,9 @@ export async function runPlayerSweep(deps: {
   client: PlayerClient;
   now: Date;
   runId: string;
-  trigger: "players-schedule" | "players-manual";
+  /** As `runSync`'s, and it must keep the `players-` prefix: that is how the two cadences
+   * are told apart in every query that reads `sync_runs`. `players-wake` is the watchdog. */
+  trigger: "players-schedule" | "players-manual" | "players-wake";
 }): Promise<PlayerSweepResult> {
   const { db, client, now, runId, trigger } = deps;
 
