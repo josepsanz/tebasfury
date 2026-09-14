@@ -707,11 +707,20 @@ The signed-in path has no end-to-end net in this repo, so this task is the net. 
 **Files:**
 - Modify: `docs/deployment.md` (only if the walk finds something worth recording)
 
-- [ ] **Step 1: Bring the portal up against the real database**
+- [x] **Step 1: Bring the portal up against the real database**
 
 Run: `pnpm dev`, and open **http://localhost:3000** — not the LAN address. A wrong origin kills hydration and makes every POST fail with `INVALID_ORIGIN`, which looks exactly like a broken feature.
 
-- [ ] **Step 2: Walk the eight checks**
+- [~] **Step 2: Walk the eight checks** — walked against PRODUCTION rather than a dev
+server, because the code was already deployed by the time the walk began. **1, 2, 3, 5
+and 8 pass.** Check 3 is what produced the one change the walk found: the mark named the
+admin, and the owner asked for "entered by an admin" instead — `e333465`.
+
+**4, 6 and 7 are not done and cannot be yet.** 6 and 7 need an OPEN round, and none
+exists: round 5 closed on 11 September and round 6 is not named until a sync sees the API
+call gameweek 6 current, which is after gameweek 5 settles on 2026-09-15T01:00Z. 4 needs a
+second account holding a team. Until those three are walked, this feature is shipped but
+not fully witnessed.
 
 1. As an admin, `/necroporra` shows **thirteen** rows in the ballot list, including the two teams nobody has claimed.
 2. "Enter picks" appears on every row for the admin.
@@ -722,7 +731,9 @@ Run: `pnpm dev`, and open **http://localhost:3000** — not the LAN address. A w
 7. A manager replacing a ballot an admin entered for them clears the mark.
 8. The season table counts an entered ballot exactly like any other.
 
-- [ ] **Step 3: Check the backfill against production**
+- [x] **Step 3: Check the backfill against production** — 10 of 11 mapped, which stopped
+the migration exactly as designed. The orphan was the owner's own ballot, from an account
+holding no team; deleted on the owner's decision, and the remaining ten all mapped.
 
 Before the deploy, with the production `DATABASE_URL`:
 
@@ -732,7 +743,11 @@ select count(*) as votes, count(team_id) as mapped from necroporra_votes;
 
 Both must read 11 (or whatever the vote count is by then). A shortfall means a voter released their team and the migration stopped; nothing was lost, but the plan needs a decision before it goes further.
 
-- [ ] **Step 4: Hand over the deploy**
+- [x] **Step 4: Hand over the deploy** — and the hand-over did not survive contact:
+`drizzle-kit migrate` exits 1 with an empty stderr, so the migration silently did not
+apply, twice, while the code that needed it was already live. `/necroporra` answered 500
+for about half an hour. It went in statement by statement through the Neon HTTP client in
+the end. See the memory note on drizzle-kit.
 
 The migration is the owner's to run, and it runs **before** the code:
 
