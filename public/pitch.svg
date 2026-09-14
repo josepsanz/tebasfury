@@ -3,7 +3,7 @@
     The pitch the round lineups are drawn on.
 
     Green, because the owner asked for a pitch and a diagram in hairlines was not one — but
-    a DARK green, because this portal is a dark board (`--board-bg` is #0d1411) and grass at
+    a DARK green, because this portal is a dark board (its background token is #0d1411) and grass at
     noon would both fight the palette and leave light names unreadable on top of it. This is
     a pitch under floodlights, which is also when this league's rounds are played.
 

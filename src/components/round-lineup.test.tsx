@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { RoundLineup } from "./round-lineup";
 import type { FieldedRow, RoundLineup as RoundLineupData } from "@/lib/db/queries";
@@ -108,5 +109,19 @@ describe("RoundLineup", () => {
 
   it("names when the lineup froze, so two managers can be compared fairly", () => {
     expect(renderToStaticMarkup(<RoundLineup lineup={lineup()} />)).toContain("03 Sep");
+  });
+
+  it("ships a pitch a browser will actually draw", () => {
+    // Written after shipping one it would not. The file's own comment mentioned a CSS
+    // custom property by name, and a double hyphen inside an XML comment is illegal — so
+    // the SVG failed to parse, the background silently did not render, and everything
+    // else on the page looked fine. A background that fails is invisible twice: once on
+    // the screen and once in the console.
+    const svg = readFileSync("public/pitch.svg", "utf8");
+    const comments = svg.match(/<!--[\s\S]*?-->/g) ?? [];
+    for (const comment of comments) {
+      expect(comment.slice(4, -3)).not.toContain("--");
+    }
+    expect(svg).toContain("viewBox");
   });
 });
