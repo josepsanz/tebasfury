@@ -168,3 +168,22 @@ caller appears, and not before.
 season. Thirteen calls a week against an unofficial API, once, is the cost. The
 alternative is to start from the current week and let history accumulate — cheaper, and it
 loses what is available right now, permanently.
+
+## Known issues, accepted on the way in (2026-09-14)
+
+Recorded here rather than lost with the execution notes, because both are consequences of
+rulings made during the build and both would otherwise be rediscovered as surprises.
+
+- **A genuinely empty eleven is re-asked for ever.** `captureLineups` treats an empty
+  filtered eleven as a failure and writes no header, which is what stops a headerless row
+  being created and then skipped for ever. The cost is the mirror image: a settled week for
+  which the API honestly returns nobody — a manager who set no lineup at all — is never
+  marked stored, so it is asked again on every sweep. Thirteen managers who all field
+  elevens make this rare to never; worth acting on only if it is ever observed.
+- **The unplayed-round ruling rests on one signal.** A week is fetchable because it has a
+  `gameweeks` row, and that row exists because the API called the week live. `gameweeks`
+  also stores `opensAt`, so a second, independent check — `opensAt <= now` — is available
+  for free if the league ever wants the rule two signals deep instead of one third party's
+  boolean deep. Not built: today the two signals agree, and the evidence for that is that
+  week 6 answered lineups while having no row.
+
