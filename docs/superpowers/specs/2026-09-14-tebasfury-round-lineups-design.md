@@ -31,8 +31,10 @@ A response is:
   captured fixture disagreed with what this document first claimed: the probe that mapped
   this endpoint printed the array interpolated into a template beside a hyphenated string
   the probe itself had built, and the two were read as one. The client turns the array
-  into the label the rest of the portal uses, `"1-5-3-2"`, by putting the goalkeeper back
-  in front.
+  into the label the rest of the portal uses by joining them: `"5-3-2"`. **No goalkeeper in
+  front**, asked for on 2026-09-14 — every lineup has exactly one, so a digit that is
+  always 1 tells a reader nothing, and it was the portal's invention rather than the API's
+  fact in the first place.
 - A player is `{ playerMaster, buyoutClause, playerTeamId }`, and `playerMaster` carries
   `id, nickname, positionId, position, marketValue, playerStatus, points, averagePoints,
   images`, plus the two that matter here: **`weekPoints`**, what they scored that round,
@@ -67,7 +69,7 @@ Two tables, because a lineup is one row and its eleven players are eleven.
 | --- | --- |
 | `team_id` | `text not null references teams(id) on delete cascade` |
 | `gameweek` | `integer not null` |
-| `formation` | `text not null` — the label `"1-5-3-2"`, built by the client from the API's `[5,3,2]` |
+| `formation` | `text not null` — the label `"5-3-2"`, built by the client from the API's `[5,3,2]` |
 | `points` | `integer not null` — the round's total for that team |
 | `snapshot_took_on` | `timestamptz not null` — when the lineup froze |
 | `fetched_at` | `timestamptz not null default now()` |
@@ -113,29 +115,35 @@ and the Necroporra already use. It opens on the most recent started round.
 
 For the round being read:
 
-- The **formation** label — `1-5-3-2` — and the round's **points**.
-- **The eleven on a pitch, laid out left to right, one column per line**: goalkeeper,
-  defenders, midfielders, strikers, each column stacking its players. Asked for on
+- The **formation** label — `5-3-2` — and the round's **points**.
+- **The eleven on a pitch, one row per line, the keeper at the foot of it and the attack
+  running up the screen** — the way every fantasy game draws an eleven. Asked for on
   2026-09-14, and it is the right shape for the question: a lineup is read as a SHAPE
-  before it is read as a list, and `1-5-3-2` means nothing until you can see the five
-  standing across.
-- Each player shows their nickname, their **`weekPoints`**, and a mark for
-  `isInIdealFormation`. The marks are shapes and words, never colour alone — the amber is
-  the reader's own team and the green is a gain, and neither means "ideal eleven".
+  before it is read as a list, and `5-3-2` means nothing until you can see the five
+  standing across. All four rows are drawn even when one is empty, so a 5-4-1 and a 3-4-3
+  are told apart at a glance rather than by reading the label.
+- **Each player wears their own face.** The portrait the API has been sending all along,
+  the same one `/players/[id]` draws; a player it has never pictured gets their initials,
+  because a hole in the eleven reads as a missing player rather than a missing photo.
+  Under the face: the nickname, their **`weekPoints`**, and a mark for
+  `isInIdealFormation` — shapes and words, never colour alone.
 - A line naming when the lineup froze, because a reader comparing two managers needs to
   know they are comparing two frozen things.
 - A round with no lineup stored says so plainly rather than drawing an empty pitch.
 
-**The pitch is drawn as furniture, not as a photograph.** Hairlines in `--board-line` on
-the panel background — a touchline, a halfway line, a centre circle, a goal box at the
-keeper's end — in the same register as `PitchIcon`, which already set that vocabulary. It
-is deliberately NOT green: this palette spends green on a gain and amber on the reader's
-own team, and a green field would take one of those meanings away for decoration.
+**The pitch is a real pitch** — `public/pitch.svg`, drawn for this portal: dark green with
+mowing stripes, the markings at a quarter of the ink's strength, stretched behind the rows.
+It began as hairlines on the argument that this palette spends green on a gain and amber on
+the reader's own team; the owner looked at it and said the pitch was poor, which ends that
+argument. It is DARK green rather than grass at noon for a reason that survives the change:
+this is a dark board, and light names have to stay readable on top of it.
 
-**It has to hold at 375px.** Four columns of short nicknames fit at the board's small type
-with truncation; the pitch shrinks with the grid and never scrolls sideways. A name that
-does not fit is truncated, never wrapped into a second line that would push its column out
-of line with the others.
+An SVG rather than a PNG: the same file to a browser, a couple of kilobytes, sharp from a
+phone to a desktop, ours — no licence to weigh, no raster to go soft.
+
+**It has to hold at 375px.** Each player takes a fifth of the width, so a five-man line
+fits across a phone without wrapping and without a horizontal scroll; the names truncate
+inside that width rather than pushing their neighbours out of line.
 
 **This does not reuse `LineupBoard`.** That component draws the best eleven a squad could
 field: it is built on `RankedFormation`, carries a formation ranking and a shortfall

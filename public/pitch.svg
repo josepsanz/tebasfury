@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" preserveAspectRatio="none">
+  <!--
+    The pitch the round lineups are drawn on.
+
+    Green, because the owner asked for a pitch and a diagram in hairlines was not one — but
+    a DARK green, because this portal is a dark board (`--board-bg` is #0d1411) and grass at
+    noon would both fight the palette and leave light names unreadable on top of it. This is
+    a pitch under floodlights, which is also when this league's rounds are played.
+
+    PORTRAIT, keeper's goal at the bottom and the attack running up the screen: the way
+    every fantasy game draws an eleven, and the way the owner asked for it.
+
+    An SVG rather than a PNG: it is the same file to a browser, a couple of KB, and it stays
+    sharp from 375px to a desktop. It is stretched by `background-size: 100% 100%` to
+    whatever rectangle the lineup grid happens to be, so the circle becomes an ellipse —
+    deliberate, and the same trade the hairline version made before it.
+  -->
+  <rect width="200" height="300" fill="#14241b" />
+
+  <!-- Mowing stripes, running across the pitch the way a groundsman cuts them. Two shades
+       apart: grass, not stripes competing with the names above. -->
+  <g fill="#17291e">
+    <rect x="0" y="0" width="200" height="37.5" />
+    <rect x="0" y="75" width="200" height="37.5" />
+    <rect x="0" y="150" width="200" height="37.5" />
+    <rect x="0" y="225" width="200" height="37.5" />
+  </g>
+
+  <!-- Markings at a quarter of the ink's strength: present when looked for, silent when the
+       reader is scanning names. -->
+  <g fill="none" stroke="#e8efe9" stroke-opacity="0.26" stroke-width="1.4">
+    <rect x="6" y="6" width="188" height="288" />
+    <line x1="6" y1="150" x2="194" y2="150" />
+    <circle cx="100" cy="150" r="30" />
+    <circle cx="100" cy="150" r="1.6" fill="#e8efe9" fill-opacity="0.26" stroke="none" />
+
+    <!-- The keeper's end, at the bottom, under the first row. -->
+    <rect x="46" y="242" width="108" height="52" />
+    <rect x="76" y="274" width="48" height="20" />
+    <circle cx="100" cy="256" r="1.6" fill="#e8efe9" fill-opacity="0.26" stroke="none" />
+
+    <!-- The end they are attacking. -->
+    <rect x="46" y="6" width="108" height="52" />
+    <rect x="76" y="6" width="48" height="20" />
+    <circle cx="100" cy="44" r="1.6" fill="#e8efe9" fill-opacity="0.26" stroke="none" />
+
+    <path d="M16 6 A10 10 0 0 0 6 16" />
+    <path d="M184 6 A10 10 0 0 1 194 16" />
+    <path d="M194 284 A10 10 0 0 1 184 294" />
+    <path d="M6 284 A10 10 0 0 0 16 294" />
+  </g>
+</svg>

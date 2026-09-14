@@ -680,7 +680,14 @@ describe("loadRoundLineup", () => {
     h = await createTestDatabase();
     await h.db.insert(teams).values([{ id: "t1", managerId: 1, managerName: "Ada" }]);
     await h.db.insert(players).values([
-      { id: "p1", nickname: "Courtois", position: "Goalkeeper", realTeamId: "rt1", status: "ok" },
+      {
+        id: "p1",
+        nickname: "Courtois",
+        position: "Goalkeeper",
+        realTeamId: "rt1",
+        status: "ok",
+        imageUrl: "https://assets-fantasy.llt-services.com/players/p1.png",
+      },
       { id: "p2", nickname: "Carvajal", position: "Defender", realTeamId: "rt1", status: "ok" },
       { id: "p3", nickname: "Bellingham", position: "Midfielder", realTeamId: "rt1", status: "ok" },
       { id: "p4", nickname: "Mbappé", position: "Forward", realTeamId: "rt1", status: "ok" },
@@ -688,7 +695,7 @@ describe("loadRoundLineup", () => {
     await h.db.insert(roundLineups).values({
       teamId: "t1",
       gameweek: 4,
-      formation: "1-4-4-2",
+      formation: "4-4-2",
       points: 54,
       snapshotTookOn: new Date("2026-09-03T17:03:47Z"),
     });
@@ -705,11 +712,19 @@ describe("loadRoundLineup", () => {
     await h.close();
   });
 
+  it("carries each player's portrait, which the pitch draws", async () => {
+    // The API has been sending these all along; the player page already uses them. A
+    // player it has never pictured comes back null and the pitch draws initials.
+    const lineup = await loadRoundLineup(h.db, { teamId: "t1", gameweek: 4 });
+    expect(lineup?.players[0].imageUrl).toContain("/players/p1.png");
+    expect(lineup?.players[1].imageUrl).toBeNull();
+  });
+
   it("comes back with the eleven in line order and each player's name", async () => {
     const lineup = await loadRoundLineup(h.db, { teamId: "t1", gameweek: 4 });
     expect(lineup).toMatchObject({
       gameweek: 4,
-      formation: "1-4-4-2",
+      formation: "4-4-2",
       points: 54,
       snapshotTookOn: new Date("2026-09-03T17:03:47Z"),
     });

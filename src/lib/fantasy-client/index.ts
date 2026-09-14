@@ -432,20 +432,18 @@ export type LineupRow = {
 };
 
 /**
- * The hyphenated label ("1-4-4-2") every caller wants, composed from what the API
- * measurably sends: a bare array of counts with the goalkeeper always 1 and left out.
+ * The hyphenated label ("4-4-2") every caller wants, composed from what the API sends.
+ *
+ * The API's `tacticalFormation` is the outfield lines and nothing else — `[4,4,2]` — which
+ * is exactly how this league says a formation out loud. An earlier version put a "1-" in
+ * front for the keeper; the owner asked for it out on 2026-09-14, and it was the portal's
+ * invention rather than the API's fact either way: every lineup has one goalkeeper, so a
+ * digit that is always 1 tells a reader nothing.
  */
 function formationLabel(counts: number[]): string {
-  return ["1", ...counts].join("-");
+  return counts.join("-");
 }
 
-/**
- * What one team fielded in one round.
- *
- * `/lineup/week/{week}`, and never plain `/lineup`: that one is a 403 for every team, and
- * rightly — it is the private, editable lineup. The week endpoint is the public record of
- * what was put out, and it answers for all thirteen teams.
- */
 export async function getLineup(
   accessToken: string,
   teamId: string,

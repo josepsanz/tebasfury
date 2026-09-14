@@ -1,3 +1,4 @@
+import Image from "next/image";
 import type { FieldedRow, RoundLineup as RoundLineupData } from "@/lib/db/queries";
 import { formatLeagueMoment } from "@/lib/domain/clock";
 
@@ -8,79 +9,79 @@ import { formatLeagueMoment } from "@/lib/domain/clock";
  */
 const LINES = ["goalkeeper", "defender", "midfield", "striker"] as const;
 
-const LINE_LABEL: Record<(typeof LINES)[number], string> = {
-  goalkeeper: "GK",
-  defender: "DEF",
-  midfield: "MID",
-  striker: "FWD",
-};
-
 /**
- * The pitch furniture: touchline, halfway line, centre circle, a goal box at the
- * keeper's end — drawn once, behind the columns, in `PitchIcon`'s own vocabulary
- * (hairlines, no fill) rather than as a photograph of grass. `preserveAspectRatio="none"`
- * lets the 100x100 viewBox stretch to whatever rectangle the grid actually draws, so the
- * halfway line and the goal box track the real column widths instead of a guess.
+ * One player on the grass: their portrait, their name, what they scored.
  *
- * Never green: this palette spends green on a gain and amber on the reader's own team,
- * and a field drawn in either would take one of those meanings away for decoration.
+ * The portrait is the same one `/players/[id]` draws, from the API's own assets host — it
+ * has been sending them all along. `alt=""` because the name is right underneath: an image
+ * announced as "Courtois" above the word Courtois is the same fact twice.
+ *
+ * A player the API has never pictured gets their initials in the same circle rather than a
+ * hole in the eleven, which would read as a missing player instead of a missing photo.
  */
-function PitchFurniture() {
+function OnThePitch({ player }: { player: FieldedRow }) {
+  const initials = player.nickname
+    .split(/[\s.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+
   return (
-    <svg
-      aria-hidden
-      focusable="false"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-      className="pointer-events-none absolute inset-0 h-full w-full"
-      fill="none"
-    >
-      <line x1="50" y1="0" x2="50" y2="100" stroke="var(--board-line)" strokeWidth={0.6} />
-      <ellipse cx="50" cy="50" rx="9" ry="18" stroke="var(--board-line)" strokeWidth={0.6} />
-      <rect x="0.3" y="24" width="17" height="52" stroke="var(--board-line)" strokeWidth={0.6} />
-    </svg>
+    <li className="flex min-w-0 flex-col items-center gap-1" style={{ width: "19%" }}>
+      <span
+        className="block h-8 w-8 shrink-0 overflow-hidden rounded-full border"
+        style={{ borderColor: "var(--board-line)", background: "var(--board-panel)" }}
+      >
+        {player.imageUrl === null ? (
+          <span
+            className="flex h-full w-full items-center justify-center text-[9px]"
+            style={{ color: "var(--board-ink-dim)" }}
+          >
+            {initials}
+          </span>
+        ) : (
+          <Image
+            src={player.imageUrl}
+            alt=""
+            width={32}
+            height={32}
+            // The source is 256×256; at 32 CSS pixels the optimizer is asked for 64 as
+            // well, for retina, and never upscales. Eleven of these to a round.
+            className="block h-8 w-8 object-cover"
+          />
+        )}
+      </span>
+
+      <span className="block w-full truncate text-center text-[10px]" title={player.nickname}>
+        {player.nickname}
+        {/* The shape half of "a shape and a word": the caption below the pitch says the
+            word once, aggregated, and cannot say WHICH row it belongs to — so this mark
+            carries its own accessible name, exactly as `HoldIcon` does on `SquadList`. */}
+        {player.inIdeal ? (
+          <span role="img" aria-label="Made the round's ideal eleven">
+            {" "}★
+          </span>
+        ) : null}
+      </span>
+
+      <span
+        className="block text-[10px] tabular-nums"
+        style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
+      >
+        {player.weekPoints}
+      </span>
+    </li>
   );
 }
 
-function Column({ line, players }: { line: (typeof LINES)[number]; players: FieldedRow[] }) {
+/** One line of the eleven, spread across the pitch the way it stands on it. */
+function Line({ line, players }: { line: (typeof LINES)[number]; players: FieldedRow[] }) {
   return (
-    <div
-      data-line={line}
-      className="min-w-0 border-r px-1 py-2 last:border-r-0"
-      style={{ borderColor: "var(--board-line)" }}
-    >
-      <div
-        className="text-center text-[9px] uppercase tracking-[0.06em]"
-        style={{ color: "var(--board-ink-dim)" }}
-      >
-        {LINE_LABEL[line]}
-      </div>
-      <ul className="mt-1.5 space-y-2">
+    <div data-line={line} className="py-2">
+      <ul className="flex flex-wrap items-start justify-evenly gap-x-1 gap-y-2">
         {players.map((player) => (
-          <li key={player.playerId} className="min-w-0 text-center">
-            <span className="block truncate text-[10.5px]" title={player.nickname}>
-              {player.nickname}
-              {/* The shape half of "a shape and a word" (I3): the caption below the
-                  pitch says the word once, aggregated, rather than spelling it out
-                  under every name. But that caption cannot say WHICH row it belongs
-                  to, so — exactly as `HoldIcon` does for its own per-row mark on
-                  `SquadList` — this mark carries its own accessible name; it is only
-                  the SUMMARY mark (there `HoldIcon` with no `label`, here the caption's
-                  own bare "★") that stays silent, because the words beside it already
-                  say what it means. */}
-              {player.inIdeal ? (
-                <span role="img" aria-label="Made the round's ideal eleven">
-                  {" "}★
-                </span>
-              ) : null}
-            </span>
-            <span
-              className="block text-[10px] tabular-nums"
-              style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
-            >
-              {player.weekPoints}
-            </span>
-          </li>
+          <OnThePitch key={player.playerId} player={player} />
         ))}
       </ul>
     </div>
@@ -91,15 +92,15 @@ function Column({ line, players }: { line: (typeof LINES)[number]; players: Fiel
  * What a manager fielded in one round — read, not chosen: no state, no search, a server
  * component like `SquadList` and `OpportunityBoard`.
  *
- * The layout is the point (I3): a lineup is read as a shape before it is read as a
- * list, so this draws one column per line, left to right, keeper first, over the pitch
- * furniture `PitchFurniture` sets out. All four columns are always drawn, including one
- * with nobody in it, so a 1-5-4-1 and a 1-3-4-3 can be told apart at a glance instead of
- * by reading the formation label.
+ * The layout is the point: a lineup is read as a shape before it is read as a list, so
+ * this draws one LINE PER ROW on a portrait pitch, the keeper at the foot of it and the
+ * attack running up — the way every fantasy game draws an eleven. All four rows are
+ * always drawn, including one with nobody in it, so a 5-4-1 and a 3-4-3 can be told
+ * apart at a glance instead of by reading the formation label.
  *
- * Column tracks are `minmax(0, ...)`, not bare `fr`: a bare fraction cannot shrink below
- * its content, which is exactly the horizontal scroll a phone-width reader must never get,
- * and `truncate` on a track that never shrinks does nothing.
+ * Each player is a fifth of the width, so a five-man line fits across a phone without the
+ * row wrapping and without a horizontal scroll; the names `truncate` inside that width
+ * rather than pushing their neighbours out of line.
  */
 export function RoundLineup({ lineup }: { lineup: RoundLineupData | null }) {
   if (lineup === null) {
@@ -137,16 +138,21 @@ export function RoundLineup({ lineup }: { lineup: RoundLineupData | null }) {
         </span>
       </div>
 
+      {/* `flex-col-reverse`, and it is deliberate: the lines are written keeper-first in
+          the DOM — the order the data has, the order a screen reader should hear, and the
+          order `LINE_ORDER` sorts them in — while the pitch shows the keeper at the FOOT
+          of it with the attack running up the screen, which is how every fantasy game
+          draws an eleven and how the owner asked for it. */}
       <div
-        className="relative mt-3 overflow-hidden border"
-        style={{ borderColor: "var(--board-line)", background: "var(--board-panel)" }}
+        className="mt-3 flex flex-col-reverse overflow-hidden border px-1 py-2"
+        style={{
+          borderColor: "var(--board-line)",
+          background: "var(--board-panel) url(/pitch.svg) center / 100% 100% no-repeat",
+        }}
       >
-        <PitchFurniture />
-        <div className="relative grid grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
-          {LINES.map((line) => (
-            <Column key={line} line={line} players={byLine[line]} />
-          ))}
-        </div>
+        {LINES.map((line) => (
+          <Line key={line} line={line} players={byLine[line]} />
+        ))}
       </div>
 
       <p className="mt-2 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>

@@ -365,6 +365,9 @@ export type FieldedRow = {
   line: string;
   weekPoints: number;
   inIdeal: boolean;
+  /** Their portrait, which the API has been sending all along. Null for a player it has
+   *  never pictured, and the pitch draws initials for those rather than a hole. */
+  imageUrl: string | null;
 };
 
 /** What a team fielded in one round — the header from `round_lineups`, the eleven beside it. */
@@ -411,6 +414,7 @@ export async function loadRoundLineup(
       line: roundLineupPlayers.line,
       weekPoints: roundLineupPlayers.weekPoints,
       inIdeal: roundLineupPlayers.inIdeal,
+      imageUrl: playersTable.imageUrl,
     })
     .from(roundLineupPlayers)
     .innerJoin(playersTable, eq(playersTable.id, roundLineupPlayers.playerId))

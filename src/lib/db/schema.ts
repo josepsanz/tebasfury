@@ -509,7 +509,7 @@ export const roundLineups = pgTable(
       .references(() => teams.id, { onDelete: "cascade" }),
     gameweek: integer("gameweek").notNull(),
     /** The label the client builds from the API's `tacticalFormation` array: `[5,3,2]`
-     *  becomes "1-5-3-2". Stored as the label rather than the array because every reader
+     *  becomes "5-3-2". Stored as the label rather than the array because every reader
      *  of it wants the words, and the goalkeeper is implied by the endpoint, not optional. */
     formation: text("formation").notNull(),
     points: integer("points").notNull(),

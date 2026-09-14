@@ -70,7 +70,7 @@ function fakeClient(
     getLineup: async (teamId: string, week: number): Promise<LineupRow> => ({
       teamId,
       gameweek: week,
-      formation: "1-4-4-2",
+      formation: "4-4-2",
       points: 0,
       snapshotTookOn: now,
       players: [],
@@ -418,7 +418,7 @@ describe("runPlayerSweep", () => {
       getLineup: async (teamId, week) => ({
         teamId,
         gameweek: week,
-        formation: "1-4-4-2",
+        formation: "4-4-2",
         points: 0,
         snapshotTookOn: now,
         players: [],
@@ -671,7 +671,7 @@ describe("runPlayerSweep", () => {
       getLineup: async (teamId, week) => ({
         teamId,
         gameweek: week,
-        formation: "1-4-4-2",
+        formation: "4-4-2",
         points: 0,
         snapshotTookOn: now,
         players: [{ playerId: "p0", line: "midfield", weekPoints: 0, inIdeal: false }],
