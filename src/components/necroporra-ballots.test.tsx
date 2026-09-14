@@ -85,14 +85,35 @@ describe("NecroporraBallots", () => {
     expect(render([row()])).not.toContain("entered by");
   });
 
-  it("offers no control to a reader who may not enter ballots", () => {
-    expect(render([row({ picks: [] })])).not.toContain("Enter picks");
+  it("offers no control at all to a reader who may not enter ballots", () => {
+    const html = render([row({ picks: [] })]);
+    expect(html).not.toContain("<details");
+    expect(html).not.toContain("<svg");
   });
 
-  it("offers an empty row a way to be filled in, and a full one a way to be changed", () => {
+  it("names the act and the manager, since the gear cannot say either", () => {
     const castFor = (r: RoundBallot) => <p>form for {r.teamId}</p>;
-    expect(render([row({ picks: [] })], false, null, { castFor })).toContain("Enter picks");
-    expect(render([row()], false, null, { castFor })).toContain("Edit picks");
+    expect(render([row({ picks: [] })], false, null, { castFor })).toContain(
+      'aria-label="Enter picks for Ada"',
+    );
+    expect(render([row()], false, null, { castFor })).toContain('aria-label="Edit picks for Ada"');
+  });
+
+  it("makes the whole row the control, with the gear beside the name", () => {
+    // The owner's choice: a big target on a phone, and the gear as the sign that the row
+    // does something. The row line therefore lives INSIDE the summary.
+    const html = render([row()], false, null, { castFor: () => <p>form</p> });
+    const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
+    expect(summary).toContain("Ada");
+    expect(summary).toContain("<svg");
+  });
+
+  it("keeps the entered mark visible while the row is shut", () => {
+    // Inside the summary, not in the disclosure's body: a mark nobody sees until they
+    // open the row is not the public record the league agreed to.
+    const html = render([row({ enteredBy: "u-admin" })], false, null, { castFor: () => <p>form</p> });
+    const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
+    expect(summary).toContain("entered by an admin");
   });
 
   it("hands the control the row it belongs to", () => {
