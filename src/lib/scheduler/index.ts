@@ -18,9 +18,15 @@ export function delaySecondsUntil(at: Date, now: Date): number {
  * days, and while a chain idles between gameweeks every run computes the same absolute
  * opening time — so an instant-shaped id would silently swallow the booking made by
  * "Sync now", which is the one lever that revives a chain that has died.
+ *
+ * **A rejected id takes the chain with it.** `publishJSON` throws, the run books nothing,
+ * and there is no cron behind it to notice — which is exactly what happened on
+ * 2026-09-14 with a colon in here. The shape is pinned by a test for that reason.
  */
 export function bookingId(trigger: string, runId: string): string {
-  return `${trigger}:${runId}`;
+  // A hyphen, and never a colon: QStash reserves that one and rejects the whole publish
+  // with `DeduplicationId cannot contain ':'`. It cost the chain twenty minutes to learn.
+  return `${trigger}-${runId}`;
 }
 
 /** One QStash publish. The two cadences differ only in the endpoint they wake. */

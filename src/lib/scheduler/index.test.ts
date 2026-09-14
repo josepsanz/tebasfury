@@ -38,4 +38,14 @@ describe("bookingId", () => {
   it("keeps the two cadences apart", () => {
     expect(bookingId("schedule", runId)).not.toBe(bookingId("players-schedule", runId));
   });
+
+  it("uses only characters QStash accepts in a deduplication id", () => {
+    // Written after an outage, not before it. The first version of this id joined the
+    // two halves with a colon; QStash answered `DeduplicationId cannot contain ':'`, the
+    // publish threw, the run booked no successor and the standings chain stopped dead
+    // until somebody pressed "Sync now". The test that was missing is this one: the id
+    // is an argument to a service with its own rules, and only its shape can be pinned
+    // here.
+    expect(bookingId("players-schedule", runId)).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
 });
