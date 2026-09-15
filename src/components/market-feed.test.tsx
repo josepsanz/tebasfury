@@ -63,6 +63,16 @@ describe("MarketFeed", () => {
     expect(html).toContain("inside five days");
   });
 
+  it("writes the holding period to three decimals, so hours are not rounded away", () => {
+    // One tenth of a day is 2h24m — enough to round a sale three hours short of the
+    // fifth day up to a flat "4.0 days" and make a breach read like a clean record.
+    const html = feed([
+      op({ id: "sell", activityType: 33, occurredAt: new Date("2026-09-07T14:59:00Z") }),
+      op({ id: "buy", activityType: 31, occurredAt: new Date("2026-09-03T15:02:00Z") }),
+    ]);
+    expect(html).toContain("held 3.998 days");
+  });
+
   it("says a holding period is unknown rather than implying it was kept", () => {
     // Ruling 5. A sale with no purchase in the log is most of week one, and the one
     // thing the page must never do is let it read as a clean record.

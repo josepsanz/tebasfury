@@ -230,7 +230,7 @@ export function MarketFeed({
                   >
                     {holding.hours === null
                       ? "held since before this log began"
-                      : `held ${(holding.hours / 24).toFixed(1)} days`}
+                      : `held ${(holding.hours / 24).toFixed(3)} days`}
                     {holding.breach && " — inside five days"}
                   </span>
                   {holding.profit === null ? null : (
