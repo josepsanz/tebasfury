@@ -7,7 +7,7 @@ import {
   type Shortfall,
 } from "@/lib/domain/lineup";
 import { statusLabel, type CatalogueRow } from "@/lib/domain/players";
-import { Pitch, type PitchLine, type PitchMark } from "./pitch";
+import { Pitch, toneOf, type PitchLine, type PitchMark } from "./pitch";
 
 /** Gameweeks recorded below which an average is a caveat, not a fact. */
 const THIN_SAMPLE = 3;
@@ -87,6 +87,7 @@ function Eleven({
         nickname: player.nickname,
         imageUrl: portraits.get(player.id) ?? null,
         figure: figure(player),
+        tone: toneOf(metric === "points" ? player.seasonPoints : player.averagePoints),
         marks: marksFor(player),
       })),
   }));

@@ -1,6 +1,6 @@
 import type { FieldedRow, RoundLineup as RoundLineupData } from "@/lib/db/queries";
 import { formatLeagueMoment } from "@/lib/domain/clock";
-import { Pitch, type PitchLine } from "./pitch";
+import { Pitch, toneOf, type PitchLine } from "./pitch";
 
 /**
  * Keeper first, then outward from goal to attack — the order a pitch is read in, not
@@ -51,6 +51,7 @@ export function RoundLineup({ lineup }: { lineup: RoundLineupData | null }) {
       nickname: player.nickname,
       imageUrl: player.imageUrl,
       figure: String(player.weekPoints),
+      tone: toneOf(player.weekPoints),
       marks: player.inIdeal
         ? [{ symbol: "★", label: "Made the round's ideal eleven" }]
         : [],

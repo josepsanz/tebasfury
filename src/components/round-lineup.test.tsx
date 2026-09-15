@@ -94,6 +94,25 @@ describe("RoundLineup", () => {
     expect(renderToStaticMarkup(<RoundLineup lineup={lineup()} />)).toContain("7");
   });
 
+  it("colours a round's scores by their sign, which is what a manager scans for", () => {
+    // The pitch owns the palette; this asserts the round WIRES it — a lineup that
+    // handed the pitch a bare string would draw eleven identical dim numbers.
+    const html = renderToStaticMarkup(
+      <RoundLineup
+        lineup={lineup({
+          players: [
+            player({ playerId: "up", weekPoints: 12 }),
+            player({ playerId: "down", nickname: "Vinicius", weekPoints: -4, line: "striker" }),
+            player({ playerId: "flat", nickname: "Rodrygo", weekPoints: 0, line: "defender" }),
+          ],
+        })}
+      />,
+    );
+    expect(html).toContain("color:var(--board-gain)");
+    expect(html).toContain("color:var(--board-alert)");
+    expect(html).toContain("color:var(--board-ink)");
+  });
+
   it("marks whoever made the round's ideal eleven, in a shape and a word", () => {
     const html = renderToStaticMarkup(
       <RoundLineup lineup={lineup({ players: [player({ inIdeal: true })] })} />,

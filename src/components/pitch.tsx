@@ -14,6 +14,33 @@ export type PitchMark = {
 };
 
 /**
+ * How a figure reads: a gain, a loss, or neither. The pitch cannot work this out for
+ * itself — `figure` is already a string by the time it arrives, and whether it has a
+ * sign at all is the caller's business (a round's points do, an average of them does
+ * not necessarily, an unmeasured "—" has none). So the caller says, and the pitch paints.
+ *
+ * Colour is never the only carrier: the number and its minus sign say the same thing,
+ * and the colour only makes eleven of them scannable at once.
+ */
+export type PitchTone = "gain" | "loss" | "flat";
+
+/**
+ * The tone of a figure that is a plain signed number — the rule the owner asked for,
+ * kept in one place so two callers cannot drift apart on it. `null` means unmeasured,
+ * which is not a zero and gets no tone at all.
+ */
+export function toneOf(value: number | null): PitchTone | undefined {
+  if (value === null) return undefined;
+  return value > 0 ? "gain" : value < 0 ? "loss" : "flat";
+}
+
+const TONE_INK: Record<PitchTone, string> = {
+  gain: "var(--board-gain)",
+  loss: "var(--board-alert)",
+  flat: "var(--board-ink)",
+};
+
+/**
  * One player as a caller hands them to the pitch: an id and a name to link to their own
  * page, a portrait or null for the initials fallback, and a figure that is ALREADY the
  * string to print — "7", "40 pts", "10.4 avg" are the caller's business, not the
@@ -26,6 +53,7 @@ export type PitchPlayer = {
   nickname: string;
   imageUrl: string | null;
   figure: string;
+  tone?: PitchTone;
   marks?: PitchMark[];
 };
 
@@ -107,9 +135,14 @@ function OnThePitch({ player }: { player: PitchPlayer }) {
           ))}
         </span>
 
+        {/* Dim when the caller offers no tone: that is the figure the portal could not
+            put a sign on, and it should not be shouted. */}
         <span
           className="block text-[10px] tabular-nums"
-          style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
+          style={{
+            fontFamily: "var(--font-mono)",
+            color: player.tone === undefined ? "var(--board-ink-dim)" : TONE_INK[player.tone],
+          }}
         >
           {player.figure}
         </span>

@@ -72,6 +72,35 @@ describe("Pitch", () => {
     expect(html).toContain("10.4 avg");
   });
 
+  it("paints a gaining figure green and a losing one red", () => {
+    // A round of eleven numbers is scanned, not read: the sign is what the manager is
+    // looking for, and the colour is what lets them find it without reading all eleven.
+    const lines = emptyLines();
+    lines[0].players = [player({ figure: "12", tone: "gain" })];
+    lines[1].players = [player({ id: "p2", figure: "-4", tone: "loss" })];
+    const html = renderToStaticMarkup(<Pitch lines={lines} />);
+    expect(html).toContain("color:var(--board-gain)");
+    expect(html).toContain("color:var(--board-alert)");
+  });
+
+  it("paints a flat figure in plain ink, brighter than the dim it defaults to", () => {
+    // Zero is not a loss and not a gain. It gets the page's own ink so it reads as a
+    // score that happened rather than one the portal could not work out.
+    const lines = emptyLines();
+    lines[0].players = [player({ figure: "0", tone: "flat" })];
+    const html = renderToStaticMarkup(<Pitch lines={lines} />);
+    expect(html).toContain("color:var(--board-ink)");
+  });
+
+  it("leaves a figure with no tone dim, because not every figure has a sign", () => {
+    // The lineup board prints "—" for an average it has not measured. An unmeasured
+    // figure is not a zero, and colouring it would say something the caller never said.
+    const lines = emptyLines();
+    lines[0].players = [player({ figure: "—" })];
+    const html = renderToStaticMarkup(<Pitch lines={lines} />);
+    expect(html).toContain("color:var(--board-ink-dim)");
+  });
+
   it("renders zero or more marks, each with its own accessible name", () => {
     const lines = emptyLines();
     lines[0].players = [
