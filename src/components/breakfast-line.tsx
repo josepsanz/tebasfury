@@ -1,20 +1,9 @@
 import type { BreakfastDuty } from "@/lib/domain/breakfast";
+import { joinNames } from "@/lib/domain/prose";
 
 /** A team's name, or its id when the roster does not know it — never an empty gap. */
 function nameFor(names: Map<string, string>, teamId: string): string {
   return names.get(teamId) ?? teamId;
-}
-
-/**
- * "A", "A and B", or "A, B and C" — the way the rest of this portal writes a list, with
- * no Oxford comma before the last "and". `bringers` only ever holds more than one name
- * on a tie, so three is already the rare case and this does not need to handle more
- * gracefully than that.
- */
-function joinNames(names: string[]): string {
-  if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 /**

@@ -124,22 +124,34 @@ export function lastPlaced(snapshots: Snapshot[], gameweek: number): string | nu
 }
 
 /**
- * The team that finished the round first, or null while that is not yet knowable.
+ * Every team level at the top of the round, or empty while that is not yet knowable.
  *
- * The mirror of `lastPlaced`, reading the same field under the same guard — one function,
- * shared, because the two print on a single line and a round whose winner was named while
- * its loser was not would be the portal contradicting itself.
+ * **Ranked on POINTS, unlike `lastPlaced` beside it, and on the owner's ruling: teams
+ * level at the top are co-leaders, even though the API hands one of them first place.**
+ * It breaks ties into distinct sequential positions by a rule it does not publish, so at
+ * a tie the position is its arbitration and the points are the fact — the same reasoning
+ * the breakfast rule already follows at the other end of the table.
  *
- * Shown, never scored. The Necroporra is only ever about the bottom; this is the other
- * end of the same round, printed because a round has two ends and the league reads both.
+ * `lastPlaced` deliberately stays on the position: it is what the poll SCORES, a point
+ * for naming the team that finished last, and a season of scores already rests on it.
+ * Moving it is a separate ruling with a season of arithmetic behind it.
+ *
+ * The position is still what says a round has SETTLED — a live response reports the
+ * overall table place rather than a rank within the round — so the shared guard reads it
+ * even though the answer never does, and the two ends stay knowable together.
+ *
+ * Sorted, so a tie cannot reorder itself between loads. Shown and charged for, never
+ * scored: the Necroporra's points remain about the bottom.
  */
-export function firstPlaced(snapshots: Snapshot[], gameweek: number): string | null {
+export function roundLeaders(snapshots: Snapshot[], gameweek: number): string[] {
   const round = settledRound(snapshots, gameweek);
-  if (round === null) return null;
+  if (round === null) return [];
 
-  return round.reduce((best, s) =>
-    (s.roundPosition ?? 0) < (best.roundPosition ?? 0) ? s : best,
-  ).teamId;
+  const best = Math.max(...round.map((s) => s.points));
+  return round
+    .filter((s) => s.points === best)
+    .map((s) => s.teamId)
+    .sort();
 }
 
 /**
@@ -296,21 +308,27 @@ export type RoundConsequences = {
   /** The apologist who also finished the round last, or null. At most one: `lastPlaced`
    *  names a single team. */
   hateTarget: string | null;
-  /** Who sends it — the round's winner. Null while the round has no decided ends. */
-  winnerTeamId: string | null;
+  /** Who sends it — the round's leaders, all of them on a tie. Empty while undecided. */
+  winnerTeamIds: string[];
 };
 
 export function roundConsequences(
   ballots: Ballot[],
   gameweek: number,
-  { firstTeamId, lastTeamId }: { firstTeamId: string | null; lastTeamId: string | null },
+  { firstTeamIds, lastTeamId }: { firstTeamIds: string[]; lastTeamId: string | null },
 ): RoundConsequences {
-  // An undecided round returns an empty verdict rather than an accusation. `firstPlaced`
-  // and `lastPlaced` share a guard, so in practice these are null together.
-  if (firstTeamId === null) return { apologists: [], hateTarget: null, winnerTeamId: null };
+  // An undecided round returns an empty verdict rather than an accusation. `roundLeaders`
+  // and `lastPlaced` share a guard, so in practice these are empty together.
+  if (firstTeamIds.length === 0) return { apologists: [], hateTarget: null, winnerTeamIds: [] };
 
+  // Naming ANY of the co-leaders is naming a winner — the owner's ruling, which is why
+  // this is an intersection and not an equality.
   const apologists = ballots
-    .filter((ballot) => ballot.gameweek === gameweek && picksOf(ballot).includes(firstTeamId))
+    .filter(
+      (ballot) =>
+        ballot.gameweek === gameweek &&
+        picksOf(ballot).some((pick) => firstTeamIds.includes(pick)),
+    )
     .map((ballot) => ballot.teamId)
     .sort();
 
@@ -318,7 +336,7 @@ export function roundConsequences(
     apologists,
     hateTarget:
       lastTeamId !== null && apologists.includes(lastTeamId) ? lastTeamId : null,
-    winnerTeamId: firstTeamId,
+    winnerTeamIds: firstTeamIds,
   };
 }
 

@@ -10,7 +10,7 @@ import {
   picksOf,
   roundBallots,
   roundConsequences,
-  firstPlaced,
+  roundLeaders,
   haters,
   mostHated,
   seasonTable,
@@ -21,6 +21,7 @@ import { NecroporraBallot, type BallotTeam } from "@/components/necroporra-ballo
 import { NecroporraBallots } from "@/components/necroporra-ballots";
 import { Haters, MostHated } from "@/components/necroporra-hate";
 import { NecroporraConsequences } from "@/components/necroporra-consequences";
+import { joinNames } from "@/lib/domain/prose";
 import { RoundPicker } from "@/components/round-picker";
 import { vote } from "./actions";
 
@@ -92,8 +93,9 @@ export default async function NecroporraPage({
     ...round,
     lastTeamId: lastPlaced(snapshots, round.gameweek),
     // Shown beside it, never scored: the Necroporra is only ever about the bottom, but a
-    // round has two ends and the league reads both.
-    firstTeamId: firstPlaced(snapshots, round.gameweek),
+    // round has two ends and the league reads both. Plural, because teams level at the
+    // top are co-leaders however the API ordered them — the owner's ruling.
+    firstTeamIds: roundLeaders(snapshots, round.gameweek),
   }));
   const ballots = await loadBallots(db, rounds.map((r) => r.gameweek));
 
@@ -282,9 +284,11 @@ export default async function NecroporraPage({
                 <span>
                   <span style={{ color: "var(--board-ink-dim)" }}>Finished first: </span>
                   <span style={{ color: "var(--board-gain)" }}>
-                    {looking.firstTeamId === null
+                    {looking.firstTeamIds.length === 0
                       ? "—"
-                      : teamName.get(looking.firstTeamId) ?? looking.firstTeamId}
+                      : joinNames(
+                          looking.firstTeamIds.map((id) => teamName.get(id) ?? id),
+                        )}
                   </span>
                 </span>
                 <span>

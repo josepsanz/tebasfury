@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_VOTES,
   canCastFor,
-  firstPlaced,
+  roundLeaders,
   haters,
   isOpen,
   mostHated,
@@ -149,30 +149,38 @@ describe("lastPlaced", () => {
   });
 });
 
-describe("firstPlaced", () => {
-  it("is the team the API put first, by the same places that decide last", () => {
-    // The mirror of `lastPlaced`, and deliberately reading the same field: the two print
-    // on one line, so they must agree about what a place in this round means.
-    expect(firstPlaced([snap("a", 50, 1), snap("b", 24, 12), snap("c", 24, 13)], 4)).toBe("a");
+describe("roundLeaders", () => {
+  it("names every team level at the top, not the one the API puts first", () => {
+    // The owner's ruling: co-leaders count equally, even where the API hands one of them
+    // first place. It breaks ties into distinct sequential positions by a rule it does
+    // not publish, so the points are the only honest answer to who led the round.
+    expect(roundLeaders([snap("a", 75, 1), snap("b", 75, 2), snap("c", 50, 3)], 4)).toEqual([
+      "a",
+      "b",
+    ]);
   });
 
-  it("takes the API's order on a tie, the same way last does", () => {
-    // Two teams level on points get distinct places from the API. Naming the one it put
-    // first is naming what the official app shows, which is the only published answer.
-    expect(firstPlaced([snap("a", 50, 1), snap("b", 50, 2)], 4)).toBe("a");
+  it("names one leader when one team is clear", () => {
+    // Round 5 in production: 75 against 53, no tie anywhere near the top.
+    expect(roundLeaders([snap("a", 75, 1), snap("b", 53, 2)], 4)).toEqual(["a"]);
   });
 
-  it("is unknown under exactly the conditions last is", () => {
-    // One guard, shared. If these two ever disagreed the line would name a winner for a
-    // round whose loser it refused to name.
-    expect(firstPlaced([snap("a", 50, 1), snap("b", 10, null)], 4)).toBeNull();
-    expect(firstPlaced([{ ...snap("a", 50, 1), isProvisional: true }, snap("b", 10, 2)], 4)).toBeNull();
-    expect(firstPlaced([], 4)).toBeNull();
+  it("sorts the leaders, so a tie cannot reorder itself between loads", () => {
+    expect(roundLeaders([snap("c", 75, 1), snap("a", 75, 2)], 4)).toEqual(["a", "c"]);
+  });
+
+  it("is empty under exactly the conditions last is unknown", () => {
+    // The position is what says a round has SETTLED — a live response reports the overall
+    // table place instead of a rank within the round. The points are what rank it. So the
+    // guard still reads the position even though the answer never does.
+    expect(roundLeaders([snap("a", 50, 1), snap("b", 10, null)], 4)).toEqual([]);
+    expect(roundLeaders([{ ...snap("a", 50, 1), isProvisional: true }, snap("b", 10, 2)], 4)).toEqual([]);
+    expect(roundLeaders([], 4)).toEqual([]);
   });
 
   it("ignores other gameweeks", () => {
-    const other = { ...snap("z", 1, 0), gameweek: 3 };
-    expect(firstPlaced([other, snap("a", 50, 2), snap("b", 10, 3)], 4)).toBe("a");
+    const other = { ...snap("z", 999, 1), gameweek: 3 };
+    expect(roundLeaders([other, snap("a", 50, 1), snap("b", 10, 2)], 4)).toEqual(["a"]);
   });
 });
 
@@ -466,8 +474,8 @@ describe("roundConsequences", () => {
     ...ballot(voter, first, second),
     gameweek,
   });
-  const ends = (firstTeamId: string | null, lastTeamId: string | null) => ({
-    firstTeamId,
+  const ends = (firstTeamIds: string[], lastTeamId: string | null) => ({
+    firstTeamIds,
     lastTeamId,
   });
 
@@ -477,7 +485,7 @@ describe("roundConsequences", () => {
     const result = roundConsequences(
       [at(4, "b", "a"), at(4, "c", "d"), at(4, "d", "a", "b")],
       4,
-      ends("a", "d"),
+      ends(["a"], "d"),
     );
     expect(result.apologists).toEqual(["b", "d"]);
   });
@@ -485,7 +493,7 @@ describe("roundConsequences", () => {
   it("sorts the apologists, because the sentence reads them out in order", () => {
     // Undefined row order from the database would swap two names between loads. Same
     // reason `breakfastDuties` sorts its bringers.
-    expect(roundConsequences([at(4, "d", "a"), at(4, "b", "a")], 4, ends("a", "c")).apologists).toEqual(
+    expect(roundConsequences([at(4, "d", "a"), at(4, "b", "a")], 4, ends(["a"], "c")).apologists).toEqual(
       ["b", "d"],
     );
   });
@@ -493,19 +501,19 @@ describe("roundConsequences", () => {
   it("sends a hate message to the apologist who also finished last", () => {
     // Both conditions at once: they called the winner AND they came bottom. The winner
     // is who sends it.
-    const result = roundConsequences([at(4, "d", "a")], 4, ends("a", "d"));
+    const result = roundConsequences([at(4, "d", "a")], 4, ends(["a"], "d"));
     expect(result.hateTarget).toBe("d");
-    expect(result.winnerTeamId).toBe("a");
+    expect(result.winnerTeamIds).toEqual(["a"]);
   });
 
   it("sends no hate message to an apologist who did not finish last", () => {
-    expect(roundConsequences([at(4, "b", "a")], 4, ends("a", "d")).hateTarget).toBeNull();
+    expect(roundConsequences([at(4, "b", "a")], 4, ends(["a"], "d")).hateTarget).toBeNull();
   });
 
   it("sends no hate message to whoever finished last without naming the winner", () => {
     // Finishing last is its own punishment — it brings breakfast. The hate message is
     // for getting the poll exactly backwards on the week you were the answer.
-    const result = roundConsequences([at(4, "d", "c")], 4, ends("a", "d"));
+    const result = roundConsequences([at(4, "d", "c")], 4, ends(["a"], "d"));
     expect(result.apologists).toEqual([]);
     expect(result.hateTarget).toBeNull();
   });
@@ -513,15 +521,26 @@ describe("roundConsequences", () => {
   it("finds nobody in a round that is not decided", () => {
     // "Not yet" is not "nobody owed anything" — but neither is it a verdict, so the fold
     // returns an empty one rather than guessing at either.
-    const result = roundConsequences([at(4, "b", "a")], 4, ends(null, null));
-    expect(result).toEqual({ apologists: [], hateTarget: null, winnerTeamId: null });
+    const result = roundConsequences([at(4, "b", "a")], 4, ends([], null));
+    expect(result).toEqual({ apologists: [], hateTarget: null, winnerTeamIds: [] });
+  });
+
+  it("charges an apology for naming either of two co-leaders", () => {
+    // The owner's ruling: co-leaders count equally. Naming one of them is naming a
+    // winner, whichever one the API decided to print first.
+    const result = roundConsequences(
+      [at(4, "b", "a"), at(4, "c", "d"), at(4, "e", "f")],
+      4,
+      ends(["a", "d"], null),
+    );
+    expect(result.apologists).toEqual(["b", "c"]);
   });
 
   it("ignores ballots from other rounds", () => {
-    expect(roundConsequences([at(3, "b", "a")], 4, ends("a", "d")).apologists).toEqual([]);
+    expect(roundConsequences([at(3, "b", "a")], 4, ends(["a"], "d")).apologists).toEqual([]);
   });
 
   it("counts a winner named in either slot", () => {
-    expect(roundConsequences([at(4, "b", "c", "a")], 4, ends("a", "d")).apologists).toEqual(["b"]);
+    expect(roundConsequences([at(4, "b", "c", "a")], 4, ends(["a"], "d")).apologists).toEqual(["b"]);
   });
 });

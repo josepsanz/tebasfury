@@ -1,18 +1,9 @@
 import type { RoundConsequences } from "@/lib/domain/necroporra";
+import { joinNames } from "@/lib/domain/prose";
 
 /** A team's name, or its id when the roster does not know it — never an empty gap. */
 function nameFor(names: Map<string, string>, teamId: string): string {
   return names.get(teamId) ?? teamId;
-}
-
-/**
- * "A", "A and B", or "A, B and C" — the portal's list, no Oxford comma before the last
- * "and". The same shape `BreakfastLine` writes.
- */
-function joinNames(names: string[]): string {
-  if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 /**
@@ -33,35 +24,46 @@ export function NecroporraConsequences({
   consequences: RoundConsequences;
   names: Map<string, string>;
 }) {
-  const { apologists, hateTarget, winnerTeamId } = consequences;
+  const { apologists, hateTarget, winnerTeamIds } = consequences;
   const owing = apologists.map((teamId) => nameFor(names, teamId));
+  const winners = winnerTeamIds.map((teamId) => nameFor(names, teamId));
 
   // Built as strings rather than assembled out of coloured spans. Two reasons, and the
   // second is the real one: a sentence broken into fragments is a sentence no test can
   // assert whole, and colour inside a sentence is decoration — this portal's rule is that
   // the words carry the meaning and the colour only ever repeats them.
-  // The winner is NAMED, not referred to. This sentence is read on its own — it is the
-  // line somebody screenshots into the group chat — and "they named the winner" makes the
-  // reader look up the page to find out who that was. One shape for one apologist or
-  // several: "they owe" is correct for a singular they as well as a plural one.
-  const winner = winnerTeamId === null ? null : nameFor(names, winnerTeamId);
+  //
+  // It OPENS on the winners, by name. This is the line somebody screenshots into the
+  // group chat, so "they named the winner" — which sends the reader back up the page to
+  // find out who that was — is not good enough. On a tie every co-leader is named: the
+  // owner ruled they count equally however the API ordered them.
+  const won =
+    winners.length === 0
+      ? null
+      : `${joinNames(winners)} won the round${winners.length > 1 ? " together" : ""}.`;
+
   const verdict =
-    winner === null
+    won === null
       ? null
       : owing.length === 0
-        ? `Nobody named ${winner} for last.`
-        : `${joinNames(owing)} named ${winner}, who went on to win the round. They owe the league an apology.`;
+        ? `${won} Nobody named them for last.`
+        : `${won} ${joinNames(owing)} named ${
+            winners.length > 1 ? "one of them" : "them"
+          } for last, and ${owing.length === 1 ? "owes" : "owe"} the league an apology.`;
 
   const hate =
-    winnerTeamId === null || hateTarget === null
+    won === null || hateTarget === null
       ? null
-      : `${nameFor(names, hateTarget)} finished last as well, so ${winner} sends them a hate message.`;
+      : `${nameFor(names, hateTarget)} finished last as well, so ${joinNames(winners)} ${
+          winners.length === 1 ? "sends" : "send"
+        } them a hate message.`;
 
   return (
     <div className="mt-3">
       <p className="text-[11.5px]" style={{ color: "var(--board-ink-dim)" }}>
-        Name the team that wins the round and you owe the league an apology. Do it in a
-        round you finished last, and the winner sends you a hate message.
+        Name a team that wins the round and you owe the league an apology — teams level
+        at the top all count. Do it in a round you finished last, and the winner sends you
+        a hate message.
       </p>
 
       {verdict === null ? null : (
