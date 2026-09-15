@@ -1,11 +1,13 @@
 import { db } from "@/lib/db";
 import { loadSnapshots } from "@/lib/db/queries";
 import { buildRoundTable, buildTable } from "@/lib/domain/standings";
+import { breakfastDuties, dutyFor } from "@/lib/domain/breakfast";
 import { requireSession } from "@/lib/auth/guards";
 import { StandingsTable } from "@/components/standings-table";
 import { RoundTable } from "@/components/round-table";
 import { RoundPicker } from "@/components/round-picker";
 import { PageHeader } from "@/components/page-header";
+import { BreakfastLine } from "@/components/breakfast-line";
 import { loadMyTeam } from "@/lib/claims";
 
 /**
@@ -36,6 +38,13 @@ export default async function StandingsPage({
 
   const rows = buildTable(snapshots, teams);
 
+  const duties = breakfastDuties(snapshots);
+  const names = new Map(teams.map((team) => [team.id, team.managerName]));
+  // The season view answers the question the league actually asks on a Monday — who is
+  // bringing it — for the most recent round that has one. The round view answers it for the
+  // round being read.
+  const latest = duties.at(-1) ?? null;
+
   const formByTeam: Record<string, number[]> = {};
   const weeks = played.slice(-3);
   for (const team of teams) {
@@ -59,18 +68,24 @@ export default async function StandingsPage({
           </div>
 
           {round === null ? (
-            <StandingsTable
-              rows={rows}
-              formByTeam={formByTeam}
-              isLive={isLive}
-              myTeamId={myTeam?.teamId ?? null}
-            />
+            <>
+              <BreakfastLine duty={latest} gameweek={latest?.gameweek ?? played.at(-1) ?? 0} names={names} />
+              <StandingsTable
+                rows={rows}
+                formByTeam={formByTeam}
+                isLive={isLive}
+                myTeamId={myTeam?.teamId ?? null}
+              />
+            </>
           ) : (
-            <RoundTable
-              rows={buildRoundTable(snapshots, teams, round)}
-              gameweek={round}
-              myTeamId={myTeam?.teamId ?? null}
-            />
+            <>
+              <BreakfastLine duty={dutyFor(duties, round)} gameweek={round} names={names} />
+              <RoundTable
+                rows={buildRoundTable(snapshots, teams, round)}
+                gameweek={round}
+                myTeamId={myTeam?.teamId ?? null}
+              />
+            </>
           )}
         </>
       )}
