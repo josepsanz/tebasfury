@@ -1,6 +1,11 @@
 import type { Snapshot } from "./standings";
 
-/** How many rounds a shield covers, counting the round it was earned in. */
+/**
+ * How many rounds AFTER the one it was earned in a shield covers: bring breakfast in
+ * round N and you are covered in N+1, N+2 and N+3. That is why `roundsLeft` adds one —
+ * at N+1 the shield still has all three rounds left, and `3 - (N+1 - N) + 1 = 3`. The
+ * `+ 1` is the rule, not an off-by-one.
+ */
 export const SHIELD_ROUNDS = 3;
 
 export type BreakfastDuty = {
@@ -62,7 +67,13 @@ export function breakfastDuties(snapshots: Snapshot[]): BreakfastDuty[] {
     const eligible = candidates.length > 0 ? candidates : rows;
 
     const lowest = Math.min(...eligible.map((row) => row.points));
-    const bringers = eligible.filter((row) => row.points === lowest).map((row) => row.teamId);
+    // Sorted, because a tie is read out loud as a sentence and row order from the database
+    // is undefined — the same two names would swap places between loads. `rankAt` breaks its
+    // ties on the manager's name for the same reason.
+    const bringers = eligible
+      .filter((row) => row.points === lowest)
+      .map((row) => row.teamId)
+      .sort();
 
     for (const teamId of bringers) broughtIn.set(teamId, gameweek);
     duties.push({ gameweek, bringers, shielded });

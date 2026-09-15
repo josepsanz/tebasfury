@@ -43,6 +43,8 @@ describe("BreakfastLine", () => {
     const html = renderToStaticMarkup(
       <BreakfastLine duty={{ gameweek: 5, bringers: ["gone"], shielded: [] }} gameweek={5} names={names} />,
     );
-    expect(html).toContain("gone");
+    // The whole sentence, not just the id: a fallback that printed the id somewhere other
+    // than the subject of the sentence would still pass a `toContain`.
+    expect(html).toContain("Round 5: gone brings breakfast.");
   });
 });

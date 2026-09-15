@@ -31,6 +31,17 @@ describe("breakfastDuties", () => {
     expect(duties[0].bringers.slice().sort()).toEqual(["b", "c"]);
   });
 
+  it("sorts tied bringers deterministically, even when the database returns them in a different order", () => {
+    // The database's heap order shifts as rows are updated and after a vacuum, so within
+    // a gameweek the row order is undefined. If bringers are not sorted, the same breakfast
+    // duty could render with different team names on different loads. This test feeds tied
+    // teams in reverse alphabetical order and asserts the result is sorted without sorting
+    // the assertion itself — this would fail if the sort were removed from the fold.
+    const snapshots = [snap("c", 1, 20), snap("b", 1, 20), snap("a", 1, 40)];
+    const duties = breakfastDuties(snapshots);
+    expect(duties[0].bringers).toEqual(["b", "c"]);
+  });
+
   it("walks up the table past a shielded team", () => {
     // `c` brings it in round 1 and is covered in 2, 3 and 4. It finishes last again in
     // round 2, so the bag passes to whoever is lowest among the rest.
