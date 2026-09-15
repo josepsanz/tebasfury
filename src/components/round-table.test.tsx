@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { RoundRow } from "@/lib/domain/standings";
+import type { BreakfastDuty } from "@/lib/domain/breakfast";
 import { RoundTable } from "./round-table";
 
 const row = (over: Partial<RoundRow> = {}): RoundRow => ({
@@ -11,6 +12,32 @@ const row = (over: Partial<RoundRow> = {}): RoundRow => ({
   positionDerived: false,
   ...over,
 });
+
+/**
+ * Three rows standing in for a table with room for a bringer and a shielded team at
+ * once, so the breakfast tests below can name "t2"/"t3" the way the task brief does
+ * without each test having to invent its own rows.
+ */
+const threeRows = (): RoundRow[] => [
+  row({ teamId: "t1", managerName: "Team One", position: 1, points: 60 }),
+  row({ teamId: "t2", managerName: "Team Two", position: 2, points: 55 }),
+  row({ teamId: "t3", managerName: "Team Three", position: 3, points: 40 }),
+];
+
+const render = (over: {
+  rows?: RoundRow[];
+  gameweek?: number;
+  myTeamId?: string | null;
+  duty?: BreakfastDuty | null;
+} = {}): string =>
+  renderToStaticMarkup(
+    <RoundTable
+      rows={over.rows ?? threeRows()}
+      gameweek={over.gameweek ?? 4}
+      myTeamId={over.myTeamId ?? null}
+      duty={over.duty ?? null}
+    />,
+  );
 
 describe("RoundTable", () => {
   it("shows the round's own points and names the round in the column", () => {
@@ -45,5 +72,34 @@ describe("RoundTable", () => {
     );
     expect(html).toContain("provisional");
     expect(html).toContain("worked out from points");
+  });
+
+  it("marks the team bringing breakfast, in a word and not only a colour", () => {
+    const html = render({ duty: { gameweek: 4, bringers: ["t3"], shielded: [] } });
+    expect(html).toMatch(/brings breakfast/i);
+  });
+
+  it("marks a shielded team, and says how many rounds it has left", () => {
+    // The reader is looking at the bottom of the table wondering why the last-placed team
+    // is not the one named. The mark is the answer.
+    const html = render({
+      duty: { gameweek: 4, bringers: ["t2"], shielded: [{ teamId: "t3", roundsLeft: 2 }] },
+    });
+    expect(html).toContain("shielded");
+    expect(html).toContain("2");
+  });
+
+  it("spends neither the amber nor the green on these marks", () => {
+    // The amber is the reader's own team and the green is a gain. A third meaning would
+    // empty both of theirs.
+    const html = render({
+      duty: { gameweek: 4, bringers: ["t3"], shielded: [{ teamId: "t2", roundsLeft: 1 }] },
+    });
+    expect(html).not.toContain("var(--board-you)");
+    expect(html).not.toContain("var(--board-gain)");
+  });
+
+  it("draws the table unchanged when there is no duty", () => {
+    expect(render({ duty: null })).not.toMatch(/breakfast|shielded/i);
   });
 });

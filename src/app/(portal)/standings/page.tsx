@@ -50,6 +50,9 @@ export default async function StandingsPage({
   // in that gap, and "Round 0" would be an invented one, so `null` here means "show
   // nothing" rather than a fallback number for `BreakfastLine` to turn into a sentence.
   const seasonBreakfastGameweek = latest?.gameweek ?? (played.length > 0 ? played[played.length - 1] : null);
+  // Computed once so the sentence above the round table and the marks on its rows are the
+  // same duty said two ways, and never disagree with each other.
+  const roundDuty = round !== null ? dutyFor(duties, round) : null;
 
   const formByTeam: Record<string, number[]> = {};
   const weeks = played.slice(-3);
@@ -87,11 +90,12 @@ export default async function StandingsPage({
             </>
           ) : (
             <>
-              <BreakfastLine duty={dutyFor(duties, round)} gameweek={round} names={names} />
+              <BreakfastLine duty={roundDuty} gameweek={round} names={names} />
               <RoundTable
                 rows={buildRoundTable(snapshots, teams, round)}
                 gameweek={round}
                 myTeamId={myTeam?.teamId ?? null}
+                duty={roundDuty}
               />
             </>
           )}
