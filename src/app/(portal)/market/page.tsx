@@ -7,8 +7,22 @@ import { MarketFeed } from "@/components/market-feed";
 import { ClauseBoard } from "@/components/clause-board";
 import { PageHeader } from "@/components/page-header";
 
-export default async function MarketPage() {
+/**
+ * `?page=N`, 1-based, newest first. Anything unreadable — a missing param, a word, a
+ * negative — is page one; `MarketFeed` clamps a number that overshoots the log.
+ */
+function chosenPage(raw: string | string[] | undefined): number {
+  const value = Number(Array.isArray(raw) ? raw[0] : raw);
+  return Number.isFinite(value) && value >= 1 ? Math.trunc(value) : 1;
+}
+
+export default async function MarketPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   await requireSession();
+  const page = chosenPage((await searchParams).page);
   const { operations, managerNames, playerNames, teamIdByManagerId, logBegan } =
     await loadMarket(db);
 
@@ -81,7 +95,7 @@ export default async function MarketPage() {
         Every operation
       </h2>
       <MarketFeed operations={operations} managerNames={managerNames} playerNames={playerNames}
-        teamIdByManagerId={teamIdByManagerId} />
+        teamIdByManagerId={teamIdByManagerId} page={page} />
 
       <p className="mt-6 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
         {logBegan === null

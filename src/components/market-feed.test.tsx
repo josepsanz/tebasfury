@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MarketOperation } from "@/lib/domain/market";
-import { MarketFeed, type MarketFocus } from "./market-feed";
+import { MarketFeed, OPERATIONS_PER_PAGE, type MarketFocus } from "./market-feed";
 
 const op = (over: Partial<MarketOperation> = {}): MarketOperation => ({
   id: "op1",
@@ -23,6 +23,27 @@ const feed = (operations: MarketOperation[], focus: MarketFocus = null) =>
       teamIdByManagerId={new Map([[1, "t1"], [2, "t2"]])}
       focus={focus}
     />,
+  );
+
+const paged = (operations: MarketOperation[], page: number | undefined) =>
+  renderToStaticMarkup(
+    <MarketFeed
+      operations={operations}
+      managerNames={new Map([[1, "Ada"], [2, "Bruno"]])}
+      playerNames={new Map([["p1", "F. Garcés"], ["p2", "Otxoa"]])}
+      teamIdByManagerId={new Map([[1, "t1"], [2, "t2"]])}
+      page={page}
+    />,
+  );
+
+/** `n` buys, newest first, the way `loadMarket` orders them. */
+const manyOps = (n: number) =>
+  Array.from({ length: n }, (_, i) =>
+    op({
+      id: `op${i}`,
+      playerId: "p1",
+      occurredAt: new Date(Date.UTC(2026, 7, 1, 12) - i * 86_400_000),
+    }),
   );
 
 describe("MarketFeed", () => {
@@ -261,5 +282,75 @@ describe("MarketFeed, what a clause cost the manager who lost the player", () =>
     expect(html).toContain("▲ 3.0M");
     // And the victim's own 5M is still on the clause row.
     expect(html).toContain("▲ 5.0M");
+  });
+
+  it("draws one page of operations when a page is asked for, not the whole season", () => {
+    // By March this log is thousands of rows. Unpaged, every one of them is rendered into
+    // the HTML of a page nobody scrolls to the bottom of.
+    const html = paged(manyOps(OPERATIONS_PER_PAGE + 10), 1);
+    expect(html.match(/<li/g)).toHaveLength(OPERATIONS_PER_PAGE);
+  });
+
+  it("draws the whole log when no page is asked for", () => {
+    // `/players/[id]` and `/teams/[id]` mount this focused down to a handful of rows and
+    // want all of them. Paging is opt-in, so they are untouched.
+    const html = paged(manyOps(OPERATIONS_PER_PAGE + 10), undefined);
+    expect(html.match(/<li/g)).toHaveLength(OPERATIONS_PER_PAGE + 10);
+  });
+
+  it("works a profit out from the whole log, not from the page it is drawing", () => {
+    // The load-bearing test. `holdings` pairs a sale with its purchase across the whole
+    // log; if paging sliced `operations` instead of slicing what it draws, a sale on page
+    // one whose purchase fell on page two would silently lose its figure.
+    const sale = op({
+      id: "sale",
+      activityType: 33,
+      amount: 5_000_000,
+      occurredAt: new Date("2026-08-01T12:00:00Z"),
+    });
+    const purchase = op({
+      id: "purchase",
+      activityType: 31,
+      amount: 2_000_000,
+      occurredAt: new Date("2026-06-01T12:00:00Z"),
+    });
+    // Enough filler between them to push the purchase onto the second page.
+    const filler = Array.from({ length: OPERATIONS_PER_PAGE, }, (_, i) =>
+      op({
+        id: `filler${i}`,
+        playerId: "p2",
+        occurredAt: new Date(Date.UTC(2026, 6, 20, 12) - i * 3_600_000),
+      }),
+    );
+    const html = paged([sale, ...filler, purchase], 1);
+    expect(html).toContain("sold");
+    expect(html).toContain("3.0M");
+  });
+
+  it("offers the older page and, on it, the way back", () => {
+    const first = paged(manyOps(OPERATIONS_PER_PAGE + 10), 1);
+    expect(first).toContain('href="?page=2"');
+    expect(first).not.toContain('href="?page=0"');
+
+    const second = paged(manyOps(OPERATIONS_PER_PAGE + 10), 2);
+    expect(second).toContain('href="?page=1"');
+    expect(second).not.toContain('href="?page=3"');
+  });
+
+  it("says where the reader is, because a log has no landmarks", () => {
+    expect(paged(manyOps(OPERATIONS_PER_PAGE + 10), 2)).toContain("Page 2 of 2");
+  });
+
+  it("offers no pager at all when everything fits on one page", () => {
+    const html = paged(manyOps(3), 1);
+    expect(html).not.toContain("?page=");
+    expect(html).not.toContain("Page 1 of 1");
+  });
+
+  it("lands a page number out of range on a real page rather than an empty one", () => {
+    // `?page=99` is a stale bookmark or a typed URL, not an error worth a 404.
+    const html = paged(manyOps(OPERATIONS_PER_PAGE + 10), 99);
+    expect(html).toContain("Page 2 of 2");
+    expect(html.match(/<li/g)).toHaveLength(10);
   });
 });

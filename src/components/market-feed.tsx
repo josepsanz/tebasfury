@@ -40,12 +40,20 @@ export type MarketFocus = { playerId: string } | { managerId: number } | null;
  * would silently fall back to "held since before this log began" — reporting a rule as
  * unknowable when the answer was in the data all along.
  */
+/**
+ * Operations drawn on one page of `/market`. Fifty is about two phone screens of log —
+ * enough that a reader scrolling for last Tuesday usually finds it without a click, few
+ * enough that the page stops growing with the season.
+ */
+export const OPERATIONS_PER_PAGE = 50;
+
 export function MarketFeed({
   operations,
   managerNames,
   playerNames,
   teamIdByManagerId,
   focus = null,
+  page,
 }: {
   operations: MarketOperation[];
   managerNames: Map<number, string>;
@@ -53,6 +61,18 @@ export function MarketFeed({
   /** Manager id to team id, so a name can link to its page. */
   teamIdByManagerId: Map<number, string>;
   focus?: MarketFocus;
+  /**
+   * Which page to draw, 1-based, newest first. Omitted means draw everything, which is
+   * what the focused mounts on `/players/[id]` and `/teams/[id]` want — they are already
+   * filtered down to a handful of rows.
+   *
+   * Note what this does NOT do: it never narrows `operations`. `holdings` pairs a sale
+   * with the purchase it closes across the whole log, and those two can fall pages apart,
+   * so the arithmetic runs over everything and only the drawing is cut. A caller that
+   * paginated by slicing the array it passes would lose a profit figure silently — which
+   * is why the cut is in here and not out there.
+   */
+  page?: number;
 }) {
   const periodOf = new Map(
     holdings(operations).map((holding) => [
@@ -143,9 +163,19 @@ export function MarketFeed({
     );
   }
 
+  const pages = Math.max(1, Math.ceil(drawn.length / OPERATIONS_PER_PAGE));
+  // Clamped rather than 404'd: `?page=99` is a stale bookmark or a typed URL, and landing
+  // on the last page of the log is a better answer than an error page.
+  const current = page === undefined ? null : Math.min(Math.max(1, Math.trunc(page)), pages);
+  const shown =
+    current === null
+      ? drawn
+      : drawn.slice((current - 1) * OPERATIONS_PER_PAGE, current * OPERATIONS_PER_PAGE);
+
   return (
+    <>
     <ol className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
-      {drawn.map((operation) => {
+      {shown.map((operation) => {
         const kind = operationKind(operation.activityType);
         const holding =
           kind === "sold"
@@ -235,5 +265,34 @@ export function MarketFeed({
         );
       })}
     </ol>
+
+    {/* No pager when the whole log fits: a "Page 1 of 1" is furniture that answers a
+        question nobody asked. The log runs newest first, so the next page is older. */}
+    {current === null || pages === 1 ? null : (
+      <nav
+        className="mt-3 flex items-baseline justify-between text-[11.5px]"
+        style={{ color: "var(--board-ink-dim)" }}
+        aria-label="Market log pages"
+      >
+        {current === 1 ? (
+          <span />
+        ) : (
+          <Link href={`?page=${current - 1}`} className={linkClass}>
+            Newer
+          </Link>
+        )}
+        <span style={{ fontFamily: "var(--font-mono)" }}>
+          Page {current} of {pages}
+        </span>
+        {current === pages ? (
+          <span />
+        ) : (
+          <Link href={`?page=${current + 1}`} className={linkClass}>
+            Older
+          </Link>
+        )}
+      </nav>
+    )}
+    </>
   );
 }
