@@ -24,7 +24,7 @@ export function NecroporraConsequences({
   consequences: RoundConsequences;
   names: Map<string, string>;
 }) {
-  const { apologists, hateTarget, winnerTeamIds } = consequences;
+  const { apologists, hateTargets, winnerTeamIds } = consequences;
   const owing = apologists.map((teamId) => nameFor(names, teamId));
   const winners = winnerTeamIds.map((teamId) => nameFor(names, teamId));
 
@@ -51,12 +51,13 @@ export function NecroporraConsequences({
             winners.length > 1 ? "one of them" : "them"
           } for last, and ${owing.length === 1 ? "owes" : "owe"} the league an apology.`;
 
+  const hated = hateTargets.map((teamId) => nameFor(names, teamId));
   const hate =
-    won === null || hateTarget === null
+    won === null || hated.length === 0
       ? null
-      : `${nameFor(names, hateTarget)} finished last as well, so ${joinNames(winners)} ${
+      : `${joinNames(hated)} finished last as well, so ${joinNames(winners)} ${
           winners.length === 1 ? "sends" : "send"
-        } them a hate message.`;
+        } ${hated.length === 1 ? "them" : "them all"} a hate message.`;
 
   return (
     <div className="mt-3">

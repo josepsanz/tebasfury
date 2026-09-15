@@ -95,17 +95,24 @@ export function canCastFor(
 }
 
 /**
- * The team that finished the round last, or null while that is not yet knowable.
+ * Every team level at the bottom of the round, or empty while that is not yet knowable.
  *
- * The API's own `roundPosition`, never a rank derived from points. Measured against
- * production on 2026-09-09: where two teams tie, the API hands out distinct sequential
- * places while a derived rank shares one — so deriving would leave "last" ambiguous
- * exactly in the week two teams tie at the bottom, which is the week it matters most.
- * The round table settled this with the same evidence.
+ * **Ranked on POINTS, on the owner's ruling: several teams can have finished last, if
+ * they made the identical lowest score.** This replaced a reading that took the API's
+ * own `roundPosition` and so always named exactly one — measured on 2026-09-09, the API
+ * breaks a tie into distinct sequential places by a rule it does not publish, and the
+ * old reading took that arbitration as the answer. It is the arbitration; the points are
+ * the fact. `roundLeaders` reads the top the same way, and `breakfastDuties` already read
+ * the bottom this way, so the portal now says one thing about who came last.
  *
- * Null while any row of the round is provisional or has no position: a live response
- * reports the overall table position instead of a rank within the round, and scoring
- * then would be scoring a race that is still running. Null is "not yet", never "nobody".
+ * **This changed a score already given.** Gameweek 4 has La Agustineta 96 and PavelmacuFC
+ * level on 24, and the API had put one of them thirteenth; naming either now earns the
+ * point. No other round played so far has a tie at either end.
+ *
+ * Empty while any row of the round is provisional or has no position: a live response
+ * reports the overall table position instead of a rank within the round, and scoring then
+ * would be scoring a race that is still running. Empty is "not yet", never "nobody" — the
+ * callers draw that line themselves.
  */
 function settledRound(snapshots: Snapshot[], gameweek: number): Snapshot[] | null {
   const round = snapshots.filter((s) => s.gameweek === gameweek);
@@ -114,13 +121,15 @@ function settledRound(snapshots: Snapshot[], gameweek: number): Snapshot[] | nul
   return round;
 }
 
-export function lastPlaced(snapshots: Snapshot[], gameweek: number): string | null {
+export function roundLast(snapshots: Snapshot[], gameweek: number): string[] {
   const round = settledRound(snapshots, gameweek);
-  if (round === null) return null;
+  if (round === null) return [];
 
-  return round.reduce((worst, s) =>
-    (s.roundPosition ?? 0) > (worst.roundPosition ?? 0) ? s : worst,
-  ).teamId;
+  const worst = Math.min(...round.map((s) => s.points));
+  return round
+    .filter((s) => s.points === worst)
+    .map((s) => s.teamId)
+    .sort();
 }
 
 /**
@@ -162,10 +171,15 @@ export function roundLeaders(snapshots: Snapshot[], gameweek: number): string[] 
  * them together would quietly count the round still being played as a round everybody
  * lost.
  */
-export function scoreRound(ballots: Ballot[], lastTeamId: string | null): Map<string, number> {
-  if (lastTeamId === null) return new Map();
+export function scoreRound(ballots: Ballot[], lastTeamIds: string[]): Map<string, number> {
+  if (lastTeamIds.length === 0) return new Map();
   return new Map(
-    ballots.map((ballot) => [ballot.teamId, picksOf(ballot).includes(lastTeamId) ? 1 : 0]),
+    ballots.map((ballot) => [
+      ballot.teamId,
+      // ONE point for naming any of them, never two for naming both: the ballot asks who
+      // finishes last, and a week with two teams level does not double the prize.
+      picksOf(ballot).some((pick) => lastTeamIds.includes(pick)) ? 1 : 0,
+    ]),
   );
 }
 
@@ -184,28 +198,27 @@ export function scoreRound(ballots: Ballot[], lastTeamId: string | null): Map<st
  */
 export function seasonTable(
   ballots: Ballot[],
-  rounds: { gameweek: number; lastTeamId: string | null }[],
+  rounds: { gameweek: number; lastTeamIds: string[] }[],
   names: Map<string, string>,
 ): SeasonRow[] {
   const resolved = new Map(
-    rounds
-      .filter((r): r is { gameweek: number; lastTeamId: string } => r.lastTeamId !== null)
-      .map((r) => [r.gameweek, r.lastTeamId]),
+    rounds.filter((r) => r.lastTeamIds.length > 0).map((r) => [r.gameweek, r.lastTeamIds]),
   );
 
   const points = new Map<string, number>();
   const voted = new Map<string, number>();
 
   for (const ballot of ballots) {
-    const lastTeamId = resolved.get(ballot.gameweek);
+    const lastTeamIds = resolved.get(ballot.gameweek);
     // An unresolved round leaves the voter's row untouched in both figures, so a voter
     // who has ONLY picked for undecided rounds is absent from the table rather than
     // sitting at the bottom on nought.
-    if (lastTeamId === undefined) continue;
+    if (lastTeamIds === undefined) continue;
     voted.set(ballot.teamId, (voted.get(ballot.teamId) ?? 0) + 1);
     points.set(
       ballot.teamId,
-      (points.get(ballot.teamId) ?? 0) + (picksOf(ballot).includes(lastTeamId) ? 1 : 0),
+      (points.get(ballot.teamId) ?? 0) +
+        (picksOf(ballot).some((pick) => lastTeamIds.includes(pick)) ? 1 : 0),
     );
   }
 
@@ -305,9 +318,9 @@ export function haters(
 export type RoundConsequences = {
   /** Voters who named the round's winner, sorted so the sentence cannot reorder itself. */
   apologists: string[];
-  /** The apologist who also finished the round last, or null. At most one: `lastPlaced`
-   *  names a single team. */
-  hateTarget: string | null;
+  /** Apologists who also finished the round last. Several, since `roundLast` names every
+   *  team level at the bottom. */
+  hateTargets: string[];
   /** Who sends it — the round's leaders, all of them on a tie. Empty while undecided. */
   winnerTeamIds: string[];
 };
@@ -315,11 +328,11 @@ export type RoundConsequences = {
 export function roundConsequences(
   ballots: Ballot[],
   gameweek: number,
-  { firstTeamIds, lastTeamId }: { firstTeamIds: string[]; lastTeamId: string | null },
+  { firstTeamIds, lastTeamIds }: { firstTeamIds: string[]; lastTeamIds: string[] },
 ): RoundConsequences {
   // An undecided round returns an empty verdict rather than an accusation. `roundLeaders`
-  // and `lastPlaced` share a guard, so in practice these are empty together.
-  if (firstTeamIds.length === 0) return { apologists: [], hateTarget: null, winnerTeamIds: [] };
+  // and `roundLast` share a guard, so in practice these are empty together.
+  if (firstTeamIds.length === 0) return { apologists: [], hateTargets: [], winnerTeamIds: [] };
 
   // Naming ANY of the co-leaders is naming a winner — the owner's ruling, which is why
   // this is an intersection and not an equality.
@@ -334,8 +347,7 @@ export function roundConsequences(
 
   return {
     apologists,
-    hateTarget:
-      lastTeamId !== null && apologists.includes(lastTeamId) ? lastTeamId : null,
+    hateTargets: lastTeamIds.filter((teamId) => apologists.includes(teamId)),
     winnerTeamIds: firstTeamIds,
   };
 }
@@ -377,7 +389,7 @@ export function roundBallots(
   voters: Voter[],
   ballots: Ballot[],
   gameweek: number,
-  lastTeamId: string | null,
+  lastTeamIds: string[],
 ): RoundBallot[] {
   const byTeam = new Map(
     ballots.filter((b) => b.gameweek === gameweek).map((b) => [b.teamId, b]),
@@ -392,7 +404,7 @@ export function roundBallots(
         teamId: voter.teamId,
         name: voter.name,
         picks,
-        hit: lastTeamId !== null && picks.includes(lastTeamId),
+        hit: picks.some((pick) => lastTeamIds.includes(pick)),
         enteredBy: ballot?.enteredBy ?? null,
         castAt: ballot?.castAt ?? null,
       };

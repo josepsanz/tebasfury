@@ -6,7 +6,7 @@ import { loadBallots, loadMyBallot, loadRounds, loadVoters } from "@/lib/necropo
 import type { RoundBallot } from "@/lib/domain/necroporra";
 import {
   isOpen,
-  lastPlaced,
+  roundLast,
   picksOf,
   roundBallots,
   roundConsequences,
@@ -91,7 +91,7 @@ export default async function NecroporraPage({
 
   const resolved = rounds.map((round) => ({
     ...round,
-    lastTeamId: lastPlaced(snapshots, round.gameweek),
+    lastTeamIds: roundLast(snapshots, round.gameweek),
     // Shown beside it, never scored: the Necroporra is only ever about the bottom, but a
     // round has two ends and the league reads both. Plural, because teams level at the
     // top are co-leaders however the API ordered them — the owner's ruling.
@@ -170,7 +170,7 @@ export default async function NecroporraPage({
             Everyone&rsquo;s picks so far
           </h3>
           <NecroporraBallots
-            rows={roundBallots(voters, ballots, open.gameweek, null)}
+            rows={roundBallots(voters, ballots, open.gameweek, [])}
             teamName={teamName}
             viewerTeamId={myTeam?.teamId ?? null}
             resolved={false}
@@ -275,7 +275,7 @@ export default async function NecroporraPage({
           {/* Both ends of the round, on one line. `firstPlaced` and `lastPlaced` share a
               guard, so the winner can never be named for a round whose loser is not. */}
           <p className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[12px]">
-            {looking.lastTeamId === null ? (
+            {looking.lastTeamIds.length === 0 ? (
               // "Not yet" is not "nobody": a round whose standings have not settled must
               // not read as a round everybody lost.
               <span style={{ color: "var(--board-ink-dim)" }}>Still being decided.</span>
@@ -294,7 +294,7 @@ export default async function NecroporraPage({
                 <span>
                   <span style={{ color: "var(--board-ink-dim)" }}>Finished last: </span>
                   <span style={{ color: "var(--board-alert)" }}>
-                    {teamName.get(looking.lastTeamId) ?? looking.lastTeamId}
+                    {joinNames(looking.lastTeamIds.map((id) => teamName.get(id) ?? id))}
                   </span>
                 </span>
               </>
@@ -306,10 +306,10 @@ export default async function NecroporraPage({
           )}
 
           <NecroporraBallots
-            rows={roundBallots(voters, ballots, looking.gameweek, looking.lastTeamId)}
+            rows={roundBallots(voters, ballots, looking.gameweek, looking.lastTeamIds)}
             teamName={teamName}
             viewerTeamId={myTeam?.teamId ?? null}
-            resolved={looking.lastTeamId !== null}
+            resolved={looking.lastTeamIds.length > 0}
             consequences={verdict}
             castFor={
               mayCastForOthers

@@ -60,7 +60,7 @@ export function NecroporraBallots({
    */
   const mark = (teamId: string): string | null => {
     if (!consequences) return null;
-    if (consequences.hateTarget === teamId) return "apology + hate message";
+    if (consequences.hateTargets.includes(teamId)) return "apology + hate message";
     return consequences.apologists.includes(teamId) ? "owes an apology" : null;
   };
 

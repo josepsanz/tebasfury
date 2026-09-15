@@ -7,7 +7,7 @@ import {
   isOpen,
   mostHated,
   roundConsequences,
-  lastPlaced,
+  roundLast,
   roundBallots,
   scoreRound,
   seasonTable,
@@ -116,36 +116,44 @@ describe("validatePair", () => {
   });
 });
 
-describe("lastPlaced", () => {
-  it("is the team the API put last, not the one we would rank last", () => {
-    // Measured 2026-09-09: where teams tie, the API hands out distinct sequential places
-    // and a derived rank shares them. Deriving would make "last" ambiguous exactly when
-    // two teams tie at the bottom — which is the week it matters most.
-    const team = lastPlaced(
-      [snap("a", 50, 1), snap("b", 24, 12), snap("c", 24, 13)],
-      4,
-    );
-    expect(team).toBe("c");
+describe("roundLast", () => {
+  it("names every team level at the bottom, not the one the API put thirteenth", () => {
+    // The owner's ruling, and a change from what shipped: this used to read the API's
+    // `roundPosition` and so always named exactly one. Gameweek 4 in production is the
+    // case — two teams level on 24, given positions 12 and 13 by a rule the API does not
+    // publish. The positions are its arbitration; the points are the fact.
+    expect(roundLast([snap("a", 50, 1), snap("b", 24, 12), snap("c", 24, 13)], 4)).toEqual([
+      "b",
+      "c",
+    ]);
   });
 
-  it("is unknown while any position is still missing", () => {
+  it("names one team when one is clearly worst", () => {
+    expect(roundLast([snap("a", 50, 1), snap("b", 17, 2)], 4)).toEqual(["b"]);
+  });
+
+  it("sorts them, so a tie cannot reorder itself between loads", () => {
+    expect(roundLast([snap("c", 24, 12), snap("a", 24, 13)], 4)).toEqual(["a", "c"]);
+  });
+
+  it("is empty while any position is still missing", () => {
     // A live round reports no rank within the round, so `roundPosition` is null. Scoring
-    // then would be scoring a race that is still running.
-    expect(lastPlaced([snap("a", 50, 1), snap("b", 10, null)], 4)).toBeNull();
+    // then would be scoring a race that is still running. The position is still what says
+    // the round has settled, even though the answer is read off the points.
+    expect(roundLast([snap("a", 50, 1), snap("b", 10, null)], 4)).toEqual([]);
   });
 
-  it("is unknown when the round is provisional", () => {
-    const provisional = [{ ...snap("a", 50, 1), isProvisional: true }, snap("b", 10, 2)];
-    expect(lastPlaced(provisional, 4)).toBeNull();
+  it("is empty when the round is provisional", () => {
+    expect(roundLast([{ ...snap("a", 50, 1), isProvisional: true }, snap("b", 10, 2)], 4)).toEqual([]);
   });
 
-  it("is unknown for a round with nothing recorded", () => {
-    expect(lastPlaced([], 4)).toBeNull();
+  it("is empty for a round with nothing recorded", () => {
+    expect(roundLast([], 4)).toEqual([]);
   });
 
   it("ignores other gameweeks", () => {
     const other = { ...snap("z", 1, 99), gameweek: 3 };
-    expect(lastPlaced([other, snap("a", 50, 1), snap("b", 10, 2)], 4)).toBe("b");
+    expect(roundLast([other, snap("a", 50, 1), snap("b", 10, 2)], 4)).toEqual(["b"]);
   });
 });
 
@@ -186,35 +194,43 @@ describe("roundLeaders", () => {
 
 describe("scoreRound", () => {
   it("gives a point for naming the team that finished last", () => {
-    expect(scoreRound([ballot("t1", "a", "b")], "b")).toEqual(new Map([["t1", 1]]));
+    expect(scoreRound([ballot("t1", "a", "b")], ["b"])).toEqual(new Map([["t1", 1]]));
   });
 
   it("gives the same point whichever of the two slots holds it", () => {
-    expect(scoreRound([ballot("t1", "b", "a")], "b")).toEqual(new Map([["t1", 1]]));
+    expect(scoreRound([ballot("t1", "b", "a")], ["b"])).toEqual(new Map([["t1", 1]]));
   });
 
   it("gives one point, not two, and never more than one per round", () => {
     // The rule is "one point only if the actual last-placed team is among them".
-    expect(scoreRound([ballot("t1", "b", null)], "b")).toEqual(new Map([["t1", 1]]));
+    expect(scoreRound([ballot("t1", "b", null)], ["b"])).toEqual(new Map([["t1", 1]]));
+  });
+
+  it("gives one point for naming either of two teams level at the bottom, never two", () => {
+    // The owner's ruling puts several teams last on a tie. A voter who named both of
+    // them still guessed one thing right, so a tied week must not double the prize.
+    expect(scoreRound([ballot("t1", "b", "c")], ["b", "c"])).toEqual(new Map([["t1", 1]]));
+    expect(scoreRound([ballot("t1", "b", "z")], ["b", "c"])).toEqual(new Map([["t1", 1]]));
+    expect(scoreRound([ballot("t1", "c", "z")], ["b", "c"])).toEqual(new Map([["t1", 1]]));
   });
 
   it("gives nothing for missing", () => {
-    expect(scoreRound([ballot("t1", "a", "c")], "b")).toEqual(new Map([["t1", 0]]));
+    expect(scoreRound([ballot("t1", "a", "c")], ["b"])).toEqual(new Map([["t1", 0]]));
   });
 
   it("scores nobody at all when the round is unresolved", () => {
     // Deliberately empty rather than everyone on zero: "nobody guessed right" and "we do
     // not know yet" are different claims, and a season table must not average them.
-    expect(scoreRound([ballot("t1", "a", "b")], null)).toEqual(new Map());
+    expect(scoreRound([ballot("t1", "a", "b")], [])).toEqual(new Map());
   });
 });
 
 describe("seasonTable", () => {
   const rounds = [
-    { gameweek: 4, lastTeamId: "b" as string | null },
-    { gameweek: 5, lastTeamId: "c" as string | null },
+    { gameweek: 4, lastTeamIds: ["b"] },
+    { gameweek: 5, lastTeamIds: ["c"] },
     // Unresolved: still being played, and must contribute nothing either way.
-    { gameweek: 6, lastTeamId: null },
+    { gameweek: 6, lastTeamIds: [] },
   ];
   const ballots: Ballot[] = [
     { gameweek: 4, teamId: "t1", firstTeamId: "b", secondTeamId: "a", enteredBy: null, castAt: CAST_AT },
@@ -289,7 +305,7 @@ describe("roundBallots", () => {
   ];
 
   it("shows every manager's picks, in name order", () => {
-    const rows = roundBallots(voters, cast, 4, null);
+    const rows = roundBallots(voters, cast, 4, []);
     expect(rows.map((r) => [r.name, r.picks])).toEqual([
       ["Ada", ["a", "b"]],
       ["Bruno", ["c"]],
@@ -300,28 +316,28 @@ describe("roundBallots", () => {
   it("keeps a manager who has not voted, rather than leaving them out", () => {
     // "Nobody has heard from Cleo" is as much of a prod as the picks themselves, and an
     // absence shown as an absence cannot be read as a manager who does not play.
-    const rows = roundBallots(voters, cast, 4, null);
+    const rows = roundBallots(voters, cast, 4, []);
     expect(rows.find((r) => r.name === "Cleo")).toMatchObject({ picks: [] });
   });
 
   it("marks who named the team that finished last", () => {
-    const rows = roundBallots(voters, cast, 4, "b");
+    const rows = roundBallots(voters, cast, 4, ["b"]);
     expect(rows.find((r) => r.name === "Ada")?.hit).toBe(true);
     expect(rows.find((r) => r.name === "Bruno")?.hit).toBe(false);
   });
 
   it("marks nobody while the round is undecided", () => {
-    expect(roundBallots(voters, cast, 4, null).every((r) => !r.hit)).toBe(true);
+    expect(roundBallots(voters, cast, 4, []).every((r) => !r.hit)).toBe(true);
   });
 
   it("reads only the round asked for", () => {
-    const rows = roundBallots(voters, cast, 5, null);
+    const rows = roundBallots(voters, cast, 5, []);
     expect(rows.find((r) => r.name === "Cleo")?.picks).toEqual(["a"]);
     expect(rows.find((r) => r.name === "Ada")?.picks).toEqual([]);
   });
 
   it("is every voter and nothing else when a round has no ballots at all", () => {
-    expect(roundBallots(voters, [], 9, null).map((r) => r.picks)).toEqual([[], [], []]);
+    expect(roundBallots(voters, [], 9, []).map((r) => r.picks)).toEqual([[], [], []]);
   });
 
   it("returns a team nobody has claimed, so an absent manager is still a row", () => {
@@ -329,7 +345,7 @@ describe("roundBallots", () => {
     // account, and the two managers who vote in the group chat were not in the list at
     // all — not shown as silent, simply absent.
     const unclaimed = [...voters, { teamId: "t9", name: "Dani" }];
-    const rows = roundBallots(unclaimed, cast, 4, null);
+    const rows = roundBallots(unclaimed, cast, 4, []);
     expect(rows.find((r) => r.name === "Dani")).toMatchObject({ teamId: "t9", picks: [] });
   });
 
@@ -347,14 +363,14 @@ describe("roundBallots", () => {
         castAt,
       },
     ];
-    const rows = roundBallots(voters, entered, 4, null);
+    const rows = roundBallots(voters, entered, 4, []);
     expect(rows.find((r) => r.name === "Cleo")).toMatchObject({ enteredBy: "u-admin", castAt });
     expect(rows.find((r) => r.name === "Ada")?.enteredBy).toBeNull();
   });
 
   it("does not disturb the caller's voter array", () => {
     const original = [...voters];
-    roundBallots(voters, cast, 4, null);
+    roundBallots(voters, cast, 4, []);
     expect(voters).toEqual(original);
   });
 });
@@ -474,9 +490,9 @@ describe("roundConsequences", () => {
     ...ballot(voter, first, second),
     gameweek,
   });
-  const ends = (firstTeamIds: string[], lastTeamId: string | null) => ({
+  const ends = (firstTeamIds: string[], lastTeamIds: string[]) => ({
     firstTeamIds,
-    lastTeamId,
+    lastTeamIds,
   });
 
   it("names whoever picked the team that went on to win", () => {
@@ -485,7 +501,7 @@ describe("roundConsequences", () => {
     const result = roundConsequences(
       [at(4, "b", "a"), at(4, "c", "d"), at(4, "d", "a", "b")],
       4,
-      ends(["a"], "d"),
+      ends(["a"], ["d"]),
     );
     expect(result.apologists).toEqual(["b", "d"]);
   });
@@ -493,7 +509,7 @@ describe("roundConsequences", () => {
   it("sorts the apologists, because the sentence reads them out in order", () => {
     // Undefined row order from the database would swap two names between loads. Same
     // reason `breakfastDuties` sorts its bringers.
-    expect(roundConsequences([at(4, "d", "a"), at(4, "b", "a")], 4, ends(["a"], "c")).apologists).toEqual(
+    expect(roundConsequences([at(4, "d", "a"), at(4, "b", "a")], 4, ends(["a"], ["c"])).apologists).toEqual(
       ["b", "d"],
     );
   });
@@ -501,28 +517,28 @@ describe("roundConsequences", () => {
   it("sends a hate message to the apologist who also finished last", () => {
     // Both conditions at once: they called the winner AND they came bottom. The winner
     // is who sends it.
-    const result = roundConsequences([at(4, "d", "a")], 4, ends(["a"], "d"));
-    expect(result.hateTarget).toBe("d");
+    const result = roundConsequences([at(4, "d", "a")], 4, ends(["a"], ["d"]));
+    expect(result.hateTargets).toEqual(["d"]);
     expect(result.winnerTeamIds).toEqual(["a"]);
   });
 
   it("sends no hate message to an apologist who did not finish last", () => {
-    expect(roundConsequences([at(4, "b", "a")], 4, ends(["a"], "d")).hateTarget).toBeNull();
+    expect(roundConsequences([at(4, "b", "a")], 4, ends(["a"], ["d"])).hateTargets).toEqual([]);
   });
 
   it("sends no hate message to whoever finished last without naming the winner", () => {
     // Finishing last is its own punishment — it brings breakfast. The hate message is
     // for getting the poll exactly backwards on the week you were the answer.
-    const result = roundConsequences([at(4, "d", "c")], 4, ends(["a"], "d"));
+    const result = roundConsequences([at(4, "d", "c")], 4, ends(["a"], ["d"]));
     expect(result.apologists).toEqual([]);
-    expect(result.hateTarget).toBeNull();
+    expect(result.hateTargets).toEqual([]);
   });
 
   it("finds nobody in a round that is not decided", () => {
     // "Not yet" is not "nobody owed anything" — but neither is it a verdict, so the fold
     // returns an empty one rather than guessing at either.
-    const result = roundConsequences([at(4, "b", "a")], 4, ends([], null));
-    expect(result).toEqual({ apologists: [], hateTarget: null, winnerTeamIds: [] });
+    const result = roundConsequences([at(4, "b", "a")], 4, ends([], []));
+    expect(result).toEqual({ apologists: [], hateTargets: [], winnerTeamIds: [] });
   });
 
   it("charges an apology for naming either of two co-leaders", () => {
@@ -531,16 +547,16 @@ describe("roundConsequences", () => {
     const result = roundConsequences(
       [at(4, "b", "a"), at(4, "c", "d"), at(4, "e", "f")],
       4,
-      ends(["a", "d"], null),
+      ends(["a", "d"], []),
     );
     expect(result.apologists).toEqual(["b", "c"]);
   });
 
   it("ignores ballots from other rounds", () => {
-    expect(roundConsequences([at(3, "b", "a")], 4, ends(["a"], "d")).apologists).toEqual([]);
+    expect(roundConsequences([at(3, "b", "a")], 4, ends(["a"], ["d"])).apologists).toEqual([]);
   });
 
   it("counts a winner named in either slot", () => {
-    expect(roundConsequences([at(4, "b", "c", "a")], 4, ends(["a"], "d")).apologists).toEqual(["b"]);
+    expect(roundConsequences([at(4, "b", "c", "a")], 4, ends(["a"], ["d"])).apologists).toEqual(["b"]);
   });
 });
