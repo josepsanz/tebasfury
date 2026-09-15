@@ -53,9 +53,15 @@ Runs the end-to-end tests with Playwright. It brings up `pnpm build` and `pnpm s
 itself with a set of dummy environment variables (see `playwright.config.ts`), so this
 doesn't need `.env.local` either.
 
-The integration tests each bring up their own PGlite database, and on a machine without
-much spare memory Vitest's default worker count gets some of them killed. `pnpm vitest
-run --maxWorkers=2` is the reliable way to run the suite there.
+The integration tests each bring up their own PGlite database, and one worker per core
+gets some of them SIGKILLed on a machine without much spare memory. `maxWorkers: 2` in
+`vitest.config.ts` caps that, so plain `pnpm test` is reliable — and watch mode, an IDE
+runner and any future CI inherit the cap.
+
+`src/app/portal-pages.test.tsx` is the regression net for the signed-in path: it renders
+every portal and admin page against PGlite with the real queries, faking only the
+database handle and the session. The Playwright suite never signs in, by design, so what
+that file covers is covered nowhere else.
 
 There is no CI: `pnpm test`, `npx tsc --noEmit`, `pnpm lint` and `pnpm build` run when
 somebody runs them. `pnpm test` does NOT typecheck — Vitest strips the types — so a type
@@ -94,16 +100,13 @@ schedule pokes `/api/sync/wake` every half hour to revive one that has stopped.
 ## What is not built
 
 **Step 5 of the roadmap, "scheduled operations"** — linking each manager's own LaLiga
-account so the portal can execute market operations for them. It means holding other
-people's credentials, it has never been specced, and whether it is wanted at all is an
-open question rather than a backlog item.
+account so the portal can execute market operations for them. It is a possible future,
+not a backlog item: it has never been specced, it would mean holding other people's
+credentials, and whether it is worth building at all is undecided. Nobody should start
+it without being asked to.
 
-Two gaps worth knowing about:
+One gap worth knowing about:
 
-- **The signed-in path has no regression net.** The Playwright suite never signs in, by
-  design, so every page's only end-to-end test is that an anonymous visitor is sent to
-  `/login`. Everything behind the door is covered by unit and integration tests and by
-  walking it by hand.
 - **A team with fewer than three rounds played has never existed**, so the branch of the
   metrics that explains why a figure is unavailable has never met real data.
 
