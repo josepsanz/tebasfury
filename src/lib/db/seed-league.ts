@@ -145,16 +145,16 @@ export async function seedLeague(db: Db) {
     },
   ]);
 
-  await db.insert(necroporraRounds).values({
-    gameweek: SEED_LIVE_WEEK,
-    closesAt: new Date("2026-08-22T17:00:00Z"),
-  });
-  await db.insert(necroporraVotes).values({
-    gameweek: SEED_LIVE_WEEK,
-    teamId: "t1",
-    firstTeamId: "t3",
-    secondTeamId: "t2",
-  });
+  // Two rounds of the poll: one over a settled week, so the page has a round with both
+  // ends decided, and one over the week still being played.
+  await db.insert(necroporraRounds).values([
+    { gameweek: SEED_SETTLED_WEEK, closesAt: new Date("2026-08-15T17:00:00Z") },
+    { gameweek: SEED_LIVE_WEEK, closesAt: new Date("2026-08-22T17:00:00Z") },
+  ]);
+  await db.insert(necroporraVotes).values([
+    { gameweek: SEED_SETTLED_WEEK, teamId: "t2", firstTeamId: "t3", secondTeamId: "t1" },
+    { gameweek: SEED_LIVE_WEEK, teamId: "t1", firstTeamId: "t3", secondTeamId: "t2" },
+  ]);
 
   // `t1`'s eleven for the settled round: a 4-4-2 with the keeper implied by the endpoint.
   await db.insert(roundLineups).values({

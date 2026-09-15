@@ -190,8 +190,26 @@ describe("/necroporra", () => {
     // the sentence has to carry a tie. Nobody has named Ada, who is the reader.
     const { default: Page } = await import("./(portal)/necroporra/page");
     const html = await render(() => Page({ searchParams: none }));
-    expect(html).toContain("The league has named Bruno and Chus more than anyone: 1 vote each.");
-    expect(html).toContain("Nobody has named you yet.");
+    // Chus is named on both ballots, Ada and Bruno once each. Ada is the reader, and
+    // Bruno named them in the settled round.
+    expect(html).toContain("The league has named Chus more than anyone: 2 votes.");
+    expect(html).toContain("Bruno");
+    expect(html).not.toContain("Nobody has named you yet.");
+  });
+
+  it("names both ends of a decided round, not only the loser", async () => {
+    // Round 1 is settled: Ada took it, Chus finished last. Round 2 is still provisional,
+    // which is why the round has to be asked for by number.
+    const { default: Page } = await import("./(portal)/necroporra/page");
+    const html = await render(() => Page({ searchParams: Promise.resolve({ round: "1" }) }));
+    const first = html.indexOf("Finished first: ");
+    const last = html.indexOf("Finished last: ");
+    expect(first).toBeGreaterThan(-1);
+    expect(first).toBeLessThan(last);
+    // The names themselves, not just the labels: a line that printed the two ends the
+    // wrong way round would pass on the labels alone.
+    expect(html.slice(first, last)).toContain("Ada");
+    expect(html.slice(last, last + 120)).toContain("Chus");
   });
 });
 

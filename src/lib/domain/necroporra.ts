@@ -107,13 +107,38 @@ export function canCastFor(
  * reports the overall table position instead of a rank within the round, and scoring
  * then would be scoring a race that is still running. Null is "not yet", never "nobody".
  */
-export function lastPlaced(snapshots: Snapshot[], gameweek: number): string | null {
+function settledRound(snapshots: Snapshot[], gameweek: number): Snapshot[] | null {
   const round = snapshots.filter((s) => s.gameweek === gameweek);
   if (round.length === 0) return null;
   if (round.some((s) => s.isProvisional || s.roundPosition === null)) return null;
+  return round;
+}
+
+export function lastPlaced(snapshots: Snapshot[], gameweek: number): string | null {
+  const round = settledRound(snapshots, gameweek);
+  if (round === null) return null;
 
   return round.reduce((worst, s) =>
     (s.roundPosition ?? 0) > (worst.roundPosition ?? 0) ? s : worst,
+  ).teamId;
+}
+
+/**
+ * The team that finished the round first, or null while that is not yet knowable.
+ *
+ * The mirror of `lastPlaced`, reading the same field under the same guard — one function,
+ * shared, because the two print on a single line and a round whose winner was named while
+ * its loser was not would be the portal contradicting itself.
+ *
+ * Shown, never scored. The Necroporra is only ever about the bottom; this is the other
+ * end of the same round, printed because a round has two ends and the league reads both.
+ */
+export function firstPlaced(snapshots: Snapshot[], gameweek: number): string | null {
+  const round = settledRound(snapshots, gameweek);
+  if (round === null) return null;
+
+  return round.reduce((best, s) =>
+    (s.roundPosition ?? 0) < (best.roundPosition ?? 0) ? s : best,
   ).teamId;
 }
 

@@ -9,6 +9,7 @@ import {
   lastPlaced,
   picksOf,
   roundBallots,
+  firstPlaced,
   haters,
   mostHated,
   seasonTable,
@@ -88,6 +89,9 @@ export default async function NecroporraPage({
   const resolved = rounds.map((round) => ({
     ...round,
     lastTeamId: lastPlaced(snapshots, round.gameweek),
+    // Shown beside it, never scored: the Necroporra is only ever about the bottom, but a
+    // round has two ends and the league reads both.
+    firstTeamId: firstPlaced(snapshots, round.gameweek),
   }));
   const ballots = await loadBallots(db, rounds.map((r) => r.gameweek));
 
@@ -259,16 +263,28 @@ export default async function NecroporraPage({
             />
           </div>
 
-          <p className="mt-3 text-[12px]">
+          {/* Both ends of the round, on one line. `firstPlaced` and `lastPlaced` share a
+              guard, so the winner can never be named for a round whose loser is not. */}
+          <p className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[12px]">
             {looking.lastTeamId === null ? (
               // "Not yet" is not "nobody": a round whose standings have not settled must
               // not read as a round everybody lost.
               <span style={{ color: "var(--board-ink-dim)" }}>Still being decided.</span>
             ) : (
               <>
-                <span style={{ color: "var(--board-ink-dim)" }}>Finished last: </span>
-                <span style={{ color: "var(--board-alert)" }}>
-                  {teamName.get(looking.lastTeamId) ?? looking.lastTeamId}
+                <span>
+                  <span style={{ color: "var(--board-ink-dim)" }}>Finished first: </span>
+                  <span style={{ color: "var(--board-gain)" }}>
+                    {looking.firstTeamId === null
+                      ? "—"
+                      : teamName.get(looking.firstTeamId) ?? looking.firstTeamId}
+                  </span>
+                </span>
+                <span>
+                  <span style={{ color: "var(--board-ink-dim)" }}>Finished last: </span>
+                  <span style={{ color: "var(--board-alert)" }}>
+                    {teamName.get(looking.lastTeamId) ?? looking.lastTeamId}
+                  </span>
                 </span>
               </>
             )}
