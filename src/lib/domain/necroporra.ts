@@ -182,6 +182,76 @@ export function seasonTable(
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
 }
 
+/** A team and how many votes it is on. Both boards below count votes, not voters. */
+export type VoteTally = { teamId: string; name: string; votes: number };
+
+/**
+ * Who the league names most: every vote received, all season, both picks counted.
+ *
+ * The complement of `seasonTable`, which measures the voters. This measures the voted —
+ * the question the group actually argues about, which is not who guesses well but who
+ * everybody thinks is worst.
+ *
+ * **Every team appears, including on nought.** Absence would read as missing data, while
+ * nought is the interesting fact: a whole season and not one person named you.
+ *
+ * An OPEN round's votes count. The page already prints them as they land, under
+ * "Everyone's picks so far", so there is no secret here to leak — and "so far" is the
+ * question being asked.
+ *
+ * Ties break on the name, so the order cannot wobble between renders. Same habit as
+ * `rankAt` and `seasonTable`.
+ */
+export function mostHated(ballots: Ballot[], names: Map<string, string>): VoteTally[] {
+  const votes = new Map([...names.keys()].map((teamId) => [teamId, 0]));
+  for (const ballot of ballots) {
+    for (const teamId of picksOf(ballot)) {
+      // A pick naming a team the roster has forgotten is still a vote that was cast, so
+      // it is counted rather than dropped — it simply has no row of its own to sit in.
+      if (votes.has(teamId)) votes.set(teamId, (votes.get(teamId) ?? 0) + 1);
+    }
+  }
+
+  return [...votes.entries()]
+    .map(([teamId, count]): VoteTally => ({
+      teamId,
+      name: names.get(teamId) ?? teamId,
+      votes: count,
+    }))
+    .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name));
+}
+
+/**
+ * Who has picked one particular team, most often first.
+ *
+ * `mostHated` read from the other end: not how often a team is named, but by whom. It is
+ * asked on behalf of the reader about their own team, which is why it takes one id.
+ *
+ * **Only those who have actually named them appear.** The league board above shows its
+ * noughts; this one must not. It answers "who has it in for me", and a row reporting that
+ * somebody has named you no times is not an answer to that question — it is the absence
+ * of one, printed twelve times.
+ */
+export function haters(
+  ballots: Ballot[],
+  teamId: string,
+  names: Map<string, string>,
+): VoteTally[] {
+  const votes = new Map<string, number>();
+  for (const ballot of ballots) {
+    if (!picksOf(ballot).includes(teamId)) continue;
+    votes.set(ballot.teamId, (votes.get(ballot.teamId) ?? 0) + 1);
+  }
+
+  return [...votes.entries()]
+    .map(([voterTeamId, count]): VoteTally => ({
+      teamId: voterTeamId,
+      name: names.get(voterTeamId) ?? voterTeamId,
+      votes: count,
+    }))
+    .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name));
+}
+
 export type Voter = { teamId: string; name: string };
 
 export type RoundBallot = {

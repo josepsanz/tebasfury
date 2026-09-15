@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_VOTES,
   canCastFor,
+  haters,
   isOpen,
+  mostHated,
   lastPlaced,
   roundBallots,
   scoreRound,
@@ -341,5 +343,91 @@ describe("canCastFor", () => {
 
   it("refuses somebody with neither a team nor the permission", () => {
     expect(canCastFor({ teamId: null, mayCastForOthers: false }, "t2")).toBe(false);
+  });
+});
+
+describe("mostHated", () => {
+  const names = new Map([
+    ["a", "Ada"],
+    ["b", "Bruno"],
+    ["c", "Chus"],
+    ["d", "Dídac"],
+  ]);
+
+  /** A ballot in a named round, so several rounds can be piled up. */
+  const at = (gameweek: number, voter: string, first: string, second: string | null = null) => ({
+    ...ballot(voter, first, second),
+    gameweek,
+  });
+
+  it("counts every vote a team has received, all season and both picks", () => {
+    // Two picks a round means a team can be named twice over in one week by two voters,
+    // and the tally is of votes and not of voters.
+    const rows = mostHated(
+      [at(1, "a", "c", "b"), at(1, "b", "c"), at(2, "a", "c"), at(2, "b", "d")],
+      names,
+    );
+    expect(rows.map((r) => [r.name, r.votes])).toEqual([
+      ["Chus", 3],
+      ["Bruno", 1],
+      ["Dídac", 1],
+      ["Ada", 0],
+    ]);
+  });
+
+  it("keeps a team nobody has ever named, on nought", () => {
+    // Absence would read as missing data. Nought is the interesting fact: a whole season
+    // and not one person thinks you are the worst.
+    const rows = mostHated([at(1, "a", "c")], names);
+    expect(rows.find((r) => r.name === "Ada")).toEqual({ teamId: "a", name: "Ada", votes: 0 });
+  });
+
+  it("breaks a tie on the name, so the order cannot wobble between renders", () => {
+    // The same habit `rankAt` and `seasonTable` keep. Bruno and Dídac both on one.
+    const rows = mostHated([at(1, "a", "b"), at(1, "c", "d")], names);
+    expect(rows.map((r) => r.name)).toEqual(["Bruno", "Dídac", "Ada", "Chus"]);
+  });
+
+  it("counts an open round's votes too, because the page already shows them", () => {
+    // "Everyone's picks so far" prints the open round's ballots as they land, so there is
+    // no secret for this tally to leak — and "so far" is what was asked for.
+    expect(mostHated([at(9, "a", "c")], names).find((r) => r.name === "Chus")?.votes).toBe(1);
+  });
+});
+
+describe("haters", () => {
+  const names = new Map([
+    ["a", "Ada"],
+    ["b", "Bruno"],
+    ["c", "Chus"],
+  ]);
+
+  const at = (gameweek: number, voter: string, first: string, second: string | null = null) => ({
+    ...ballot(voter, first, second),
+    gameweek,
+  });
+
+  it("names who has picked you, most often first", () => {
+    const rows = haters([at(1, "a", "c"), at(2, "a", "c"), at(1, "b", "c")], "c", names);
+    expect(rows.map((r) => [r.name, r.votes])).toEqual([
+      ["Ada", 2],
+      ["Bruno", 1],
+    ]);
+  });
+
+  it("leaves out everyone who never picked you", () => {
+    // The league table shows noughts; this list does not. It answers "who has it in for
+    // me", and a row saying somebody has named you no times is not an answer to that.
+    const rows = haters([at(1, "a", "c"), at(1, "b", "a")], "c", names);
+    expect(rows.map((r) => r.name)).toEqual(["Ada"]);
+  });
+
+  it("counts a ballot once even when it names you and somebody else", () => {
+    const rows = haters([at(1, "a", "c", "b")], "c", names);
+    expect(rows).toEqual([{ teamId: "a", name: "Ada", votes: 1 }]);
+  });
+
+  it("is empty for a team nobody has named", () => {
+    expect(haters([at(1, "a", "b")], "c", names)).toEqual([]);
   });
 });

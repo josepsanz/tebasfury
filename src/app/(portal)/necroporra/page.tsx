@@ -9,12 +9,15 @@ import {
   lastPlaced,
   picksOf,
   roundBallots,
+  haters,
+  mostHated,
   seasonTable,
 } from "@/lib/domain/necroporra";
 import { decideAccess, requireSession } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { NecroporraBallot, type BallotTeam } from "@/components/necroporra-ballot";
 import { NecroporraBallots } from "@/components/necroporra-ballots";
+import { Haters, MostHated } from "@/components/necroporra-hate";
 import { RoundPicker } from "@/components/round-picker";
 import { vote } from "./actions";
 
@@ -208,6 +211,34 @@ export default async function NecroporraPage({
             </li>
           ))}
         </ol>
+      )}
+
+      {/* The season table above measures the voters. These two measure the voted, which is
+          the half the group actually argues about — once league-wide, once at the reader. */}
+      <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
+        Most hated
+      </h2>
+      <p className="mt-1 text-[11.5px]" style={{ color: "var(--board-ink-dim)" }}>
+        Every vote cast this season. Two picks a round, so one week can name you twice.
+      </p>
+      <MostHated
+        rows={mostHated(ballots, teamName)}
+        viewerTeamId={myTeam?.teamId ?? null}
+      />
+
+      <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
+        Your haters
+      </h2>
+      {myTeam === null ? (
+        <p className="mt-3 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
+          This one is about your own team.{" "}
+          <Link href="/claim" className="underline underline-offset-4">
+            Claim yours
+          </Link>{" "}
+          to see who has been naming you.
+        </p>
+      ) : (
+        <Haters rows={haters(ballots, myTeam.teamId, teamName)} />
       )}
 
       {looking === null ? null : (

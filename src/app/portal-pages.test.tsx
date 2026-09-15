@@ -184,6 +184,15 @@ describe("/necroporra", () => {
     const html = await render(() => Page({ searchParams: none }));
     expect(html).toContain("Chus");
   });
+
+  it("tallies who the league names, and who has named the reader", async () => {
+    // The seeded ballot is t1 naming Chus first and Bruno second, so both sit on one and
+    // the sentence has to carry a tie. Nobody has named Ada, who is the reader.
+    const { default: Page } = await import("./(portal)/necroporra/page");
+    const html = await render(() => Page({ searchParams: none }));
+    expect(html).toContain("The league has named Bruno and Chus more than anyone: 1 vote each.");
+    expect(html).toContain("Nobody has named you yet.");
+  });
 });
 
 describe("/claim", () => {

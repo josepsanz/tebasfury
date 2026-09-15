@@ -1,0 +1,58 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import type { VoteTally } from "@/lib/domain/necroporra";
+import { Haters, MostHated } from "./necroporra-hate";
+
+const tally = (name: string, votes: number): VoteTally => ({ teamId: name.toLowerCase(), name, votes });
+
+describe("MostHated", () => {
+  it("names the team the league picks on, in a sentence and not only a table", () => {
+    const html = renderToStaticMarkup(
+      <MostHated rows={[tally("Chus", 3), tally("Bruno", 1), tally("Ada", 0)]} viewerTeamId={null} />,
+    );
+    expect(html).toContain("The league has named Chus more than anyone: 3 votes.");
+  });
+
+  it("names everybody tied at the top, because a tie has no single leader", () => {
+    const html = renderToStaticMarkup(
+      <MostHated rows={[tally("Bruno", 2), tally("Chus", 2), tally("Ada", 0)]} viewerTeamId={null} />,
+    );
+    expect(html).toContain("The league has named Bruno and Chus more than anyone: 2 votes each.");
+  });
+
+  it("says nobody has been named rather than crowning a team on nought", () => {
+    // Every team sits on nought before the first round is voted. Calling one of them the
+    // most hated would be an accusation the data has not made.
+    const html = renderToStaticMarkup(
+      <MostHated rows={[tally("Ada", 0), tally("Bruno", 0)]} viewerTeamId={null} />,
+    );
+    expect(html).toContain("Nobody has been named yet.");
+    expect(html).not.toContain("more than anyone");
+  });
+
+  it("lists every team, including the ones nobody has ever named", () => {
+    const html = renderToStaticMarkup(
+      <MostHated rows={[tally("Chus", 3), tally("Ada", 0)]} viewerTeamId={null} />,
+    );
+    expect(html).toContain("Ada");
+  });
+
+  it("marks the reader's own row, which is the one they came to find", () => {
+    const html = renderToStaticMarkup(
+      <MostHated rows={[tally("Chus", 3), tally("Ada", 0)]} viewerTeamId="ada" />,
+    );
+    expect(html).toContain("--board-you");
+  });
+});
+
+describe("Haters", () => {
+  it("ranks whoever has picked you, most often first", () => {
+    const html = renderToStaticMarkup(<Haters rows={[tally("Ada", 2), tally("Bruno", 1)]} />);
+    expect(html.indexOf("Ada")).toBeLessThan(html.indexOf("Bruno"));
+    expect(html).toContain("2");
+  });
+
+  it("says nobody has named you, which is a result and not an empty table", () => {
+    expect(renderToStaticMarkup(<Haters rows={[]} />)).toContain("Nobody has named you yet.");
+  });
+});
