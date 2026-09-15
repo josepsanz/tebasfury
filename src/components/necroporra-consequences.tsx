@@ -40,17 +40,22 @@ export function NecroporraConsequences({
   // second is the real one: a sentence broken into fragments is a sentence no test can
   // assert whole, and colour inside a sentence is decoration — this portal's rule is that
   // the words carry the meaning and the colour only ever repeats them.
+  // The winner is NAMED, not referred to. This sentence is read on its own — it is the
+  // line somebody screenshots into the group chat — and "they named the winner" makes the
+  // reader look up the page to find out who that was. One shape for one apologist or
+  // several: "they owe" is correct for a singular they as well as a plural one.
+  const winner = winnerTeamId === null ? null : nameFor(names, winnerTeamId);
   const verdict =
-    winnerTeamId === null
+    winner === null
       ? null
       : owing.length === 0
-        ? "Nobody named the winner."
-        : `${joinNames(owing)} ${owing.length === 1 ? "owes" : "owe"} the league an apology: they named the winner.`;
+        ? `Nobody named ${winner} for last.`
+        : `${joinNames(owing)} named ${winner}, who went on to win the round. They owe the league an apology.`;
 
   const hate =
     winnerTeamId === null || hateTarget === null
       ? null
-      : `${nameFor(names, hateTarget)} finished last as well, so ${nameFor(names, winnerTeamId)} sends them a hate message.`;
+      : `${nameFor(names, hateTarget)} finished last as well, so ${winner} sends them a hate message.`;
 
   return (
     <div className="mt-3">

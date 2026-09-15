@@ -20,14 +20,16 @@ describe("NecroporraConsequences", () => {
     expect(html).toContain("hate message");
   });
 
-  it("names one apologist in the singular", () => {
+  it("names the apologist and the winner they picked, both by name", () => {
     const html = render({ apologists: ["b"], hateTarget: null, winnerTeamId: "a" });
-    expect(html).toContain("Bruno owes the league an apology: they named the winner.");
+    expect(html).toContain("Bruno named Ada, who went on to win the round. They owe the league an apology.");
   });
 
   it("names every apologist when several called it wrong", () => {
     const html = render({ apologists: ["b", "d"], hateTarget: null, winnerTeamId: "a" });
-    expect(html).toContain("Bruno and Dídac owe the league an apology: they named the winner.");
+    expect(html).toContain(
+      "Bruno and Dídac named Ada, who went on to win the round. They owe the league an apology.",
+    );
   });
 
   it("says who sends the hate message and who receives it", () => {
@@ -38,18 +40,18 @@ describe("NecroporraConsequences", () => {
   it("says nobody named the winner rather than leaving a gap", () => {
     // A round where everybody called the bottom sensibly is a result, not a blank.
     const html = render({ apologists: [], hateTarget: null, winnerTeamId: "a" });
-    expect(html).toContain("Nobody named the winner.");
+    expect(html).toContain("Nobody named Ada for last.");
   });
 
   it("passes no verdict on a round that is not decided", () => {
     // The rules stay written down; the accusation does not appear before there is one.
     const html = render({ apologists: [], hateTarget: null, winnerTeamId: null });
-    expect(html).not.toContain("Nobody named the winner.");
-    expect(html).not.toContain("apology:");
+    expect(html).not.toContain("Nobody named");
+    expect(html).not.toContain("went on to win");
   });
 
   it("falls back to the id rather than printing an empty name", () => {
     const html = render({ apologists: ["gone"], hateTarget: null, winnerTeamId: "a" });
-    expect(html).toContain("gone owes the league an apology: they named the winner.");
+    expect(html).toContain("gone named Ada, who went on to win the round.");
   });
 });

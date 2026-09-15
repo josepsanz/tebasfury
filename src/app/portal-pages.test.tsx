@@ -201,7 +201,9 @@ describe("/necroporra", () => {
     // the bottom. Chus therefore meets both conditions at once.
     const { default: Page } = await import("./(portal)/necroporra/page");
     const html = await render(() => Page({ searchParams: Promise.resolve({ round: "1" }) }));
-    expect(html).toContain("Bruno and Chus owe the league an apology: they named the winner.");
+    expect(html).toContain(
+      "Bruno and Chus named Ada, who went on to win the round. They owe the league an apology.",
+    );
     expect(html).toContain("Chus finished last as well, so Ada sends them a hate message.");
     // And on the rows themselves, for a reader scanning for their own name.
     expect(html).toContain("apology + hate message");
