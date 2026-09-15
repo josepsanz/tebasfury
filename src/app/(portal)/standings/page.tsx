@@ -44,6 +44,12 @@ export default async function StandingsPage({
   // bringing it — for the most recent round that has one. The round view answers it for the
   // round being read.
   const latest = duties.at(-1) ?? null;
+  // Teams and gameweek stats are written in two separate, non-transactional passes
+  // (`runSync`), so a real gap exists where teams are synced but no gameweek is: `rows`
+  // is non-empty, but `played` — and so `duties` — is empty. There is no round to name
+  // in that gap, and "Round 0" would be an invented one, so `null` here means "show
+  // nothing" rather than a fallback number for `BreakfastLine` to turn into a sentence.
+  const seasonBreakfastGameweek = latest?.gameweek ?? (played.length > 0 ? played[played.length - 1] : null);
 
   const formByTeam: Record<string, number[]> = {};
   const weeks = played.slice(-3);
@@ -69,7 +75,9 @@ export default async function StandingsPage({
 
           {round === null ? (
             <>
-              <BreakfastLine duty={latest} gameweek={latest?.gameweek ?? played.at(-1) ?? 0} names={names} />
+              {seasonBreakfastGameweek !== null ? (
+                <BreakfastLine duty={latest} gameweek={seasonBreakfastGameweek} names={names} />
+              ) : null}
               <StandingsTable
                 rows={rows}
                 formByTeam={formByTeam}
