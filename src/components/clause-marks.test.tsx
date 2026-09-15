@@ -28,7 +28,7 @@ const row: CatalogueRow = {
 
 const inCatalogue = (clause: ClauseStatus) =>
   renderToStaticMarkup(
-    <PlayerCatalogue rows={[row]} ownershipKnown clauses={{ p1: clause }} />,
+    <PlayerCatalogue now={NOW} rows={[row]} ownershipKnown clauses={{ p1: clause }} />,
   );
 
 const inSquad = (clause: ClauseStatus) => {
@@ -42,6 +42,9 @@ const inSquad = (clause: ClauseStatus) => {
     />,
   );
 };
+
+/** A fixed clock: only the "Takeable in 24h" filter reads it. */
+const NOW = new Date("2026-09-15T12:00:00Z");
 
 describe("clause marks", () => {
   it("draws a state the same way wherever it appears", () => {

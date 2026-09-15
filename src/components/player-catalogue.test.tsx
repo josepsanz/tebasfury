@@ -31,10 +31,13 @@ const row = (id: string, over: Partial<CatalogueRow> = {}): CatalogueRow => ({
   ...over,
 });
 
+/** A fixed clock: only the "Takeable in 24h" filter reads it. */
+const NOW = new Date("2026-09-15T12:00:00Z");
+
 describe("PlayerCatalogue", () => {
   it("lists players with their value, points and owner", () => {
     const html = renderToStaticMarkup(
-      <PlayerCatalogue rows={[row("p1", { nickname: "Ada" })]} ownershipKnown />,
+      <PlayerCatalogue now={NOW} rows={[row("p1", { nickname: "Ada" })]} ownershipKnown />,
     );
     expect(html).toContain("Ada");
     expect(html).toContain("12.4M");
@@ -44,7 +47,7 @@ describe("PlayerCatalogue", () => {
 
   it("says a free agent is free", () => {
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p1", { ownerTeamId: null, ownerName: null })]}
         ownershipKnown
       />,
@@ -56,7 +59,7 @@ describe("PlayerCatalogue", () => {
     // Before a sweep reads the squads every player is unowned in the database. Saying
     // "free agent" then would be a claim the portal cannot make.
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p1", { ownerTeamId: null, ownerName: null })]}
         ownershipKnown={false}
       />,
@@ -67,11 +70,11 @@ describe("PlayerCatalogue", () => {
 
   it("surfaces a player who is not available, and stays quiet when they are", () => {
     const injured = renderToStaticMarkup(
-      <PlayerCatalogue rows={[row("p1", { status: "injured" })]} ownershipKnown />,
+      <PlayerCatalogue now={NOW} rows={[row("p1", { status: "injured" })]} ownershipKnown />,
     );
     expect(injured).toContain("Injured");
 
-    const fine = renderToStaticMarkup(<PlayerCatalogue rows={[row("p1")]} ownershipKnown />);
+    const fine = renderToStaticMarkup(<PlayerCatalogue now={NOW} rows={[row("p1")]} ownershipKnown />);
     // The status renders as " · <status>", and matching that rather than a bare "ok"
     // keeps the test from passing or failing on some unrelated word in the markup.
     expect(fine).not.toContain(" · ok");
@@ -83,14 +86,14 @@ describe("PlayerCatalogue", () => {
     // rather than silently vanish, which is exactly what the `?? row.status` fallback
     // is for.
     const html = renderToStaticMarkup(
-      <PlayerCatalogue rows={[row("p1", { status: "benched" })]} ownershipKnown />,
+      <PlayerCatalogue now={NOW} rows={[row("p1", { status: "benched" })]} ownershipKnown />,
     );
     expect(html).toContain("benched");
   });
 
   it("shows a player with no snapshot yet as an absence, not as nothing owed", () => {
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p1", { currentValue: null, seasonPoints: 0, averagePoints: null })]}
         ownershipKnown
       />,
@@ -102,18 +105,18 @@ describe("PlayerCatalogue", () => {
 
   it("caps the list and says how much it is not showing", () => {
     const many = Array.from({ length: 90 }, (_, i) => row(`p${i}`));
-    const html = renderToStaticMarkup(<PlayerCatalogue rows={many} ownershipKnown />);
+    const html = renderToStaticMarkup(<PlayerCatalogue now={NOW} rows={many} ownershipKnown />);
     expect(html).toContain("Showing 60 of 90");
     expect(html).toContain("Show 60 more");
   });
 
   it("invites the first sweep when there is nothing to list", () => {
-    const html = renderToStaticMarkup(<PlayerCatalogue rows={[]} ownershipKnown={false} />);
+    const html = renderToStaticMarkup(<PlayerCatalogue now={NOW} rows={[]} ownershipKnown={false} />);
     expect(html).toContain("No players have been swept yet");
   });
 
   it("links each player to their own page", () => {
-    const html = renderToStaticMarkup(<PlayerCatalogue rows={[row("p1")]} ownershipKnown />);
+    const html = renderToStaticMarkup(<PlayerCatalogue now={NOW} rows={[row("p1")]} ownershipKnown />);
     expect(html).toContain('href="/players/p1"');
   });
 
@@ -121,7 +124,7 @@ describe("PlayerCatalogue", () => {
     // Rulings 4 and 5: the club takes the position's place on the meta line, and hands
     // it back when no squad response has named the club yet.
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[
           row("p1", { nickname: "Ada", clubName: "Real Betis", position: "Forward" }),
           row("p2", { nickname: "Bo", clubName: null, position: "Goalkeeper" }),
@@ -142,7 +145,7 @@ describe("PlayerCatalogue", () => {
     // view comes from the URL. It used to arrive as props read on the server; it is read
     // by the catalogue itself now, so that a back navigation gets the same answer.
     search = "sort=perMillion&ownership=free";
-    const html = renderToStaticMarkup(<PlayerCatalogue rows={[row("p1")]} ownershipKnown />);
+    const html = renderToStaticMarkup(<PlayerCatalogue now={NOW} rows={[row("p1")]} ownershipKnown />);
     // Asserted through the control's own state rather than a copy of its markup: the
     // previous version of this test pasted the pill's exact class and style strings, so
     // restyling the control broke it while the behaviour it guards was untouched.
@@ -193,7 +196,7 @@ describe("paginateCatalogue", () => {
 /** One player, rendered with whatever clause states the case needs. */
 const catalogue = ({ clauses }: { clauses?: Record<string, ClauseStatus> }) =>
   renderToStaticMarkup(
-    <PlayerCatalogue rows={[row("p1", { nickname: "Ada" })]} ownershipKnown clauses={clauses} />,
+    <PlayerCatalogue now={NOW} rows={[row("p1", { nickname: "Ada" })]} ownershipKnown clauses={clauses} />,
   );
 
 describe("PlayerCatalogue, clause state", () => {
@@ -239,7 +242,7 @@ describe("PlayerCatalogue, where the padlock sits", () => {
     // A catalogue is scanned down its left edge; an icon in front of some rows makes
     // that edge ragged.
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p1", { nickname: "Ada" })]}
         ownershipKnown
         clauses={{ p1: locked }}
@@ -252,7 +255,7 @@ describe("PlayerCatalogue, where the padlock sits", () => {
     // The defect this guards against is one this codebase has already had to fix once:
     // a marker placed inside a `truncate` is cut off by a long name.
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p1", { nickname: "A preposterously long footballer name indeed" })]}
         ownershipKnown
         clauses={{ p1: locked }}
@@ -270,7 +273,7 @@ describe("PlayerCatalogue, the clause figure", () => {
     // An owner can raise their own clause; across one captured squad the ratio to market
     // value ran from 1.00 to 7.15, so both figures have to be shown.
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p1", { currentValue: 61_697_098, buyoutClause: 81_375_803 })]}
         ownershipKnown
       />,
@@ -281,7 +284,7 @@ describe("PlayerCatalogue, the clause figure", () => {
 
   it("prints no clause for an unowned player, who has none", () => {
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p1", { ownerTeamId: null, ownerName: null, buyoutClause: null })]}
         ownershipKnown
       />,
@@ -291,7 +294,7 @@ describe("PlayerCatalogue, the clause figure", () => {
 
   it("draws a shield for a shielded player, beside the padlock and not instead of it", () => {
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p1")]}
         ownershipKnown
         clauses={{
@@ -306,7 +309,7 @@ describe("PlayerCatalogue, the clause figure", () => {
   it("draws the catalogue the address asks for", () => {
     search = "position=Goalkeeper";
     const html = renderToStaticMarkup(
-      <PlayerCatalogue rows={[row("p1", { position: "Goalkeeper" }), row("p2")]} ownershipKnown />,
+      <PlayerCatalogue now={NOW} rows={[row("p1", { position: "Goalkeeper" }), row("p2")]} ownershipKnown />,
     );
     expect(html).toContain("Player p1");
     expect(html).not.toContain("Player p2");
@@ -319,11 +322,11 @@ describe("PlayerCatalogue, the clause figure", () => {
     // follows the address rather than its own memory.
     const rows = [row("p1", { position: "Goalkeeper" }), row("p2")];
     search = "position=Goalkeeper";
-    expect(renderToStaticMarkup(<PlayerCatalogue rows={rows} ownershipKnown />)).not.toContain(
+    expect(renderToStaticMarkup(<PlayerCatalogue now={NOW} rows={rows} ownershipKnown />)).not.toContain(
       "Player p2",
     );
     search = "";
-    expect(renderToStaticMarkup(<PlayerCatalogue rows={rows} ownershipKnown />)).toContain(
+    expect(renderToStaticMarkup(<PlayerCatalogue now={NOW} rows={rows} ownershipKnown />)).toContain(
       "Player p2",
     );
   });
@@ -334,7 +337,7 @@ describe("PlayerCatalogue, the clause figure", () => {
     // one filtered by something they cannot see.
     search = "position=Sweeper";
     const html = renderToStaticMarkup(
-      <PlayerCatalogue rows={[row("p1", { position: "Goalkeeper" }), row("p2")]} ownershipKnown />,
+      <PlayerCatalogue now={NOW} rows={[row("p1", { position: "Goalkeeper" }), row("p2")]} ownershipKnown />,
     );
     expect(html).toContain("Player p1");
     expect(html).toContain("Player p2");
@@ -343,11 +346,23 @@ describe("PlayerCatalogue, the clause figure", () => {
   it("sorts by what the address asks for", () => {
     search = "sort=name";
     const html = renderToStaticMarkup(
-      <PlayerCatalogue
+      <PlayerCatalogue now={NOW}
         rows={[row("p2", { nickname: "Zoe" }), row("p1", { nickname: "Ada" })]}
         ownershipKnown
       />,
     );
     expect(html.indexOf("Ada")).toBeLessThan(html.indexOf("Zoe"));
+  });
+
+  it("offers the clause-lifting filter, and does not call it Free", () => {
+    // "Free" on this control means unowned. A player whose clause lifts tomorrow is the
+    // opposite — firmly owned — so the two must not read as the same option at two
+    // distances, which is what "Free in 24h" beside "Free" would say.
+    const html = renderToStaticMarkup(
+      <PlayerCatalogue now={NOW} rows={[row("p1")]} ownershipKnown />,
+    );
+    expect(html).toContain('value="soon"');
+    expect(html).toContain("Takeable in 24h");
+    expect(html).not.toContain("Free in 24h");
   });
 });

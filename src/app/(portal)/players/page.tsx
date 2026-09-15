@@ -42,6 +42,7 @@ export default async function PlayersPage() {
         rows={rows}
         ownershipKnown={ownershipKnown}
         clauses={clauses}
+        now={now}
       />
 
       <p className="mt-6 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>

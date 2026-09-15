@@ -53,10 +53,14 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: "name", label: "By name" },
 ];
 
-const OWNERSHIP: { key: "all" | "owned" | "free"; label: string }[] = [
+const OWNERSHIP: { key: CatalogueFilter["ownership"]; label: string }[] = [
   { key: "all", label: "Everyone" },
   { key: "owned", label: "Owned" },
   { key: "free", label: "Free" },
+  // Not "Free in 24h", which would read as the option above it at a later hour. These are
+  // two different facts: `Free` is nobody owns them, this is somebody does and tomorrow
+  // they can be taken off them. The board's own word for that is takeable.
+  { key: "soon", label: "Takeable in 24h" },
 ];
 
 /**
@@ -102,9 +106,16 @@ export function PlayerCatalogue({
   rows,
   ownershipKnown,
   clauses,
+  now,
 }: {
   rows: CatalogueRow[];
   ownershipKnown: boolean;
+  /**
+   * The server's clock, the same one that built `clauses`. Shared so the "Takeable in 24h"
+   * filter and the "free in N hours" label on the rows it keeps can never disagree — and
+   * so the list does not shift under a reader whose own clock is wrong.
+   */
+  now: Date;
   /**
    * Player id to their clause state, worked out on the server.
    *
@@ -155,8 +166,16 @@ export function PlayerCatalogue({
   };
 
   const { page, total } = useMemo(
-    () => paginateCatalogue(rows, { query, position, ownership }, sort, shown),
-    [rows, query, position, ownership, sort, shown],
+    () =>
+      paginateCatalogue(
+        rows,
+        ownership === "soon"
+          ? { query, position, ownership, now }
+          : { query, position, ownership },
+        sort,
+        shown,
+      ),
+    [rows, query, position, ownership, sort, shown, now],
   );
 
   if (rows.length === 0) {

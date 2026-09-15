@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { clauseStatus } from "./market";
 import {
   bestValueForMoney,
   buildCatalogue,
@@ -134,6 +135,59 @@ describe("filterCatalogue", () => {
 
   it("returns everything when nothing is asked", () => {
     expect(filterCatalogue(rows, { query: "  ", position: null, ownership: "all" })).toHaveLength(2);
+  });
+
+  /** An owned player with a clause lock, which is all the "soon" filter looks at. */
+  const owned = (id: string, clauseLockedUntil: Date | null): CatalogueRow => ({
+    id,
+    nickname: id,
+    position: "Midfielder",
+    status: "ok",
+    currentValue: 1_000_000,
+    seasonPoints: 10,
+    averagePoints: 5,
+    gameweeksRecorded: 2,
+    ownerTeamId: "t1",
+    ownerName: "Ada",
+    clubName: null,
+    buyoutClause: 5_000_000,
+    clauseLockedUntil,
+    shielded: false,
+  });
+
+  const now = new Date("2026-09-15T12:00:00Z");
+  const soon = (rows: CatalogueRow[]) =>
+    filterCatalogue(rows, { query: "", position: null, ownership: "soon", now });
+
+  it("keeps an owned player whose clause lifts inside a day, and nobody else", () => {
+    // The raiding list: who can actually be taken tomorrow. Not "free", which on this
+    // control means unowned, and not merely locked, which is most of the league most days.
+    expect(
+      soon([
+        owned("lifting", new Date("2026-09-15T18:00:00Z")),
+        owned("still-locked", new Date("2026-09-20T12:00:00Z")),
+        owned("already-free", null),
+        { ...owned("unowned", new Date("2026-09-15T18:00:00Z")), ownerTeamId: null },
+      ]).map((row) => row.id),
+    ).toEqual(["lifting"]);
+  });
+
+  it("keeps a shielded player out, because a lifting lock does not make them takeable", () => {
+    // `clauseBoard` states the same rule from the other side: a shielded player is never
+    // free however their lock reads. A filter that offered one would send a raider at
+    // somebody they cannot have.
+    const shielded = { ...owned("s", new Date("2026-09-15T18:00:00Z")), shielded: true };
+    expect(soon([shielded])).toEqual([]);
+  });
+
+  it("agrees with the label the same clause is given, because both read one threshold", () => {
+    // The row cannot read "free in 6 hours" and be missing from the list of clauses
+    // lifting within a day: `clauseStatus` and this filter ask the same function.
+    const lifting = owned("lifting", new Date("2026-09-15T18:00:00Z"));
+    expect(soon([lifting])).toHaveLength(1);
+    expect(
+      clauseStatus({ lockedUntil: lifting.clauseLockedUntil, shielded: false }, now).state,
+    ).toBe("soon");
   });
 });
 
@@ -535,6 +589,10 @@ describe("the opportunity boards", () => {
 });
 
 describe("parseCatalogueEntry", () => {
+  it("accepts the clause-lifting filter, so the link survives a back navigation", () => {
+    expect(parseCatalogueEntry({ ownership: "soon" }).ownership).toBe("soon");
+  });
+
   it("reads a sort and an ownership filter it recognises", () => {
     expect(parseCatalogueEntry({ sort: "perMillion", ownership: "free" })).toEqual({
       sort: "perMillion",

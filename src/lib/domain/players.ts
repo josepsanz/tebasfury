@@ -1,3 +1,4 @@
+import { liftsWithinADay } from "./market";
 import { trendOverLastThree, type Trend } from "./metrics";
 
 export type PlayerRecord = {
@@ -104,11 +105,32 @@ export function buildCatalogue(input: {
   });
 }
 
+/**
+ * What the catalogue is showing.
+ *
+ * A union rather than one shape with an optional date, so `now` is present exactly when
+ * something reads it and cannot be forgotten where it matters: `soon` is the only
+ * time-dependent filter, and a "soon" with no reference time would quietly list nobody.
+ */
 export type CatalogueFilter = {
   query: string;
   position: string | null;
-  ownership: "all" | "owned" | "free";
-};
+} & (
+  | {
+      /** `free` means unowned. For "owned, but takeable tomorrow", see `soon`. */
+      ownership: "all" | "owned" | "free";
+    }
+  | {
+      /**
+       * Held players whose clause lifts within the day and who are not shielded — the
+       * list a raider acts on. Shielded players are excluded for the reason `clauseBoard`
+       * gives: a shield blocks a take however the lock reads, so offering one would send
+       * somebody at a player they cannot have.
+       */
+      ownership: "soon";
+      now: Date;
+    }
+);
 
 /**
  * Name and club, case-insensitively. The club name does not come from this endpoint —
@@ -125,6 +147,10 @@ export function filterCatalogue(rows: CatalogueRow[], filter: CatalogueFilter): 
     if (filter.position !== null && row.position !== filter.position) return false;
     if (filter.ownership === "owned" && row.ownerTeamId === null) return false;
     if (filter.ownership === "free" && row.ownerTeamId !== null) return false;
+    if (filter.ownership === "soon") {
+      if (row.ownerTeamId === null || row.shielded) return false;
+      if (!liftsWithinADay(row.clauseLockedUntil, filter.now)) return false;
+    }
     return true;
   });
 }
@@ -363,7 +389,7 @@ export function ownerDisplay(ownerName: string | null, ownershipKnown: boolean):
 }
 
 const SORT_KEYS: SortKey[] = ["value", "points", "average", "perMillion", "name"];
-const OWNERSHIP_KEYS: CatalogueFilter["ownership"][] = ["all", "owned", "free"];
+const OWNERSHIP_KEYS: CatalogueFilter["ownership"][] = ["all", "owned", "free", "soon"];
 
 /**
  * The catalogue view a URL asks for.

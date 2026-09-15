@@ -353,6 +353,24 @@ export type ClauseStatus = { state: ClauseState; label: string; shielded: boolea
 
 const SOON_MS = 24 * HOUR;
 
+/**
+ * Whether a live clause lock is inside the last day of itself — the player is still held,
+ * but tomorrow they can be taken.
+ *
+ * Exported because two readers need it and they must not be able to disagree: the label
+ * on a row ("free in 6 hours") and the catalogue filter that lists exactly those rows.
+ * A second threshold written out somewhere else would eventually drift from this one and
+ * show a player a filter had already promised was missing.
+ *
+ * Says nothing about the shield. A shield is a separate block with no expiry, so whether
+ * a lifting lock actually makes somebody takeable is the caller's question — `clauseBoard`
+ * and the filter both answer it the same way, and both answer it themselves.
+ */
+export function liftsWithinADay(lockedUntil: Date | null, now: Date): boolean {
+  if (lockedUntil === null || lockedUntil <= now) return false;
+  return lockedUntil.getTime() - now.getTime() < SOON_MS;
+}
+
 export function clauseStatus(
   { lockedUntil, shielded }: { lockedUntil: Date | null; shielded: boolean },
   now: Date,
@@ -366,7 +384,7 @@ export function clauseStatus(
   }
 
   const ms = (lockedUntil as Date).getTime() - now.getTime();
-  if (ms < SOON_MS) {
+  if (liftsWithinADay(lockedUntil, now)) {
     const hours = Math.max(1, Math.round(ms / HOUR));
     return {
       state: "soon",
