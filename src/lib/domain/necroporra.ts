@@ -277,6 +277,51 @@ export function haters(
     .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name));
 }
 
+/**
+ * What a decided round costs the people who called it wrongly.
+ *
+ * Two rules the league plays by, neither of which the poll's points express:
+ *
+ * - **Name the team that WINS the round and you owe the league an apology.** The poll
+ *   asks who finishes last; picking the eventual winner is as wrong as an answer gets.
+ * - **An apologist who also finished last that round gets a hate message from the
+ *   winner.** Both conditions at once, which is what makes it rare and worth printing.
+ *
+ * Finishing last on its own earns nothing here — it already brings breakfast. The hate
+ * message is for getting the question exactly backwards in the week you were the answer.
+ */
+export type RoundConsequences = {
+  /** Voters who named the round's winner, sorted so the sentence cannot reorder itself. */
+  apologists: string[];
+  /** The apologist who also finished the round last, or null. At most one: `lastPlaced`
+   *  names a single team. */
+  hateTarget: string | null;
+  /** Who sends it — the round's winner. Null while the round has no decided ends. */
+  winnerTeamId: string | null;
+};
+
+export function roundConsequences(
+  ballots: Ballot[],
+  gameweek: number,
+  { firstTeamId, lastTeamId }: { firstTeamId: string | null; lastTeamId: string | null },
+): RoundConsequences {
+  // An undecided round returns an empty verdict rather than an accusation. `firstPlaced`
+  // and `lastPlaced` share a guard, so in practice these are null together.
+  if (firstTeamId === null) return { apologists: [], hateTarget: null, winnerTeamId: null };
+
+  const apologists = ballots
+    .filter((ballot) => ballot.gameweek === gameweek && picksOf(ballot).includes(firstTeamId))
+    .map((ballot) => ballot.teamId)
+    .sort();
+
+  return {
+    apologists,
+    hateTarget:
+      lastTeamId !== null && apologists.includes(lastTeamId) ? lastTeamId : null,
+    winnerTeamId: firstTeamId,
+  };
+}
+
 export type Voter = { teamId: string; name: string };
 
 export type RoundBallot = {

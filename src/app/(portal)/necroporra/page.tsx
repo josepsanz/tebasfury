@@ -9,6 +9,7 @@ import {
   lastPlaced,
   picksOf,
   roundBallots,
+  roundConsequences,
   firstPlaced,
   haters,
   mostHated,
@@ -19,6 +20,7 @@ import { PageHeader } from "@/components/page-header";
 import { NecroporraBallot, type BallotTeam } from "@/components/necroporra-ballot";
 import { NecroporraBallots } from "@/components/necroporra-ballots";
 import { Haters, MostHated } from "@/components/necroporra-hate";
+import { NecroporraConsequences } from "@/components/necroporra-consequences";
 import { RoundPicker } from "@/components/round-picker";
 import { vote } from "./actions";
 
@@ -119,6 +121,11 @@ export default async function NecroporraPage({
   const wanted = Number(Array.isArray(asked) ? asked[0] : asked);
   const looking =
     closed.find((round) => round.gameweek === wanted) ?? closed[0] ?? null;
+
+  // Worked out once and read twice — by the sentence and by the marks on the rows — so
+  // the two cannot name different people.
+  const verdict =
+    looking === null ? null : roundConsequences(ballots, looking.gameweek, looking);
 
   return (
     <section className="mx-auto max-w-2xl">
@@ -290,11 +297,16 @@ export default async function NecroporraPage({
             )}
           </p>
 
+          {verdict === null ? null : (
+            <NecroporraConsequences consequences={verdict} names={teamName} />
+          )}
+
           <NecroporraBallots
             rows={roundBallots(voters, ballots, looking.gameweek, looking.lastTeamId)}
             teamName={teamName}
             viewerTeamId={myTeam?.teamId ?? null}
             resolved={looking.lastTeamId !== null}
+            consequences={verdict}
             castFor={
               mayCastForOthers
                 ? (row) => <BallotForRow gameweek={looking.gameweek} row={row} teams={teams} />

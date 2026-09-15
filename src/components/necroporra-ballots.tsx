@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { RoundBallot } from "@/lib/domain/necroporra";
+import type { RoundBallot, RoundConsequences } from "@/lib/domain/necroporra";
 import { formatLeagueMoment } from "@/lib/domain/clock";
 import { GearIcon } from "@/components/gear-icon";
 
@@ -20,6 +20,7 @@ export function NecroporraBallots({
   viewerTeamId,
   resolved,
   castFor,
+  consequences = null,
 }: {
   rows: RoundBallot[];
   teamName: Map<string, string>;
@@ -36,6 +37,14 @@ export function NecroporraBallots({
    * reader whether or not they may use one.
    */
   castFor: ((row: RoundBallot) => ReactNode) | null;
+  /**
+   * What this round costs whoever called it wrongly, or null while it has no verdict.
+   *
+   * Marks go on the rows as well as into the sentence above the list for the reason the
+   * breakfast slice settled: a sentence names who, and a reader scanning thirteen rows
+   * for their own name needs the row itself to say it.
+   */
+  consequences?: RoundConsequences | null;
 }) {
   if (rows.length === 0) {
     return (
@@ -44,6 +53,16 @@ export function NecroporraBallots({
       </p>
     );
   }
+
+  /**
+   * The one mark a row carries, if any. A hate message implies the apology that earned
+   * it, so the two are one mark at two weights rather than two marks stacked on one row.
+   */
+  const mark = (teamId: string): string | null => {
+    if (!consequences) return null;
+    if (consequences.hateTarget === teamId) return "apology + hate message";
+    return consequences.apologists.includes(teamId) ? "owes an apology" : null;
+  };
 
   return (
     <ul className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
@@ -62,6 +81,17 @@ export function NecroporraBallots({
                     shape the clause marks use, and for the reason this codebase has already
                     had to fix once: an icon inside a `truncate` is cut off by a long name. */}
                 <span className="truncate">{row.name}</span>
+                {/* Same placement as the gear above, for the same reason. Words rather
+                    than a shape: these two marks say what they mean, and the colour only
+                    repeats it. */}
+                {mark(row.teamId) === null ? null : (
+                  <span
+                    className="shrink-0 text-[10.5px]"
+                    style={{ color: "var(--board-alert)" }}
+                  >
+                    {mark(row.teamId)}
+                  </span>
+                )}
                 {castFor === null ? null : (
                   <span className="shrink-0" style={{ color: "var(--board-ink-dim)" }}>
                     <GearIcon />

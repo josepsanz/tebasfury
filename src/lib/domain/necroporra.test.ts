@@ -6,6 +6,7 @@ import {
   haters,
   isOpen,
   mostHated,
+  roundConsequences,
   lastPlaced,
   roundBallots,
   scoreRound,
@@ -457,5 +458,70 @@ describe("haters", () => {
 
   it("is empty for a team nobody has named", () => {
     expect(haters([at(1, "a", "b")], "c", names)).toEqual([]);
+  });
+});
+
+describe("roundConsequences", () => {
+  const at = (gameweek: number, voter: string, first: string, second: string | null = null) => ({
+    ...ballot(voter, first, second),
+    gameweek,
+  });
+  const ends = (firstTeamId: string | null, lastTeamId: string | null) => ({
+    firstTeamId,
+    lastTeamId,
+  });
+
+  it("names whoever picked the team that went on to win", () => {
+    // The whole point of the poll is calling the bottom. Calling the top instead is the
+    // furthest you can be from right, and the league charges an apology for it.
+    const result = roundConsequences(
+      [at(4, "b", "a"), at(4, "c", "d"), at(4, "d", "a", "b")],
+      4,
+      ends("a", "d"),
+    );
+    expect(result.apologists).toEqual(["b", "d"]);
+  });
+
+  it("sorts the apologists, because the sentence reads them out in order", () => {
+    // Undefined row order from the database would swap two names between loads. Same
+    // reason `breakfastDuties` sorts its bringers.
+    expect(roundConsequences([at(4, "d", "a"), at(4, "b", "a")], 4, ends("a", "c")).apologists).toEqual(
+      ["b", "d"],
+    );
+  });
+
+  it("sends a hate message to the apologist who also finished last", () => {
+    // Both conditions at once: they called the winner AND they came bottom. The winner
+    // is who sends it.
+    const result = roundConsequences([at(4, "d", "a")], 4, ends("a", "d"));
+    expect(result.hateTarget).toBe("d");
+    expect(result.winnerTeamId).toBe("a");
+  });
+
+  it("sends no hate message to an apologist who did not finish last", () => {
+    expect(roundConsequences([at(4, "b", "a")], 4, ends("a", "d")).hateTarget).toBeNull();
+  });
+
+  it("sends no hate message to whoever finished last without naming the winner", () => {
+    // Finishing last is its own punishment — it brings breakfast. The hate message is
+    // for getting the poll exactly backwards on the week you were the answer.
+    const result = roundConsequences([at(4, "d", "c")], 4, ends("a", "d"));
+    expect(result.apologists).toEqual([]);
+    expect(result.hateTarget).toBeNull();
+  });
+
+  it("finds nobody in a round that is not decided", () => {
+    // "Not yet" is not "nobody owed anything" — but neither is it a verdict, so the fold
+    // returns an empty one rather than guessing at either.
+    const result = roundConsequences([at(4, "b", "a")], 4, ends(null, null));
+    expect(result).toEqual({ apologists: [], hateTarget: null, winnerTeamId: null });
+  });
+
+  it("ignores ballots from other rounds", () => {
+    expect(roundConsequences([at(3, "b", "a")], 4, ends("a", "d")).apologists).toEqual([]);
+  });
+
+  it("counts a winner named in either slot", () => {
+    expect(roundConsequences([at(4, "b", "c", "a")], 4, ends("a", "d")).apologists).toEqual(["b"]);
   });
 });

@@ -190,11 +190,22 @@ describe("/necroporra", () => {
     // the sentence has to carry a tie. Nobody has named Ada, who is the reader.
     const { default: Page } = await import("./(portal)/necroporra/page");
     const html = await render(() => Page({ searchParams: none }));
-    // Chus is named on both ballots, Ada and Bruno once each. Ada is the reader, and
-    // Bruno named them in the settled round.
-    expect(html).toContain("The league has named Chus more than anyone: 2 votes.");
-    expect(html).toContain("Bruno");
+    // Ada and Chus are each named twice across the three ballots, Bruno once — so the
+    // sentence has to carry a tie. Ada is the reader, and two people have named them.
+    expect(html).toContain("The league has named Ada and Chus more than anyone: 2 votes each.");
     expect(html).not.toContain("Nobody has named you yet.");
+  });
+
+  it("states what a decided round costs, and who owes it", async () => {
+    // Round 1: Ada won it, Chus finished last, and both Bruno and Chus had named Ada for
+    // the bottom. Chus therefore meets both conditions at once.
+    const { default: Page } = await import("./(portal)/necroporra/page");
+    const html = await render(() => Page({ searchParams: Promise.resolve({ round: "1" }) }));
+    expect(html).toContain("Bruno and Chus owe the league an apology: they named the winner.");
+    expect(html).toContain("Chus finished last as well, so Ada sends them a hate message.");
+    // And on the rows themselves, for a reader scanning for their own name.
+    expect(html).toContain("apology + hate message");
+    expect(html).toContain("owes an apology");
   });
 
   it("names both ends of a decided round, not only the loser", async () => {

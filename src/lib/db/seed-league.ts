@@ -151,8 +151,13 @@ export async function seedLeague(db: Db) {
     { gameweek: SEED_SETTLED_WEEK, closesAt: new Date("2026-08-15T17:00:00Z") },
     { gameweek: SEED_LIVE_WEEK, closesAt: new Date("2026-08-22T17:00:00Z") },
   ]);
+  // Chosen so the settled round exercises both of the league's consequences at once:
+  // `t2` and `t3` each named `t1`, who went on to win it, so both owe an apology — and
+  // `t3` finished that round last, which is the second condition and earns the hate
+  // message. It also leaves `t1` and `t3` tied at the top of the most-hated board.
   await db.insert(necroporraVotes).values([
     { gameweek: SEED_SETTLED_WEEK, teamId: "t2", firstTeamId: "t3", secondTeamId: "t1" },
+    { gameweek: SEED_SETTLED_WEEK, teamId: "t3", firstTeamId: "t1", secondTeamId: null },
     { gameweek: SEED_LIVE_WEEK, teamId: "t1", firstTeamId: "t3", secondTeamId: "t2" },
   ]);
 
