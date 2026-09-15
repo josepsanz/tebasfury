@@ -188,6 +188,17 @@ export function holdings(operations: MarketOperation[]): Holding[] {
   return result;
 }
 
+/**
+ * Every voluntary sale that broke the five-day rule, in the order `holdings` reports them.
+ *
+ * A one-line filter with a name, because two callers ask this same question — the register
+ * that draws them and the header that counts them — and a second copy of `.filter(h =>
+ * h.breach)` is how one of them ends up also counting a player taken by clause.
+ */
+export function breaches(operations: MarketOperation[]): Holding[] {
+  return holdings(operations).filter((holding) => holding.breach);
+}
+
 export type MoneySide = {
   count: number;
   total: number;

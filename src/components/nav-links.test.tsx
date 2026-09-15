@@ -25,6 +25,16 @@ describe("NavLinks", () => {
     expect(html).not.toContain("Sync");
   });
 
+  it("offers the fair-play register, next to the market it is read from", () => {
+    const html = renderToStaticMarkup(<NavLinks canTriggerSync={false} myTeamId={null} />);
+    expect(html).toContain('href="/fair-play"');
+    expect(html).toContain("Fair play");
+    // Beside the log the breaches come out of, and before the poll, which is a game
+    // rather than a rule.
+    expect(html.indexOf("Market")).toBeLessThan(html.indexOf("Fair play"));
+    expect(html.indexOf("Fair play")).toBeLessThan(html.indexOf("Necroporra"));
+  });
+
   it("adds Sync only for whoever can trigger one", () => {
     expect(renderToStaticMarkup(<NavLinks canTriggerSync myTeamId={null} />)).toContain("Sync");
   });

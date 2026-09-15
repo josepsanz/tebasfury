@@ -143,6 +143,24 @@ export async function seedLeague(db: Db) {
       amount: 3_000_000,
       occurredAt: new Date("2026-08-24T10:00:00Z"),
     },
+    // And one that breaks the five-day rule, two days from purchase to sale, so the
+    // fair-play register has a breach to name and the clean sale above is its control.
+    {
+      id: "op-buy-early",
+      activityType: 31,
+      actorManagerId: 2,
+      playerId: "fw2",
+      amount: 4_000_000,
+      occurredAt: new Date("2026-08-18T10:00:00Z"),
+    },
+    {
+      id: "op-sell-early",
+      activityType: 33,
+      actorManagerId: 2,
+      playerId: "fw2",
+      amount: 4_500_000,
+      occurredAt: new Date("2026-08-20T10:00:00Z"),
+    },
   ]);
 
   // Two rounds of the poll: one over a settled week, so the page has a round with both

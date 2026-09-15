@@ -4,6 +4,7 @@ import {
   clauseBoard,
   clauseStatus,
   fairPlayHold,
+  breaches,
   holdings,
   marketSummary,
   operationKind,
@@ -564,5 +565,28 @@ describe("fairPlayHold", () => {
     const now = at("2026-09-03T12:00:00Z");
     expect(fairPlayHold(lock, now)).not.toBeNull();
     expect(clauseStatus({ lockedUntil: lock, shielded: false }, now).state).toBe("locked");
+  });
+});
+
+describe("breaches", () => {
+  it("keeps only the sales that broke the rule", () => {
+    const rows = breaches([
+      op({ id: "buy-early", activityType: 31, playerId: "p1", occurredAt: at("2026-09-01T10:00:00Z") }),
+      op({ id: "sell-early", activityType: 33, playerId: "p1", occurredAt: at("2026-09-03T10:00:00Z") }),
+      op({ id: "buy-clean", activityType: 31, playerId: "p2", occurredAt: at("2026-09-01T10:00:00Z") }),
+      op({ id: "sell-clean", activityType: 33, playerId: "p2", occurredAt: at("2026-09-20T10:00:00Z") }),
+    ]);
+    expect(rows.map((row) => row.playerId)).toEqual(["p1"]);
+  });
+
+  it("never counts a player taken by clause, nor a period it cannot measure", () => {
+    // Both exclusions are `holdings`' own rulings; this is the guard that they stay that
+    // way for every caller that asks the shorter question.
+    const rows = breaches([
+      op({ id: "buy", activityType: 31, actorManagerId: 1, playerId: "p1", occurredAt: at("2026-09-05T10:00:00Z") }),
+      op({ id: "clause", activityType: 1, actorManagerId: 2, counterpartyManagerId: 1, playerId: "p1", occurredAt: at("2026-09-06T10:00:00Z") }),
+      op({ id: "sell-unknown", activityType: 33, actorManagerId: 2, playerId: "p9", occurredAt: at("2026-09-07T10:00:00Z") }),
+    ]);
+    expect(rows).toEqual([]);
   });
 });

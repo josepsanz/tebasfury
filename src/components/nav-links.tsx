@@ -14,8 +14,8 @@ import { usePathname } from "next/navigation";
  * `flex-wrap` is load-bearing, not defensive. These labels come to roughly the width
  * available at 375px, so the row fits with little to spare — and "My team", or a reader
  * whose system text is a size larger, would otherwise lose a destination off the edge
- * with nothing to show that it happened. It is now carrying that seventh label for
- * every manager who has claimed a team.
+ * with nothing to show that it happened. It is now carrying an eighth label, "Fair play", so on a phone the row
+ * settles on two lines rather than one.
  */
 export function NavLinks({
   canTriggerSync,
@@ -37,6 +37,9 @@ export function NavLinks({
     { href: "/progress", label: "Progress" },
     { href: "/players", label: "Players" },
     { href: "/market", label: "Market" },
+    // Beside the log it is read from. The register is the league's own rule; the poll
+    // after it is a game, and the order says which is which.
+    { href: "/fair-play", label: "Fair play" },
     { href: "/necroporra", label: "Necroporra" },
     ...(canTriggerSync ? [{ href: "/admin/sync", label: "Sync" }] : []),
   ];

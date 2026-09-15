@@ -123,6 +123,20 @@ describe("/market", () => {
   });
 });
 
+describe("/fair-play", () => {
+  it("names the sale that broke the five-day rule, and how short it fell", async () => {
+    const { default: Page } = await import("./(portal)/fair-play/page");
+    const html = await render(() => Page());
+    // Bruno held Forward 2 for two days. Ada's eight-day holding of Forward 1 is the
+    // control: a clean sale must not appear here at all.
+    expect(html).toContain("Bruno");
+    expect(html).toContain("Forward 2");
+    expect(html).toContain("held 2.000 days");
+    expect(html).toContain("3 days short");
+    expect(html).not.toContain("Forward 1");
+  });
+});
+
 describe("/progress", () => {
   it("plots every team's season and pins the reader's own", async () => {
     const { default: Page } = await import("./(portal)/progress/page");
