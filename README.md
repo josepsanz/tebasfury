@@ -85,6 +85,9 @@ admin edits on `/admin/sync`:
 - **`/teams/[id]`** — one manager's squad, money and market history, and
   **`/teams/[id]/lineup`**, the best eleven their squad can field with every legal
   formation ranked beside it.
+- **`/fair-play`** — every sale the league made inside its own five-day rule, each one
+  naming who sold whom, how long they held them and how far short that fell — minutes or
+  days, because three of the four so far missed the rule by minutes.
 - **`/necroporra`** — the weekly poll for the two teams you think finish the round last,
   with every ballot visible, past rounds browsable and a season table of who guesses best.
 - **`/admin/sync`** — the LaLiga credential, both sync buttons, the run history, and the
