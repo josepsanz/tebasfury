@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { loadSnapshots } from "@/lib/db/queries";
-import { buildRoundTable, buildTable } from "@/lib/domain/standings";
+import { buildRoundTable, buildTable, recentForm } from "@/lib/domain/standings";
 import { breakfastDuties, dutyFor } from "@/lib/domain/breakfast";
 import { requireSession } from "@/lib/auth/guards";
 import { StandingsTable } from "@/components/standings-table";
@@ -54,14 +54,6 @@ export default async function StandingsPage({
   // same duty said two ways, and never disagree with each other.
   const roundDuty = round !== null ? dutyFor(duties, round) : null;
 
-  const formByTeam: Record<string, number[]> = {};
-  const weeks = played.slice(-3);
-  for (const team of teams) {
-    formByTeam[team.id] = weeks.map(
-      (w) => snapshots.find((s) => s.teamId === team.id && s.gameweek === w)?.points ?? 0,
-    );
-  }
-
   return (
     <section className="mx-auto max-w-2xl">
       <PageHeader title="Standings" meta={`${rows.length} teams`} />
@@ -83,7 +75,7 @@ export default async function StandingsPage({
               ) : null}
               <StandingsTable
                 rows={rows}
-                formByTeam={formByTeam}
+                formByTeam={recentForm(snapshots, teams)}
                 isLive={isLive}
                 myTeamId={myTeam?.teamId ?? null}
               />

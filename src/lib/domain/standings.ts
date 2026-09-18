@@ -178,3 +178,30 @@ export function buildRoundTable(
   // which is exactly what a tie-break we do not know looks like — still reads top-down.
   return rows.sort((a, b) => a.position - b.position || a.managerName.localeCompare(b.managerName));
 }
+
+/**
+ * The last `weeks` rounds of points, per team, in chronological order.
+ *
+ * The bars `StandingsTable` draws. It lives here rather than in either page because two
+ * pages now draw that table — the standings page and the home page — and the same three
+ * bars worked out twice is exactly how the two would come to disagree about which weeks
+ * they cover.
+ *
+ * A team with no snapshot for one of those weeks scores 0 for it rather than being left
+ * out of the array: the bars are a fixed-width strip, and a short array would silently
+ * shift a manager's history one week to the right.
+ */
+export function recentForm(
+  snapshots: Snapshot[],
+  teams: TeamRef[],
+  weeks = 3,
+): Record<string, number[]> {
+  const played = [...new Set(snapshots.map((s) => s.gameweek))].sort((a, b) => a - b).slice(-weeks);
+  const form: Record<string, number[]> = {};
+  for (const team of teams) {
+    form[team.id] = played.map(
+      (week) => snapshots.find((s) => s.teamId === team.id && s.gameweek === week)?.points ?? 0,
+    );
+  }
+  return form;
+}

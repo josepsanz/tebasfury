@@ -3,6 +3,7 @@ import {
   buildRoundTable,
   buildSeries,
   buildTable,
+  recentForm,
   type Snapshot,
   type TeamRef,
 } from "./standings";
@@ -165,5 +166,18 @@ describe("buildRoundTable", () => {
 
   it("names the manager, so the table can link to them", () => {
     expect(buildRoundTable([snap("a", 1, 50, 1)], teams, 1)[0].managerName).toBe("Manager A");
+  });
+});
+
+describe("recentForm", () => {
+  it("gives every team the same window of the most recent rounds", () => {
+    const form = recentForm(season, teams, 2);
+    expect(form).toEqual({ a: [50, 10], b: [10, 40] });
+  });
+
+  it("scores a missing round 0 rather than shortening the team's strip", () => {
+    // B never played gw2, so its second bar has to be the gw2 slot, not gw1 moved along.
+    const form = recentForm([snap("a", 1, 50, 1), snap("b", 1, 10, 2), snap("a", 2, 10, 1)], teams, 2);
+    expect(form).toEqual({ a: [50, 10], b: [10, 0] });
   });
 });

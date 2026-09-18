@@ -1,15 +1,10 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
-import { loadPlayerCatalogue, loadSnapshots } from "@/lib/db/queries";
-import { buildTable } from "@/lib/domain/standings";
-import {
-  bestValueForMoney,
-  buildCatalogue,
-  formatMoney,
-  freeAndScoring,
-  pointsPerMillion,
-} from "@/lib/domain/players";
+import { loadSnapshots } from "@/lib/db/queries";
+import { buildRoundTable, buildTable, recentForm } from "@/lib/domain/standings";
+import { breakfastDuties, dutyFor } from "@/lib/domain/breakfast";
+import { formatMoney } from "@/lib/domain/players";
 import { getSession } from "@/lib/auth/guards";
-import { OpportunityBoard } from "@/components/opportunity-board";
 import { loadMyTeam } from "@/lib/claims";
 import { ClaimLine } from "@/components/claim-line";
 import { KpiStrip, type Kpi } from "@/components/kpi-strip";
@@ -21,6 +16,34 @@ import {
   formatWorstRecord,
 } from "@/lib/domain/metric-copy";
 import { MetricGrid, type Metric } from "@/components/metric-grid";
+import { StandingsTable } from "@/components/standings-table";
+import { RoundTable } from "@/components/round-table";
+import { BreakfastLine } from "@/components/breakfast-line";
+
+/** The page's section rule: one dim line, the same one the tables' own headers use. */
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2
+      className="mt-6 text-[11px] uppercase tracking-[0.06em]"
+      style={{ color: "var(--board-ink-dim)" }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+/** The link under a table: where to go for the rounds this page does not show. */
+function MoreLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="mt-3 inline-block border-b pb-0.5 text-[11.5px]"
+      style={{ borderColor: "var(--board-line)", color: "var(--board-ink-dim)" }}
+    >
+      {label} →
+    </Link>
+  );
+}
 
 export default async function HomePage() {
   const session = await getSession();
@@ -39,20 +62,14 @@ export default async function HomePage() {
     );
   }
 
-  // The same read `/players` runs, and no other. Ruling 7 names the cost: 840 players
-  // and their aggregates for ten rows, in exchange for one place where the ranking
-  // rules live and nothing crossing to the client.
-  const { players, totals, values, ownership, clubs, ownershipKnown } =
-    await loadPlayerCatalogue(db);
-  const rows = buildCatalogue({ players, totals, values, ownership, clubs });
   const myTeam = await loadMyTeam(db, { userId: session.user.id });
 
-  // Cheap next to the catalogue read above: thirteen teams times the weeks played, which
-  // is sixty-five rows today and under five hundred by May.
-  const { snapshots, teams: teamRefs, isLive } = await loadSnapshots(db);
-  const mine = myTeam
-    ? buildTable(snapshots, teamRefs).find((row) => row.teamId === myTeam.teamId)
-    : undefined;
+  // Cheap next to the catalogue read this page used to run for its two player boards:
+  // thirteen teams times the weeks played, which is sixty-five rows today and under five
+  // hundred by May. Nothing here reads `/players` any more.
+  const { snapshots, teams: teamRefs, isLive, currentGameweek } = await loadSnapshots(db);
+  const rows = buildTable(snapshots, teamRefs);
+  const mine = myTeam ? rows.find((row) => row.teamId === myTeam.teamId) : undefined;
 
   // Only for a manager who has claimed a team: without one there is no "your rank" to
   // report, and inventing a league-wide figure here would answer a question nobody asked.
@@ -89,6 +106,20 @@ export default async function HomePage() {
     { label: "Worst round", ...formatWorstRecord(league.worst, nameOf) },
   ];
 
+  // The round the page shows: the last one with snapshots, which is the one being played
+  // whenever one is. Taken from the snapshots and not from `currentGameweek`, because the
+  // player sweep can write a gameweek the standings have no rows for yet.
+  const played = [...new Set(snapshots.map((s) => s.gameweek))].sort((a, b) => a - b);
+  const round = played.at(-1) ?? null;
+  // Only when the live week is the one on screen: `isLive` speaks for the newest gameweek
+  // row, which may be one the standings have not reached.
+  const inPlay = isLive && currentGameweek === round;
+  const duties = breakfastDuties(snapshots);
+  // Computed once so the sentence above the table and the marks on its rows are the same
+  // duty said two ways, and never disagree with each other.
+  const roundDuty = round === null ? null : dutyFor(duties, round);
+  const names = new Map(teamRefs.map((team) => [team.id, team.managerName]));
+
   return (
     <section className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-semibold">TebasFury</h1>
@@ -100,57 +131,43 @@ export default async function HomePage() {
 
       <KpiStrip items={kpis} />
 
-      <h2
-        className="mt-6 text-[11px] uppercase tracking-[0.06em]"
-        style={{ color: "var(--board-ink-dim)" }}
-      >
-        League
-      </h2>
+      <SectionHeading>League</SectionHeading>
       <MetricGrid items={leagueItems} />
 
-      <OpportunityBoard
-        title="Best value for money"
-        note="Points per million of market value. Players with at least three recorded gameweeks, the same floor the catalogue's “Best average” uses."
-        rows={bestValueForMoney(rows)}
-        emptyNote="No player has three recorded gameweeks yet. This fills in as the season goes."
-        figure={(row) => ({
-          // `pointsPerMillion`, never the division written out again: the rule lives in
-          // one place, which is the whole reason Ruling 7 refused a SQL ranking. The
-          // fallback is unreachable — a positive, non-null result is what
-          // `bestValueForMoney` filters on — and is here to satisfy the type, not to
-          // paper over a case.
-          value: (pointsPerMillion(row.seasonPoints, row.currentValue) ?? 0).toFixed(1),
-          unit: `pts/M€ · ${row.currentValue === null ? "—" : formatMoney(row.currentValue)}`,
-        })}
-        // Omitted, not pointed at an empty catalogue: before the first sweep `rows` is
-        // empty and "All 0 by value for money" would send a reader to a catalogue that
-        // says nothing has been swept yet. A board that is empty while the catalogue
-        // has players keeps its link — that is the case this guard leaves alone.
-        link={
-          rows.length === 0
-            ? undefined
-            : { href: "/players?sort=perMillion", label: `All ${rows.length} by value for money` }
-        }
-        ownershipKnown={ownershipKnown}
-      />
+      {rows.length === 0 ? (
+        <p className="mt-6" style={{ color: "var(--board-ink-dim)" }}>
+          Nothing has synced yet. An admin can run the first sync from the Sync page.
+        </p>
+      ) : (
+        <>
+          {/* Teams and gameweek stats are written in two separate, non-transactional
+              passes (`runSync`), so a real gap exists where the teams are known and no
+              round is: the table below still has its rows, and there is no round to show
+              above it. */}
+          {round === null ? null : (
+            <>
+              <SectionHeading>Round {round}{inPlay ? " · in play" : ""}</SectionHeading>
+              <BreakfastLine duty={roundDuty} gameweek={round} names={names} />
+              <RoundTable
+                rows={buildRoundTable(snapshots, teamRefs, round)}
+                gameweek={round}
+                myTeamId={myTeam?.teamId ?? null}
+                duty={roundDuty}
+              />
+              <MoreLink href={`/standings?round=${round}`} label="Every other round" />
+            </>
+          )}
 
-      <OpportunityBoard
-        title="Free and scoring"
-        note="Nobody in the league owns them. Ranked by season points."
-        rows={freeAndScoring(rows)}
-        emptyNote="No unowned player has scored yet."
-        figure={(row) => ({
-          value: String(row.seasonPoints),
-          unit: `pts · ${row.currentValue === null ? "—" : formatMoney(row.currentValue)}`,
-        })}
-        link={
-          rows.length === 0
-            ? undefined
-            : { href: "/players?ownership=free&sort=points", label: "All free agents" }
-        }
-        ownershipKnown={ownershipKnown}
-        unknownOwnershipNote="No squad has been read yet, so nobody can be called free. The next sweep settles it."
-      />
+          <SectionHeading>Standings</SectionHeading>
+          <StandingsTable
+            rows={rows}
+            formByTeam={recentForm(snapshots, teamRefs)}
+            isLive={isLive}
+            myTeamId={myTeam?.teamId ?? null}
+          />
+          <MoreLink href="/standings" label="Standings, round by round" />
+        </>
+      )}
     </section>
   );
 }
