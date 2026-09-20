@@ -16,6 +16,10 @@ import { ShieldIcon } from "@/components/shield-icon";
  * round's last place obliges, and marks whoever a shield is still covering — the mark a
  * reader looking at the bottom of the table needs when the last-placed team is not the
  * one named.
+ *
+ * A provisional duty marks the same two things with one difference: the bringer's mark
+ * becomes a question, because that name follows points that are still climbing, while the
+ * shield stays flat, because it was decided by rounds that have finished.
  */
 export function RoundTable({
   rows,
@@ -98,14 +102,22 @@ export function RoundTable({
                 ) : null}
                 {/* Neither the amber ("you") nor the green (a market gain) — this is a
                     third fact and gets a third colour, plus its own word, so a reader who
-                    cannot tell hues apart still learns it from the text alone. */}
+                    cannot tell hues apart still learns it from the text alone. A round
+                    still being played adds a question mark and nothing else: the hedge is a
+                    character of text, so it survives the colour being lost, and it sits
+                    beside a header already calling the places provisional. The shield below
+                    is NOT hedged — it was settled by the rounds that have finished. */}
                 {brings ? (
                   <span
-                    aria-label="Brings breakfast this round"
+                    aria-label={
+                      duty?.provisional
+                        ? "Provisionally brings breakfast"
+                        : "Brings breakfast this round"
+                    }
                     className="shrink-0 text-[9.5px] uppercase tracking-[0.1em]"
                     style={{ color: "var(--board-alert)" }}
                   >
-                    brings breakfast
+                    brings breakfast{duty?.provisional ? "?" : ""}
                   </span>
                 ) : null}
                 {/* Same shield the catalogue draws for a raid-proof clause, because it is

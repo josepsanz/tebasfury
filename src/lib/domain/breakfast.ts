@@ -8,13 +8,71 @@ import type { Snapshot } from "./standings";
  */
 export const SHIELD_ROUNDS = 3;
 
+export type Shield = { teamId: string; roundsLeft: number };
+
 export type BreakfastDuty = {
   gameweek: number;
-  /** Every team that brings it — more than one only on a tie. */
+  /**
+   * Every team that brings it — more than one only on a tie. Empty ONLY on a provisional
+   * duty for a round nobody has scored in yet; a settled round always names somebody.
+   */
   bringers: string[];
   /** Who a shield protected during this round, and for how many more rounds counting it. */
-  shielded: { teamId: string; roundsLeft: number }[];
+  shielded: Shield[];
+  /**
+   * True when the round is still being played, so `bringers` is where the round stands
+   * rather than where it ended. `shielded` is settled either way — it is decided by
+   * rounds that have finished — which is why only one half of this carries a disclaimer.
+   */
+  provisional: boolean;
 };
+
+/**
+ * Whether a round is still being played, and so has no last place to punish yet. A
+ * provisional row and a missing rank within the round are the same claim by two names:
+ * the live response reports the overall position rather than a rank, and the points are
+ * still climbing. `lastPlaced` refuses the same question in the same words.
+ */
+function inPlay(rows: Snapshot[]): boolean {
+  return rows.some((s) => s.isProvisional || s.roundPosition === null);
+}
+
+/** Who is covered as the round `gameweek` is read, given the round each team last brought it in. */
+function shieldsAt(broughtIn: Map<string, number>, rows: Snapshot[], gameweek: number): Shield[] {
+  return rows.flatMap((row) => {
+    const last = broughtIn.get(row.teamId);
+    if (last === undefined) return [];
+    const roundsLeft = SHIELD_ROUNDS - (gameweek - last) + 1;
+    return roundsLeft > 0 ? [{ teamId: row.teamId, roundsLeft }] : [];
+  });
+}
+
+/**
+ * The walk up the table. Taking the lowest points among the unshielded IS walking up
+ * until somebody is not shielded — the league says it the first way, the code says it
+ * the second. If the walk runs out of table the shields yield: somebody always brings it.
+ *
+ * Ties come from ROUND POINTS, never from `roundPosition`. This inverts the ruling
+ * `buildRoundTable` made for the same data (see its doc comment in `standings.ts`,
+ * measured against production on 2026-09-09): the API hands out distinct sequential
+ * places by a tie-break it does not publish, so where two teams share the bottom score a
+ * position would name one of them and the league would be short a breakfast.
+ *
+ * Sorted, because a tie is read out loud as a sentence and row order from the database is
+ * undefined — the same two names would swap places between loads. `rankAt` breaks its
+ * ties on the manager's name for the same reason.
+ */
+function bringersAmong(rows: Snapshot[], shielded: Shield[]): string[] {
+  const covered = new Set(shielded.map((s) => s.teamId));
+  const candidates = rows.filter((row) => !covered.has(row.teamId));
+  const eligible = candidates.length > 0 ? candidates : rows;
+
+  const lowest = Math.min(...eligible.map((row) => row.points));
+  return eligible
+    .filter((row) => row.points === lowest)
+    .map((row) => row.teamId)
+    .sort();
+}
 
 /**
  * Works out, round by round, who brings breakfast: the team that finished the round
@@ -22,13 +80,10 @@ export type BreakfastDuty = {
  * obligation walks up the table to the next team that is not shielded; if several
  * tie at whatever height the walk stops, they all bring it.
  *
- * Ties come from ROUND POINTS, never from `roundPosition`. This inverts the ruling
- * `buildRoundTable` made for the same data (see its doc comment in `standings.ts`,
- * measured against production on 2026-09-09): the API hands out distinct sequential
- * places by a tie-break it does not publish, so where two teams share the bottom
- * score a position would name one of them and the league would be short a
- * breakfast. `roundPosition` still appears below, for the one thing it is good for —
- * telling a round still being played from one that is settled.
+ * SETTLED ROUNDS ONLY. A round still being played is skipped rather than guessed at, so
+ * `duties.at(-1)` is always a fact — the season sentence on `/standings` reads it that
+ * way. Where the round in play is the question, `projectedDuty` answers it and labels
+ * the answer.
  *
  * A shield is earned IN the round a team brings breakfast and covers the three
  * rounds AFTER it — so a team read at gameweek N+1 has three rounds of cover left,
@@ -48,38 +103,61 @@ export function breakfastDuties(snapshots: Snapshot[]): BreakfastDuty[] {
 
   for (const gameweek of gameweeks) {
     const rows = snapshots.filter((s) => s.gameweek === gameweek);
-    // The same line `lastPlaced` draws: a round with a provisional row, or one the API gave
-    // no rank within, is still being played and has no last place to punish.
-    if (rows.some((s) => s.isProvisional || s.roundPosition === null)) continue;
+    if (inPlay(rows)) continue;
 
-    const shielded = rows.flatMap((row) => {
-      const last = broughtIn.get(row.teamId);
-      if (last === undefined) return [];
-      const roundsLeft = SHIELD_ROUNDS - (gameweek - last) + 1;
-      return roundsLeft > 0 ? [{ teamId: row.teamId, roundsLeft }] : [];
-    });
-
-    const covered = new Set(shielded.map((s) => s.teamId));
-    // Walking up the table until somebody is not shielded IS taking the lowest points
-    // among the unshielded — the league says it the first way, the code says it the second.
-    // And if the walk runs out of table, the shields yield: somebody always brings it.
-    const candidates = rows.filter((row) => !covered.has(row.teamId));
-    const eligible = candidates.length > 0 ? candidates : rows;
-
-    const lowest = Math.min(...eligible.map((row) => row.points));
-    // Sorted, because a tie is read out loud as a sentence and row order from the database
-    // is undefined — the same two names would swap places between loads. `rankAt` breaks its
-    // ties on the manager's name for the same reason.
-    const bringers = eligible
-      .filter((row) => row.points === lowest)
-      .map((row) => row.teamId)
-      .sort();
+    const shielded = shieldsAt(broughtIn, rows, gameweek);
+    const bringers = bringersAmong(rows, shielded);
 
     for (const teamId of bringers) broughtIn.set(teamId, gameweek);
-    duties.push({ gameweek, bringers, shielded });
+    duties.push({ gameweek, bringers, shielded, provisional: false });
   }
 
   return duties;
+}
+
+/**
+ * Where a round still being played is heading, for the two questions the league asks
+ * mid-week: who is covered, and who is currently on the hook.
+ *
+ * The two halves are not equally firm, and the duty says so. `shielded` falls out of the
+ * rounds that have FINISHED — it was settled on Monday and will not move — while
+ * `bringers` reads the points as they stand, on the same `points` field `buildRoundTable`
+ * is drawing on screen, so the sentence and the table can never name different teams.
+ *
+ * Before anybody has scored every team is level, and the tie rule would name every
+ * unshielded team at once — ten of thirteen, which answers nothing. The owner ruled that
+ * case out on 2026-09-20: `bringers` is empty until one team is ahead of another, and the
+ * shields are reported regardless. That empty list is the ONLY way a `bringers` is empty;
+ * a settled round always names somebody.
+ *
+ * Null when the round is settled — `dutyFor` already answers for it, and a projection
+ * beside it would be a second answer — or when nothing has been recorded for it at all.
+ */
+export function projectedDuty(
+  snapshots: Snapshot[],
+  duties: BreakfastDuty[],
+  gameweek: number,
+): BreakfastDuty | null {
+  const rows = snapshots.filter((s) => s.gameweek === gameweek);
+  if (rows.length === 0 || !inPlay(rows)) return null;
+
+  // Only rounds BEFORE this one can have shielded it. Duties arrive oldest first, so the
+  // last write per team wins, which is the round it most recently brought breakfast in.
+  const broughtIn = new Map<string, number>();
+  for (const duty of duties) {
+    if (duty.gameweek >= gameweek) continue;
+    for (const teamId of duty.bringers) broughtIn.set(teamId, duty.gameweek);
+  }
+
+  const shielded = shieldsAt(broughtIn, rows, gameweek);
+  const started = rows.some((row) => row.points !== 0);
+
+  return {
+    gameweek,
+    bringers: started ? bringersAmong(rows, shielded) : [],
+    shielded,
+    provisional: true,
+  };
 }
 
 export function dutyFor(duties: BreakfastDuty[], gameweek: number): BreakfastDuty | null {

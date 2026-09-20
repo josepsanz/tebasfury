@@ -111,6 +111,18 @@ describe("/standings", () => {
     // Chus finished last in the one settled round.
     expect(html).toContain("Chus brings breakfast");
   });
+
+  it("hedges the bringer of the round still being played, but not the shields", async () => {
+    const { default: Page } = await import("./(portal)/standings/page");
+    const html = await render(() => Page({ searchParams: Promise.resolve({ round: "2" }) }));
+    // Round 2 is live. Chus brought breakfast in round 1, so its shield is settled fact and
+    // is stated flatly; Ada is lowest among the unshielded on the points so far, which is a
+    // reading of a round still moving and says so.
+    expect(html).toContain("Chus is shielded for round 2.");
+    expect(html).toContain(
+      "Provisional: as it stands, Ada brings breakfast, and that changes while the round is played.",
+    );
+  });
 });
 
 describe("/market", () => {

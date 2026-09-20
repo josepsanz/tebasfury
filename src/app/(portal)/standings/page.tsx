@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { loadSnapshots } from "@/lib/db/queries";
 import { buildRoundTable, buildTable, recentForm } from "@/lib/domain/standings";
-import { breakfastDuties, dutyFor } from "@/lib/domain/breakfast";
+import { breakfastDuties, dutyFor, projectedDuty } from "@/lib/domain/breakfast";
 import { requireSession } from "@/lib/auth/guards";
 import { StandingsTable } from "@/components/standings-table";
 import { RoundTable } from "@/components/round-table";
@@ -52,7 +52,10 @@ export default async function StandingsPage({
   const seasonBreakfastGameweek = latest?.gameweek ?? (played.length > 0 ? played[played.length - 1] : null);
   // Computed once so the sentence above the round table and the marks on its rows are the
   // same duty said two ways, and never disagree with each other.
-  const roundDuty = round !== null ? dutyFor(duties, round) : null;
+  // As on the home page: a round still being played falls through to the projection. The
+  // season sentence above reads `duties` and so stays settled — `latest` is never a guess.
+  const roundDuty =
+    round !== null ? (dutyFor(duties, round) ?? projectedDuty(snapshots, duties, round)) : null;
 
   return (
     <section className="mx-auto max-w-2xl">

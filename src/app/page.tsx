@@ -2,7 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { loadSnapshots } from "@/lib/db/queries";
 import { buildRoundTable, buildTable, recentForm } from "@/lib/domain/standings";
-import { breakfastDuties, dutyFor } from "@/lib/domain/breakfast";
+import { breakfastDuties, dutyFor, projectedDuty } from "@/lib/domain/breakfast";
 import { formatMoney } from "@/lib/domain/players";
 import { getSession } from "@/lib/auth/guards";
 import { loadMyTeam } from "@/lib/claims";
@@ -117,7 +117,10 @@ export default async function HomePage() {
   const duties = breakfastDuties(snapshots);
   // Computed once so the sentence above the table and the marks on its rows are the same
   // duty said two ways, and never disagree with each other.
-  const roundDuty = round === null ? null : dutyFor(duties, round);
+  // A round still being played has no settled duty, so it falls through to the projection:
+  // its shields, which the finished rounds decided, and the bringer as the points stand.
+  const roundDuty =
+    round === null ? null : (dutyFor(duties, round) ?? projectedDuty(snapshots, duties, round));
   const names = new Map(teamRefs.map((team) => [team.id, team.managerName]));
 
   return (

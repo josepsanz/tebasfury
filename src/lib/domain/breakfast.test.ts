@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { breakfastDuties, dutyFor, SHIELD_ROUNDS } from "./breakfast";
+import { breakfastDuties, dutyFor, projectedDuty, SHIELD_ROUNDS } from "./breakfast";
+import type { BreakfastDuty } from "./breakfast";
 import type { Snapshot } from "./standings";
 
 const snap = (teamId: string, gameweek: number, points: number, over: Partial<Snapshot> = {}): Snapshot => ({
@@ -20,7 +21,9 @@ const round = (gameweek: number, points: Record<string, number>): Snapshot[] =>
 describe("breakfastDuties", () => {
   it("names the team with the fewest points in the round", () => {
     const duties = breakfastDuties(round(1, { a: 40, b: 30, c: 20 }));
-    expect(duties).toEqual([{ gameweek: 1, bringers: ["c"], shielded: [] }]);
+    expect(duties).toEqual([
+      { gameweek: 1, bringers: ["c"], shielded: [], provisional: false },
+    ]);
   });
 
   it("names EVERY team tied at the bottom", () => {
@@ -132,5 +135,74 @@ describe("dutyFor", () => {
 
   it("is null for a round with no duty, which is how a live round reads", () => {
     expect(dutyFor([], 6)).toBeNull();
+  });
+});
+
+describe("projectedDuty", () => {
+  /** A round the API is still reporting live: no rank within the round yet. */
+  const live = (gameweek: number, points: Record<string, number>): Snapshot[] =>
+    round(gameweek, points).map((s) => ({ ...s, roundPosition: null, isProvisional: true }));
+
+  it("carries the shields earned in the settled rounds into the round being played", () => {
+    // `c` brought it in round 1, so rounds 2, 3 and 4 are covered. Read at round 2 — which
+    // nobody has finished — the shield is not provisional at all: it was settled on Monday.
+    const settled = round(1, { a: 40, b: 30, c: 20 });
+    const duties = breakfastDuties(settled);
+    const projected = projectedDuty([...settled, ...live(2, { a: 10, b: 8, c: 4 })], duties, 2);
+    expect(projected?.shielded).toEqual([{ teamId: "c", roundsLeft: SHIELD_ROUNDS }]);
+  });
+
+  it("names the team lowest on the points so far, and says the answer is provisional", () => {
+    const settled = round(1, { a: 40, b: 30, c: 20 });
+    const duties = breakfastDuties(settled);
+    // `c` is shielded, so the duty walks up to `b` — the same walk a settled round makes,
+    // on the points the round table is drawing right now.
+    const projected = projectedDuty([...settled, ...live(2, { a: 10, b: 4, c: 1 })], duties, 2);
+    expect(projected).toMatchObject({ gameweek: 2, bringers: ["b"], provisional: true });
+  });
+
+  it("names every team tied at the bottom so far, because a tie is still a tie", () => {
+    const projected = projectedDuty(live(1, { a: 10, b: 4, c: 4 }), [], 1);
+    expect(projected?.bringers).toEqual(["b", "c"]);
+  });
+
+  it("names nobody while every team is still on zero", () => {
+    // The owner's ruling: before the round kicks off everyone is level, and naming the ten
+    // unshielded teams at once tells a reader nothing. Once anybody has scored the rule runs.
+    const projected = projectedDuty(live(3, { a: 0, b: 0, c: 0 }), [], 3);
+    expect(projected?.bringers).toEqual([]);
+  });
+
+  it("starts naming somebody the moment one team scores", () => {
+    const projected = projectedDuty(live(3, { a: 2, b: 0, c: 0 }), [], 3);
+    expect(projected?.bringers).toEqual(["b", "c"]);
+  });
+
+  it("still reports the shields before anybody has scored", () => {
+    // The half of this that carries no disclaimer has to survive the half that does.
+    const settled = round(1, { a: 40, b: 30, c: 20 });
+    const duties = breakfastDuties(settled);
+    const projected = projectedDuty([...settled, ...live(2, { a: 0, b: 0, c: 0 })], duties, 2);
+    expect(projected?.shielded).toEqual([{ teamId: "c", roundsLeft: SHIELD_ROUNDS }]);
+  });
+
+  it("is null for a round that has already been settled", () => {
+    // That round has a real duty; `dutyFor` answers for it, and a projection alongside it
+    // would be a second answer to a question that already has one.
+    const settled = round(1, { a: 40, b: 30, c: 20 });
+    expect(projectedDuty(settled, breakfastDuties(settled), 1)).toBeNull();
+  });
+
+  it("is null for a round nothing has been recorded for", () => {
+    expect(projectedDuty(round(1, { a: 40, b: 20 }), [], 9)).toBeNull();
+  });
+
+  it("ignores a duty from a later round when working out the shields", () => {
+    // Reading an older live round must not be covered by a shield earned after it.
+    const later: BreakfastDuty[] = [
+      { gameweek: 5, bringers: ["c"], shielded: [], provisional: false },
+    ];
+    const projected = projectedDuty(live(2, { a: 10, b: 4, c: 1 }), later, 2);
+    expect(projected?.shielded).toEqual([]);
   });
 });
