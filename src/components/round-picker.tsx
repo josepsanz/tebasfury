@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { urlWithParam } from "./picker-url";
 
 /**
  * Choosing between the season's table and one round's.
@@ -11,7 +12,9 @@ import { useRouter } from "next/navigation";
  *
  * The choice goes into the URL rather than into state, so a round is linkable — "look at
  * round 3" in the group chat is a link — and the back button works. The season is the
- * empty value because it is the default the page opens on.
+ * empty value because it is the default the page opens on. Whatever else is in the query
+ * survives the change (`urlWithParam`): the Necroporra has a second picker beside this
+ * one, and a round chosen used to wipe the manager being looked at.
  *
  * Newest round first, under the season total. By May the list is 38 entries and the one
  * anybody wants is the one just played; ascending would put it at the bottom, behind a
@@ -40,6 +43,7 @@ export function RoundPicker({
   legend?: string;
 }) {
   const router = useRouter();
+  const current = useSearchParams();
 
   return (
     <label className="flex items-center gap-2 text-[11px]" style={{ color: "var(--board-ink-dim)" }}>
@@ -59,7 +63,7 @@ export function RoundPicker({
           // reading the same page again, not arriving at a new one. On `/teams/[id]` the
           // picker sits below the squad, so the default scroll-to-top throws the reader
           // back up the page and away from the pitch they were looking at.
-          router.push(round === "" ? basePath : `${basePath}?${param}=${round}`, {
+          router.push(urlWithParam(basePath, current, param, round === "" ? null : round), {
             scroll: false,
           });
         }}

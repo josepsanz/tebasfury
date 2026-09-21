@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RoundPicker } from "./round-picker";
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: () => {} }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 describe("RoundPicker", () => {
   it("offers the season total first, then the rounds newest first", () => {

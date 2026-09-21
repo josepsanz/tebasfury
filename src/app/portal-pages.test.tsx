@@ -231,6 +231,28 @@ describe("/necroporra", () => {
     expect(html).not.toContain("You have not named anybody yet.");
   });
 
+  it("reads another manager's boards when one is asked for", async () => {
+    // Chus was named by Ada twice and by Bruno once, and named Ada once. Both boards
+    // follow the same manager, and the headings stop saying "your".
+    const { default: Page } = await import("./(portal)/necroporra/page");
+    const html = await render(() => Page({ searchParams: Promise.resolve({ manager: "t3" }) }));
+    expect(html).toContain("Chus’s haters");
+    expect(html).toContain("Chus’s usual suspects");
+    expect(html).not.toContain("Your haters");
+    const haters = html.slice(html.indexOf("Chus’s haters"), html.indexOf("Chus’s usual suspects"));
+    expect(haters.indexOf("Ada")).toBeLessThan(haters.indexOf("Bruno"));
+  });
+
+  it("falls back to the reader's own boards when the manager asked for is not a team", async () => {
+    // A hand-edited URL is not an exceptional condition worth a 404 — the same ruling the
+    // round picker made.
+    const { default: Page } = await import("./(portal)/necroporra/page");
+    const html = await render(() =>
+      Page({ searchParams: Promise.resolve({ manager: "nobody" }) }),
+    );
+    expect(html).toContain("Your haters");
+  });
+
   it("states what a decided round costs, and what it earns", async () => {
     // Round 1: Ada won it and Chus finished last. Bruno and Chus had both named Ada for
     // the bottom, which is the apology; Ada had named Chus, which together with Ada's own

@@ -94,17 +94,21 @@ export function MostHated({
 }
 
 /**
- * Who has picked the reader, most often first.
+ * Who has picked one manager, most often first.
  *
  * Only the people who actually have. An empty list is a result in its own right — the
- * league has never fancied you for last — and it says so rather than drawing a table
+ * league has never fancied them for last — and it says so rather than drawing a table
  * with nothing in it.
+ *
+ * `subject` is null when the board is the reader's own, and then the sentence says "you".
+ * A page that told Ada "Nobody has named Ada yet" would be talking about her behind her
+ * back; the same page read about somebody else must not say "you" at all.
  */
-export function Haters({ rows }: { rows: VoteTally[] }) {
+export function Haters({ rows, subject = null }: { rows: VoteTally[]; subject?: string | null }) {
   if (rows.length === 0) {
     return (
       <p className="mt-3 text-[12.5px]" style={{ color: "var(--board-ink-dim)" }}>
-        Nobody has named you yet.
+        Nobody has named {subject ?? "you"} yet.
       </p>
     );
   }
@@ -119,17 +123,17 @@ export function Haters({ rows }: { rows: VoteTally[] }) {
 }
 
 /**
- * Who the reader keeps picking, most often first.
+ * Who one manager keeps picking, most often first.
  *
  * `Haters` read from the other end, and the same rule about emptiness: a manager who has
  * never named anybody is told so in a sentence, because a table with no rows under a
- * heading reads as something that failed to load.
+ * heading reads as something that failed to load. `subject` works as it does above.
  */
-export function Hated({ rows }: { rows: VoteTally[] }) {
+export function Hated({ rows, subject = null }: { rows: VoteTally[]; subject?: string | null }) {
   if (rows.length === 0) {
     return (
       <p className="mt-3 text-[12.5px]" style={{ color: "var(--board-ink-dim)" }}>
-        You have not named anybody yet.
+        {subject === null ? "You have" : `${subject} has`} not named anybody yet.
       </p>
     );
   }

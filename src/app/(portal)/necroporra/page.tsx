@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/page-header";
 import { NecroporraBallot, type BallotTeam } from "@/components/necroporra-ballot";
 import { NecroporraBallots } from "@/components/necroporra-ballots";
 import { Hated, Haters, MostHated } from "@/components/necroporra-hate";
+import { TeamPicker } from "@/components/team-picker";
 import { NecroporraConsequences } from "@/components/necroporra-consequences";
 import { joinNames } from "@/lib/domain/prose";
 import { RoundPicker } from "@/components/round-picker";
@@ -118,9 +119,11 @@ export default async function NecroporraPage({
     .filter((round) => !isOpen(round, now))
     .sort((a, b) => b.gameweek - a.gameweek);
 
+  const params = await searchParams;
+
   // A round that is not a number, or one nothing was opened for, falls back to the most
   // recent — a hand-edited URL is not an exceptional condition worth a 404.
-  const asked = (await searchParams).round;
+  const asked = params.round;
   const wanted = Number(Array.isArray(asked) ? asked[0] : asked);
   const looking =
     closed.find((round) => round.gameweek === wanted) ?? closed[0] ?? null;
@@ -129,6 +132,20 @@ export default async function NecroporraPage({
   // the two cannot name different people.
   const verdict =
     looking === null ? null : roundConsequences(ballots, looking.gameweek, looking);
+
+  // Whose two personal boards are on screen. The reader's own unless they asked for
+  // somebody else's, and theirs again if the id asked for is not a team — same ruling as
+  // the round above, for the same reason.
+  const askedManager = params.manager;
+  const manager = Array.isArray(askedManager) ? askedManager[0] : askedManager;
+  const subjectTeamId =
+    teams.find((team) => team.id === manager)?.id ?? myTeam?.teamId ?? null;
+  // Null while the boards are the reader's own, which is what makes the copy say "you".
+  const subject =
+    subjectTeamId === null || subjectTeamId === myTeam?.teamId
+      ? null
+      : teamName.get(subjectTeamId) ?? subjectTeamId;
+  const whose = (what: string) => (subject === null ? `Your ${what}` : `${subject}’s ${what}`);
 
   return (
     <section className="mx-auto max-w-2xl">
@@ -240,39 +257,51 @@ export default async function NecroporraPage({
         viewerTeamId={myTeam?.teamId ?? null}
       />
 
-      <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
-        Your haters
-      </h2>
-      {myTeam === null ? (
+      {/* The picker sits on the heading of the first of the two boards it governs, the way
+          the page header carries its own count: both sections name the same manager
+          underneath, so a second control — or a caption explaining the first — would be
+          saying it a third time. */}
+      <div className={`${HEADING} flex items-baseline justify-between gap-3`}>
+        <h2 style={{ color: "var(--board-ink-dim)" }}>{whose("haters")}</h2>
+        {teams.length === 0 ? null : (
+          <TeamPicker
+            teams={teams.map((team) => ({ id: team.id, name: team.managerName }))}
+            selected={subjectTeamId}
+            basePath="/necroporra"
+          />
+        )}
+      </div>
+      {subjectTeamId === null ? (
         <p className="mt-3 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
-          This one is about your own team.{" "}
+          This one is about one manager&rsquo;s team.{" "}
           <Link href="/claim" className="underline underline-offset-4">
             Claim yours
           </Link>{" "}
-          to see who has been naming you.
+          to open on your own, or pick a manager above.
         </p>
       ) : (
-        <Haters rows={haters(ballots, myTeam.teamId, teamName)} />
+        <Haters rows={haters(ballots, subjectTeamId, teamName)} subject={subject} />
       )}
 
       <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
-        Your usual suspects
+        {whose("usual suspects")}
       </h2>
-      {myTeam === null ? (
+      {subjectTeamId === null ? (
         <p className="mt-3 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
-          This one is about your own ballots.{" "}
+          This one is about one manager&rsquo;s ballots.{" "}
           <Link href="/claim" className="underline underline-offset-4">
             Claim your team
           </Link>{" "}
-          to see who you keep naming.
+          to open on your own, or pick a manager above.
         </p>
       ) : (
         <>
           <p className="mt-1 text-[11.5px]" style={{ color: "var(--board-ink-dim)" }}>
-            Every vote you have cast this season. The list above is who names you; this
-            is who you name.
+            {subject === null
+              ? "Every vote you have cast this season. The list above is who names you; this is who you name."
+              : `Every vote ${subject} has cast this season. The list above is who names ${subject}; this is who ${subject} names.`}
           </p>
-          <Hated rows={hated(ballots, myTeam.teamId, teamName)} />
+          <Hated rows={hated(ballots, subjectTeamId, teamName)} subject={subject} />
         </>
       )}
 

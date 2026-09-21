@@ -73,3 +73,26 @@ describe("Hated", () => {
     expect(html).not.toContain("<ol");
   });
 });
+
+describe("the boards read for somebody other than the reader", () => {
+  it("says nobody has named that manager, by name", () => {
+    expect(renderToStaticMarkup(<Haters rows={[]} subject="Chus" />)).toContain(
+      "Nobody has named Chus yet.",
+    );
+  });
+
+  it("says that manager has named nobody, by name", () => {
+    expect(renderToStaticMarkup(<Hated rows={[]} subject="Chus" />)).toContain(
+      "Chus has not named anybody yet.",
+    );
+  });
+
+  it("still addresses the reader directly when the boards are their own", () => {
+    // "you" is the whole point of these two boards when they are yours. A page that said
+    // "Ada has not named anybody yet" to Ada would be talking about her behind her back.
+    expect(renderToStaticMarkup(<Haters rows={[]} />)).toContain("Nobody has named you yet.");
+    expect(renderToStaticMarkup(<Hated rows={[]} />)).toContain(
+      "You have not named anybody yet.",
+    );
+  });
+});
