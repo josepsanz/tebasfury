@@ -11,6 +11,7 @@ import {
   roundBallots,
   roundConsequences,
   roundLeaders,
+  hated,
   haters,
   mostHated,
   seasonTable,
@@ -19,7 +20,7 @@ import { decideAccess, requireSession } from "@/lib/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { NecroporraBallot, type BallotTeam } from "@/components/necroporra-ballot";
 import { NecroporraBallots } from "@/components/necroporra-ballots";
-import { Haters, MostHated } from "@/components/necroporra-hate";
+import { Hated, Haters, MostHated } from "@/components/necroporra-hate";
 import { NecroporraConsequences } from "@/components/necroporra-consequences";
 import { joinNames } from "@/lib/domain/prose";
 import { RoundPicker } from "@/components/round-picker";
@@ -252,6 +253,27 @@ export default async function NecroporraPage({
         </p>
       ) : (
         <Haters rows={haters(ballots, myTeam.teamId, teamName)} />
+      )}
+
+      <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
+        Your usual suspects
+      </h2>
+      {myTeam === null ? (
+        <p className="mt-3 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
+          This one is about your own ballots.{" "}
+          <Link href="/claim" className="underline underline-offset-4">
+            Claim your team
+          </Link>{" "}
+          to see who you keep naming.
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 text-[11.5px]" style={{ color: "var(--board-ink-dim)" }}>
+            Every vote you have cast this season. The list above is who names you; this
+            is who you name.
+          </p>
+          <Hated rows={hated(ballots, myTeam.teamId, teamName)} />
+        </>
       )}
 
       {looking === null ? null : (

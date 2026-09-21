@@ -3,6 +3,7 @@ import {
   MAX_VOTES,
   canCastFor,
   roundLeaders,
+  hated,
   haters,
   isOpen,
   mostHated,
@@ -482,6 +483,54 @@ describe("haters", () => {
 
   it("is empty for a team nobody has named", () => {
     expect(haters([at(1, "a", "b")], "c", names)).toEqual([]);
+  });
+});
+
+describe("hated", () => {
+  const names = new Map([
+    ["a", "Ada"],
+    ["b", "Bruno"],
+    ["c", "Chus"],
+  ]);
+
+  const at = (gameweek: number, voter: string, first: string, second: string | null = null) => ({
+    ...ballot(voter, first, second),
+    gameweek,
+  });
+
+  it("names who you have picked, most often first", () => {
+    const rows = hated([at(1, "a", "c"), at(2, "a", "c"), at(3, "a", "b")], "a", names);
+    expect(rows.map((r) => [r.name, r.votes])).toEqual([
+      ["Chus", 2],
+      ["Bruno", 1],
+    ]);
+  });
+
+  it("counts both picks on one ballot, because both are votes you cast", () => {
+    const rows = hated([at(1, "a", "b", "c")], "a", names);
+    expect(rows.map((r) => [r.name, r.votes])).toEqual([
+      ["Bruno", 1],
+      ["Chus", 1],
+    ]);
+  });
+
+  it("ignores everybody else's ballots", () => {
+    expect(hated([at(1, "b", "c"), at(1, "c", "b")], "a", names)).toEqual([]);
+  });
+
+  it("leaves out the teams you have never named", () => {
+    // The league board prints its noughts; this one must not. It answers "who have I got
+    // it in for", and a row saying you never named somebody is not an answer to that.
+    expect(hated([at(1, "a", "c")], "a", names).map((r) => r.name)).toEqual(["Chus"]);
+  });
+
+  it("breaks a tie on the name, so the order cannot wobble between renders", () => {
+    const rows = hated([at(1, "a", "c", "b")], "a", names);
+    expect(rows.map((r) => r.name)).toEqual(["Bruno", "Chus"]);
+  });
+
+  it("is empty for a manager who has not voted", () => {
+    expect(hated([at(1, "b", "c")], "a", names)).toEqual([]);
   });
 });
 

@@ -220,6 +220,17 @@ describe("/necroporra", () => {
     expect(html).not.toContain("Nobody has named you yet.");
   });
 
+  it("lists the teams the reader keeps naming, most often first", async () => {
+    // Ada named Chus in the settled round and Chus and Bruno in the live one, so Chus is
+    // on two and Bruno on one — and the section exists whether or not anybody agrees.
+    const { default: Page } = await import("./(portal)/necroporra/page");
+    const html = await render(() => Page({ searchParams: none }));
+    const section = html.slice(html.indexOf("Your usual suspects"));
+    expect(section).toContain("Chus");
+    expect(section.indexOf("Chus")).toBeLessThan(section.indexOf("Bruno"));
+    expect(html).not.toContain("You have not named anybody yet.");
+  });
+
   it("states what a decided round costs, and what it earns", async () => {
     // Round 1: Ada won it and Chus finished last. Bruno and Chus had both named Ada for
     // the bottom, which is the apology; Ada had named Chus, which together with Ada's own

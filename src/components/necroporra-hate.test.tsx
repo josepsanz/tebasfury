@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { VoteTally } from "@/lib/domain/necroporra";
-import { Haters, MostHated } from "./necroporra-hate";
+import { Hated, Haters, MostHated } from "./necroporra-hate";
 
 const tally = (name: string, votes: number): VoteTally => ({ teamId: name.toLowerCase(), name, votes });
 
@@ -54,5 +54,22 @@ describe("Haters", () => {
 
   it("says nobody has named you, which is a result and not an empty table", () => {
     expect(renderToStaticMarkup(<Haters rows={[]} />)).toContain("Nobody has named you yet.");
+  });
+});
+
+describe("Hated", () => {
+  it("lists the teams the reader names, most often first", () => {
+    const html = renderToStaticMarkup(
+      <Hated rows={[tally("Chus", 4), tally("Bruno", 1)]} />,
+    );
+    expect(html).toContain("Chus");
+    expect(html).toContain("Bruno");
+    expect(html.indexOf("Chus")).toBeLessThan(html.indexOf("Bruno"));
+  });
+
+  it("says the reader has named nobody rather than drawing an empty table", () => {
+    const html = renderToStaticMarkup(<Hated rows={[]} />);
+    expect(html).toContain("You have not named anybody yet.");
+    expect(html).not.toContain("<ol");
   });
 });

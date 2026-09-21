@@ -117,3 +117,28 @@ export function Haters({ rows }: { rows: VoteTally[] }) {
     </ol>
   );
 }
+
+/**
+ * Who the reader keeps picking, most often first.
+ *
+ * `Haters` read from the other end, and the same rule about emptiness: a manager who has
+ * never named anybody is told so in a sentence, because a table with no rows under a
+ * heading reads as something that failed to load.
+ */
+export function Hated({ rows }: { rows: VoteTally[] }) {
+  if (rows.length === 0) {
+    return (
+      <p className="mt-3 text-[12.5px]" style={{ color: "var(--board-ink-dim)" }}>
+        You have not named anybody yet.
+      </p>
+    );
+  }
+
+  return (
+    <ol className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
+      {rows.map((row, i) => (
+        <Row key={row.teamId} rank={i + 1} row={row} mine={false} />
+      ))}
+    </ol>
+  );
+}

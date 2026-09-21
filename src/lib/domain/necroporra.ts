@@ -303,6 +303,41 @@ export function haters(
 }
 
 /**
+ * Who one manager has picked, most often first.
+ *
+ * `haters` turned around: not who has named you, but who you keep naming. It is asked on
+ * behalf of the reader about their own ballots, which is why it takes one voter's id.
+ *
+ * **Only the teams they have actually named appear**, for the reason `haters` shows only
+ * real haters: this answers "who have I got it in for", and a row reporting that you have
+ * never named somebody is the absence of an answer, printed twelve times.
+ *
+ * Both picks on a ballot count. Two picks a round is two votes cast, and a week where you
+ * named the same rival twice is not a week you were half-hearted about them.
+ */
+export function hated(
+  ballots: Ballot[],
+  voterTeamId: string,
+  names: Map<string, string>,
+): VoteTally[] {
+  const votes = new Map<string, number>();
+  for (const ballot of ballots) {
+    if (ballot.teamId !== voterTeamId) continue;
+    for (const teamId of picksOf(ballot)) {
+      votes.set(teamId, (votes.get(teamId) ?? 0) + 1);
+    }
+  }
+
+  return [...votes.entries()]
+    .map(([teamId, count]): VoteTally => ({
+      teamId,
+      name: names.get(teamId) ?? teamId,
+      votes: count,
+    }))
+    .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name));
+}
+
+/**
  * What a decided round costs the people who called it wrongly, and what it earns the one
  * who called it right.
  *
