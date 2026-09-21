@@ -35,6 +35,15 @@ describe("NavLinks", () => {
     expect(html.indexOf("Fair play")).toBeLessThan(html.indexOf("Necroporra"));
   });
 
+  it("offers the constitution, last of the pages every manager shares", () => {
+    const html = renderToStaticMarkup(<NavLinks canTriggerSync={false} myTeamId={null} />);
+    expect(html).toContain('href="/constitution"');
+    expect(html).toContain("Constitution");
+    // Last, because it is the page consulted least and cited most: the law does not
+    // change from week to week, and everything to its left does.
+    expect(html.indexOf("Necroporra")).toBeLessThan(html.indexOf("Constitution"));
+  });
+
   it("adds Sync only for whoever can trigger one", () => {
     expect(renderToStaticMarkup(<NavLinks canTriggerSync myTeamId={null} />)).toContain("Sync");
   });

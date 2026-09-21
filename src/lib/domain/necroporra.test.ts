@@ -514,31 +514,78 @@ describe("roundConsequences", () => {
     );
   });
 
-  it("sends a hate message to the apologist who also finished last", () => {
-    // Both conditions at once: they called the winner AND they came bottom. The winner
-    // is who sends it.
-    const result = roundConsequences([at(4, "d", "a")], 4, ends(["a"], ["d"]));
-    expect(result.hateTargets).toEqual(["d"]);
+  it("earns the manager who won the round and called the bottom the right to denigrate", () => {
+    // Both halves of the Constitution's fourth article at once: `a` finished the round
+    // first AND named `d`, who finished it last.
+    const result = roundConsequences([at(4, "a", "d")], 4, ends(["a"], ["d"]));
+    expect(result.denigrations).toEqual([{ senderTeamId: "a", targetTeamIds: ["d"] }]);
     expect(result.winnerTeamIds).toEqual(["a"]);
   });
 
-  it("sends no hate message to an apologist who did not finish last", () => {
-    expect(roundConsequences([at(4, "b", "a")], 4, ends(["a"], ["d"])).hateTargets).toEqual([]);
+  it("earns nothing for calling the bottom without winning the round", () => {
+    // Calling it right is already worth a point in the poll. The right to use it is the
+    // winner's alone.
+    expect(roundConsequences([at(4, "b", "d")], 4, ends(["a"], ["d"])).denigrations).toEqual([]);
   });
 
-  it("sends no hate message to whoever finished last without naming the winner", () => {
-    // Finishing last is its own punishment — it brings breakfast. The hate message is
-    // for getting the poll exactly backwards on the week you were the answer.
-    const result = roundConsequences([at(4, "d", "c")], 4, ends(["a"], ["d"]));
-    expect(result.apologists).toEqual([]);
-    expect(result.hateTargets).toEqual([]);
+  it("earns nothing for winning the round having called the bottom wrongly", () => {
+    expect(roundConsequences([at(4, "a", "c")], 4, ends(["a"], ["d"])).denigrations).toEqual([]);
+  });
+
+  it("earns nothing for a winner who did not vote at all", () => {
+    expect(roundConsequences([at(4, "b", "d")], 4, ends(["a"], ["d"])).denigrations).toEqual([]);
+  });
+
+  it("hands each winner only the team they named themselves", () => {
+    // Two co-leaders, two teams level at the bottom, and each winner named one of them.
+    // Pairing sender to target is what stops a winner denigrating a team they never
+    // called — and it is also why a winner can never denigrate themselves: nobody may
+    // vote for their own team.
+    const result = roundConsequences(
+      [at(4, "a", "d"), at(4, "e", "f")],
+      4,
+      ends(["a", "e"], ["d", "f"]),
+    );
+    expect(result.denigrations).toEqual([
+      { senderTeamId: "a", targetTeamIds: ["d"] },
+      { senderTeamId: "e", targetTeamIds: ["f"] },
+    ]);
+  });
+
+  it("gives a winner who named both of two teams level at the bottom both of them", () => {
+    const result = roundConsequences([at(4, "a", "f", "d")], 4, ends(["a"], ["d", "f"]));
+    expect(result.denigrations).toEqual([{ senderTeamId: "a", targetTeamIds: ["d", "f"] }]);
+  });
+
+  it("sorts the senders, because the sentences are read out in order", () => {
+    const result = roundConsequences(
+      [at(4, "e", "d"), at(4, "a", "d")],
+      4,
+      ends(["a", "e"], ["d"]),
+    );
+    expect(result.denigrations.map((one) => one.senderTeamId)).toEqual(["a", "e"]);
+  });
+
+  it("counts the bottom named in either slot", () => {
+    expect(
+      roundConsequences([at(4, "a", "c", "d")], 4, ends(["a"], ["d"])).denigrations,
+    ).toEqual([{ senderTeamId: "a", targetTeamIds: ["d"] }]);
+  });
+
+  it("charges an apology and earns a denigration from one ballot, when both apply", () => {
+    // Rare but reachable: with two teams level at the top, a winner can name the other
+    // winner with one pick and the bottom with the other. The two verdicts are
+    // independent, so the ballot collects both.
+    const result = roundConsequences([at(4, "a", "e", "d")], 4, ends(["a", "e"], ["d"]));
+    expect(result.apologists).toEqual(["a"]);
+    expect(result.denigrations).toEqual([{ senderTeamId: "a", targetTeamIds: ["d"] }]);
   });
 
   it("finds nobody in a round that is not decided", () => {
     // "Not yet" is not "nobody owed anything" — but neither is it a verdict, so the fold
     // returns an empty one rather than guessing at either.
     const result = roundConsequences([at(4, "b", "a")], 4, ends([], []));
-    expect(result).toEqual({ apologists: [], hateTargets: [], winnerTeamIds: [] });
+    expect(result).toEqual({ apologists: [], denigrations: [], winnerTeamIds: [] });
   });
 
   it("charges an apology for naming either of two co-leaders", () => {

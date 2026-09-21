@@ -38,7 +38,8 @@ export function NecroporraBallots({
    */
   castFor: ((row: RoundBallot) => ReactNode) | null;
   /**
-   * What this round costs whoever called it wrongly, or null while it has no verdict.
+   * What this round costs whoever called it wrongly and earns whoever called it right,
+   * or null while it has no verdict.
    *
    * Marks go on the rows as well as into the sentence above the list for the reason the
    * breakfast slice settled: a sentence names who, and a reader scanning thirteen rows
@@ -55,18 +56,39 @@ export function NecroporraBallots({
   }
 
   /**
-   * The one mark a row carries, if any. A hate message implies the apology that earned
-   * it, so the two are one mark at two weights rather than two marks stacked on one row.
+   * What a round's verdict says about one row, in words.
+   *
+   * Two independent facts now, not one at two weights: the apology is a debt and the
+   * denigration is a right, and one ballot can collect both — with two teams level at the
+   * top, a winner can name the other winner with one pick and the bottom with the other.
+   * So the marks are gathered rather than chosen between, and joined in the order the
+   * Constitution puts the articles in.
    */
-  const mark = (teamId: string): string | null => {
+  const marksFor = (teamId: string): { words: string; earned: boolean } | null => {
     if (!consequences) return null;
-    if (consequences.hateTargets.includes(teamId)) return "apology + hate message";
-    return consequences.apologists.includes(teamId) ? "owes an apology" : null;
+    const { apologists, denigrations } = consequences;
+    const sends = denigrations.some((one) => one.senderTeamId === teamId);
+    const receives = denigrations.some((one) => one.targetTeamIds.includes(teamId));
+
+    const words = [
+      apologists.includes(teamId) ? "owes an apology" : null,
+      sends ? "may denigrate" : null,
+      receives ? "denigrated" : null,
+    ].filter((word) => word !== null);
+
+    if (words.length === 0) return null;
+    // Green only for a row that owes nothing and has earned something. A row carrying both
+    // is a row in trouble, and the debt is the louder half.
+    return { words: words.join(" + "), earned: sends && !apologists.includes(teamId) && !receives };
   };
 
   return (
     <ul className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
       {rows.map((row) => {
+        // Worked out once for the row and read by the span below: three calls for one
+        // answer would be three chances for the mark and its colour to disagree.
+        const marks = marksFor(row.teamId);
+
         // Drawn once and placed twice: on its own for a reader who may only look, and
         // inside the disclosure's summary for one who may fill the row in. Keeping it in
         // one expression is what stops the two drifting apart.
@@ -84,12 +106,12 @@ export function NecroporraBallots({
                 {/* Same placement as the gear above, for the same reason. Words rather
                     than a shape: these two marks say what they mean, and the colour only
                     repeats it. */}
-                {mark(row.teamId) === null ? null : (
+                {marks === null ? null : (
                   <span
                     className="shrink-0 text-[10.5px]"
-                    style={{ color: "var(--board-alert)" }}
+                    style={{ color: marks.earned ? "var(--board-gain)" : "var(--board-alert)" }}
                   >
-                    {mark(row.teamId)}
+                    {marks.words}
                   </span>
                 )}
                 {castFor === null ? null : (

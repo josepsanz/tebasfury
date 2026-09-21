@@ -90,6 +90,11 @@ admin edits on `/admin/sync`:
   days, because three of the four so far missed the rule by minutes.
 - **`/necroporra`** — the weekly poll for the two teams you think finish the round last,
   with every ballot visible, past rounds browsable and a season table of who guesses best.
+- **`/constitution`** — the Constitution of the Fantasy Comité: the five articles the
+  league agreed among themselves, from the 15 € entry and its 65/25/10 split to the
+  breakfast shield, the apology, the denigration and the five-day holding rule. Each
+  article links to the page that applies it, and the stake is shown as the money it comes
+  to rather than as a percentage.
 - **`/admin/sync`** — the LaLiga credential, both sync buttons, the run history, and the
   list of who may sign in and who has claimed a team.
 

@@ -7,11 +7,12 @@ function nameFor(names: Map<string, string>, teamId: string): string {
 }
 
 /**
- * What a decided round costs, said out loud.
+ * What a decided round costs, and what it earns, said out loud.
  *
- * The rules are printed whether or not anybody owes anything this week: they are two
- * league rules that live nowhere else, and a rule only stated on the weeks it bites is a
- * rule somebody will dispute on the week it does.
+ * The rules are printed whether or not anything is owed this week. They are articles 3
+ * and 4 of the league's Constitution, and although `/constitution` now writes them out
+ * in full, a rule only stated on the weeks it bites is a rule somebody will dispute on
+ * the week it does — so they stay here, beside the ballots they judge.
  *
  * The verdict itself waits for a decided round. "Nobody named the winner" is a result
  * worth printing — a week the whole league read the table sensibly — but it is only true
@@ -24,7 +25,7 @@ export function NecroporraConsequences({
   consequences: RoundConsequences;
   names: Map<string, string>;
 }) {
-  const { apologists, hateTargets, winnerTeamIds } = consequences;
+  const { apologists, denigrations, winnerTeamIds } = consequences;
   const owing = apologists.map((teamId) => nameFor(names, teamId));
   const winners = winnerTeamIds.map((teamId) => nameFor(names, teamId));
 
@@ -51,20 +52,25 @@ export function NecroporraConsequences({
             winners.length > 1 ? "one of them" : "them"
           } for last, and ${owing.length === 1 ? "owes" : "owe"} the league an apology.`;
 
-  const hated = hateTargets.map((teamId) => nameFor(names, teamId));
-  const hate =
-    won === null || hated.length === 0
-      ? null
-      : `${joinNames(hated)} finished last as well, so ${joinNames(winners)} ${
-          winners.length === 1 ? "sends" : "send"
-        } ${hated.length === 1 ? "them" : "them all"} a hate message.`;
+  // One sentence per manager who earned the right, each carrying both halves of the
+  // article. They are screenshotted one at a time, so a sentence that leaned on the
+  // verdict above it — "and Ada may denigrate them" — would arrive in the chat naming
+  // nobody. A co-leader who called the bottom while the other did not gets a sentence
+  // while the other gets none, which is the rule working rather than an omission.
+  const earned = denigrations.map((one) => {
+    const sender = nameFor(names, one.senderTeamId);
+    const targets = one.targetTeamIds.map((teamId) => nameFor(names, teamId));
+    return `${sender} won the round and named ${joinNames(targets)} for last, so ${sender} may send ${
+      targets.length === 1 ? targets[0] : "them all"
+    } a denigrating message.`;
+  });
 
   return (
     <div className="mt-3">
       <p className="text-[11.5px]" style={{ color: "var(--board-ink-dim)" }}>
         Name a team that wins the round and you owe the league an apology — teams level
-        at the top all count. Do it in a round you finished last, and the winner sends you
-        a hate message.
+        at the top all count. Call the bottom right and win the round yourself, and you
+        may send that team a denigrating message.
       </p>
 
       {verdict === null ? null : (
@@ -76,11 +82,12 @@ export function NecroporraConsequences({
         </p>
       )}
 
-      {hate === null ? null : (
-        <p className="mt-1 text-[12.5px]" style={{ color: "var(--board-alert)" }}>
-          {hate}
+      {earned.map((sentence) => (
+        <p key={sentence} className="mt-1 text-[12.5px]" style={{ color: "var(--board-gain)" }}>
+          {sentence}
         </p>
-      )}
+      ))}
+
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { RoundBallot } from "@/lib/domain/necroporra";
+import type { RoundBallot, RoundConsequences } from "@/lib/domain/necroporra";
 import { NecroporraBallots } from "./necroporra-ballots";
 
 const names = new Map([["t1", "LILTEAM"], ["t2", "Villaone"]]);
@@ -8,7 +8,10 @@ const render = (
   rows: RoundBallot[],
   resolved = false,
   viewerTeamId: string | null = null,
-  over: { castFor?: ((row: RoundBallot) => React.ReactNode) | null } = {},
+  over: {
+    castFor?: ((row: RoundBallot) => React.ReactNode) | null;
+    consequences?: RoundConsequences;
+  } = {},
 ) =>
   renderToStaticMarkup(
     <NecroporraBallots
@@ -17,6 +20,7 @@ const render = (
       viewerTeamId={viewerTeamId}
       resolved={resolved}
       castFor={over.castFor ?? null}
+      consequences={over.consequences ?? null}
     />,
   );
 
@@ -119,5 +123,44 @@ describe("NecroporraBallots", () => {
   it("hands the control the row it belongs to", () => {
     const castFor = (r: RoundBallot) => <p>form for {r.teamId}</p>;
     expect(render([row({ teamId: "t7" })], false, null, { castFor })).toContain("form for t7");
+  });
+
+  it("marks the manager who owes an apology", () => {
+    const html = render([row({ teamId: "t9" })], true, null, {
+      consequences: { apologists: ["t9"], denigrations: [], winnerTeamIds: ["t1"] },
+    });
+    expect(html).toContain("owes an apology");
+  });
+
+  it("marks the right earned and the team it is earned over, differently", () => {
+    // A reader scanning thirteen rows for their own name must be able to tell the row
+    // that won something from the row that is about to be shouted at.
+    const html = render([row({ teamId: "t9", name: "Ada" }), row({ teamId: "t8", name: "Bruno" })], true, null, {
+      consequences: {
+        apologists: [],
+        denigrations: [{ senderTeamId: "t9", targetTeamIds: ["t8"] }],
+        winnerTeamIds: ["t9"],
+      },
+    });
+    expect(html).toContain("may denigrate");
+    expect(html).toContain("denigrated");
+    expect(html).toContain("var(--board-gain)");
+  });
+
+  it("stacks both marks on a manager who owes an apology and is denigrated for it", () => {
+    const html = render([row({ teamId: "t8" })], true, null, {
+      consequences: {
+        apologists: ["t8"],
+        denigrations: [{ senderTeamId: "t9", targetTeamIds: ["t8"] }],
+        winnerTeamIds: ["t9"],
+      },
+    });
+    expect(html).toContain("owes an apology + denigrated");
+  });
+
+  it("marks nothing at all in a round with no verdict", () => {
+    const html = render([row()], true);
+    expect(html).not.toContain("apology");
+    expect(html).not.toContain("denigrat");
   });
 });

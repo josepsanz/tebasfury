@@ -303,25 +303,40 @@ export function haters(
 }
 
 /**
- * What a decided round costs the people who called it wrongly.
+ * What a decided round costs the people who called it wrongly, and what it earns the one
+ * who called it right.
  *
- * Two rules the league plays by, neither of which the poll's points express:
+ * Two articles of the league's Constitution, neither of which the poll's points express
+ * — see `domain/constitution.ts`, where they are written out:
  *
  * - **Name the team that WINS the round and you owe the league an apology.** The poll
  *   asks who finishes last; picking the eventual winner is as wrong as an answer gets.
- * - **An apologist who also finished last that round gets a hate message from the
- *   winner.** Both conditions at once, which is what makes it rare and worth printing.
+ * - **Name a team that finishes LAST and win the round yourself, and you have earned the
+ *   right to send that team a denigrating message.** Both halves, which is what makes it
+ *   rare: calling the bottom right is worth a point to anybody, but only the round's
+ *   winner may use it.
  *
- * Finishing last on its own earns nothing here — it already brings breakfast. The hate
- * message is for getting the question exactly backwards in the week you were the answer.
+ * Finishing last on its own earns nothing here — it already brings breakfast.
  */
+export type Denigration = {
+  /** The winner who called it: whose right this is. */
+  senderTeamId: string;
+  /**
+   * The teams they may send it to: the ones they NAMED that finished last, never every
+   * team at the bottom. Pairing the two is what keeps a winner from denigrating a team
+   * they never called when two are level — and it settles the degenerate round where
+   * every team is level and the first are also the last, because nobody may vote for
+   * their own team and so nobody can end up denigrating themselves.
+   */
+  targetTeamIds: string[];
+};
+
 export type RoundConsequences = {
   /** Voters who named the round's winner, sorted so the sentence cannot reorder itself. */
   apologists: string[];
-  /** Apologists who also finished the round last. Several, since `roundLast` names every
-   *  team level at the bottom. */
-  hateTargets: string[];
-  /** Who sends it — the round's leaders, all of them on a tie. Empty while undecided. */
+  /** Who has earned the right to denigrate, and over whom. Sorted by sender. */
+  denigrations: Denigration[];
+  /** The round's leaders, all of them on a tie. Empty while undecided. */
   winnerTeamIds: string[];
 };
 
@@ -332,24 +347,29 @@ export function roundConsequences(
 ): RoundConsequences {
   // An undecided round returns an empty verdict rather than an accusation. `roundLeaders`
   // and `roundLast` share a guard, so in practice these are empty together.
-  if (firstTeamIds.length === 0) return { apologists: [], hateTargets: [], winnerTeamIds: [] };
+  if (firstTeamIds.length === 0) return { apologists: [], denigrations: [], winnerTeamIds: [] };
+
+  const thisRound = ballots.filter((ballot) => ballot.gameweek === gameweek);
 
   // Naming ANY of the co-leaders is naming a winner — the owner's ruling, which is why
   // this is an intersection and not an equality.
-  const apologists = ballots
-    .filter(
-      (ballot) =>
-        ballot.gameweek === gameweek &&
-        picksOf(ballot).some((pick) => firstTeamIds.includes(pick)),
-    )
+  const apologists = thisRound
+    .filter((ballot) => picksOf(ballot).some((pick) => firstTeamIds.includes(pick)))
     .map((ballot) => ballot.teamId)
     .sort();
 
-  return {
-    apologists,
-    hateTargets: lastTeamIds.filter((teamId) => apologists.includes(teamId)),
-    winnerTeamIds: firstTeamIds,
-  };
+  // Sorted for the same reason the apologists are: row order from the database is
+  // undefined, and these sentences are read out in order.
+  const denigrations = thisRound
+    .filter((ballot) => firstTeamIds.includes(ballot.teamId))
+    .map((ballot) => ({
+      senderTeamId: ballot.teamId,
+      targetTeamIds: picksOf(ballot).filter((pick) => lastTeamIds.includes(pick)).sort(),
+    }))
+    .filter((one) => one.targetTeamIds.length > 0)
+    .sort((a, b) => a.senderTeamId.localeCompare(b.senderTeamId));
+
+  return { apologists, denigrations, winnerTeamIds: firstTeamIds };
 }
 
 export type Voter = { teamId: string; name: string };

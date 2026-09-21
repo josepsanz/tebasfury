@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 /**
  * Where you can go, and where you are.
  *
- * A client component for one reason: `usePathname`. With seven destinations the bar needs
+ * A client component for one reason: `usePathname`. With nine destinations the bar needs
  * to say which one you are on, and a server component cannot know. `AppNav` stays on
  * the server for the session, so this is the smallest piece that has to ship to the
  * browser.
@@ -14,8 +14,8 @@ import { usePathname } from "next/navigation";
  * `flex-wrap` is load-bearing, not defensive. These labels come to roughly the width
  * available at 375px, so the row fits with little to spare — and "My team", or a reader
  * whose system text is a size larger, would otherwise lose a destination off the edge
- * with nothing to show that it happened. It is now carrying an eighth label, "Fair play", so on a phone the row
- * settles on two lines rather than one.
+ * with nothing to show that it happened. It now carries nine labels, "Fair play" and
+ * "Constitution" among them, so on a phone the row settles on two lines rather than one.
  */
 export function NavLinks({
   canTriggerSync,
@@ -41,6 +41,10 @@ export function NavLinks({
     // after it is a game, and the order says which is which.
     { href: "/fair-play", label: "Fair play" },
     { href: "/necroporra", label: "Necroporra" },
+    // Last of the shared destinations: the law is the page consulted least and cited
+    // most. Everything to its left changes every week; this changes when the league
+    // rules something new.
+    { href: "/constitution", label: "Constitution" },
     ...(canTriggerSync ? [{ href: "/admin/sync", label: "Sync" }] : []),
   ];
 

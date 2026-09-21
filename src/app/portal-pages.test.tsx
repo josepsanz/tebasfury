@@ -212,28 +212,29 @@ describe("/necroporra", () => {
   });
 
   it("tallies who the league names, and who has named the reader", async () => {
-    // The seeded ballot is t1 naming Chus first and Bruno second, so both sit on one and
-    // the sentence has to carry a tie. Nobody has named Ada, who is the reader.
     const { default: Page } = await import("./(portal)/necroporra/page");
     const html = await render(() => Page({ searchParams: none }));
-    // Ada and Chus are each named twice across the three ballots, Bruno once — so the
-    // sentence has to carry a tie. Ada is the reader, and two people have named them.
-    expect(html).toContain("The league has named Ada and Chus more than anyone: 2 votes each.");
+    // Chus is named three times across the four ballots, Ada twice and Bruno once. Ada is
+    // the reader, and two managers have named them.
+    expect(html).toContain("The league has named Chus more than anyone: 3 votes.");
     expect(html).not.toContain("Nobody has named you yet.");
   });
 
-  it("states what a decided round costs, and who owes it", async () => {
-    // Round 1: Ada won it, Chus finished last, and both Bruno and Chus had named Ada for
-    // the bottom. Chus therefore meets both conditions at once.
+  it("states what a decided round costs, and what it earns", async () => {
+    // Round 1: Ada won it and Chus finished last. Bruno and Chus had both named Ada for
+    // the bottom, which is the apology; Ada had named Chus, which together with Ada's own
+    // win is the whole of article 4. Chus therefore collects both marks.
     const { default: Page } = await import("./(portal)/necroporra/page");
     const html = await render(() => Page({ searchParams: Promise.resolve({ round: "1" }) }));
     expect(html).toContain(
       "Ada won the round. Bruno and Chus named them for last, and owe the league an apology.",
     );
-    expect(html).toContain("Chus finished last as well, so Ada sends them a hate message.");
+    expect(html).toContain(
+      "Ada won the round and named Chus for last, so Ada may send Chus a denigrating message.",
+    );
     // And on the rows themselves, for a reader scanning for their own name.
-    expect(html).toContain("apology + hate message");
-    expect(html).toContain("owes an apology");
+    expect(html).toContain("owes an apology + denigrated");
+    expect(html).toContain("may denigrate");
   });
 
   it("names both ends of a decided round, not only the loser", async () => {
@@ -275,5 +276,24 @@ describe("/admin/sync", () => {
     // access rules. A permission quietly widened to the `user` role fails here.
     const { default: Page } = await import("./admin/sync/page");
     await expect(Page()).rejects.toThrow(/NEXT_REDIRECT/);
+  });
+});
+
+describe("/constitution", () => {
+  it("writes the league's law, with the pot its managers are playing for", async () => {
+    const { default: Page } = await import("./(portal)/constitution/page");
+    const html = await render(() => Page());
+    expect(html).toContain("The stakes");
+    // Three seeded managers at 15 € each, and the champion's 65 % of it.
+    expect(html).toContain("3 managers × 15 €");
+    expect(html).toContain("45.00 €");
+    expect(html).toContain("29.25 €");
+  });
+
+  it("states the breakfast shield the standings actually apply", async () => {
+    const { default: Page } = await import("./(portal)/constitution/page");
+    const html = await render(() => Page());
+    expect(html).toContain("shields that team for the next 3 rounds");
+    expect(html).toContain('href="/standings"');
   });
 });
