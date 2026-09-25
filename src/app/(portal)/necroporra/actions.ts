@@ -59,6 +59,15 @@ export async function vote(formData: FormData): Promise<VoteResult> {
 
   const onBehalf = targetTeamId !== myTeam?.teamId;
 
+  // An open round belongs to the league as it is now: a manager who has left neither
+  // votes in it nor may be voted for. A closed round is history, and an admin entering a
+  // ballot for it picks from everyone who was in the league then.
+  const { teams, activeTeams } = await loadSnapshots(db);
+  const eligible = isOpen(round, now) ? activeTeams : teams;
+  if (!eligible.some((t) => t.id === targetTeamId)) {
+    return { ok: false, message: "That manager has left the league." };
+  }
+
   // Your own vote shuts at kickoff, whoever you are — an admin does not get to vote late
   // for themselves. An ENTERED ballot does not shut: it was cast elsewhere and on time,
   // and only the typing is late. That privilege is paid for in the open, by the mark the
@@ -68,13 +77,12 @@ export async function vote(formData: FormData): Promise<VoteResult> {
   }
 
   const picks = formData.getAll("teamId").map(String).filter((id) => id !== "");
-  const { teams } = await loadSnapshots(db);
   const verdict = validatePair(picks, {
     // The TARGET's own team, not the caller's: "not your own team" is a rule about whose
     // ballot it is, and an admin filling in Ana's row must not be able to make her pick
     // herself — nor be stopped from letting her pick the admin's team.
     ownTeamId: targetTeamId,
-    teamIds: teams.map((t) => t.id),
+    teamIds: eligible.map((t) => t.id),
   });
   if (!verdict.ok) return { ok: false, message: REFUSALS[verdict.reason] };
 

@@ -79,7 +79,7 @@ export default async function NecroporraPage({
   const session = await requireSession();
   const now = new Date();
 
-  const [rounds, { snapshots, teams }, myTeam, voters] = await Promise.all([
+  const [rounds, { snapshots, teams, activeTeams }, myTeam, voters] = await Promise.all([
     loadRounds(db),
     loadSnapshots(db),
     loadMyTeam(db, { userId: session.user.id }),
@@ -90,6 +90,12 @@ export default async function NecroporraPage({
   // to map accounts to manager names; with the ballot on the team, the voter list already
   // carries both.
   const names = new Map(voters.map((voter) => [voter.teamId, voter.name]));
+
+  // The open round and the season table are the league as it is now, so a manager who has
+  // left is neither a voter nor a pick there. Past rounds keep everyone who was in them,
+  // and so do the hate boards: the votes cast about a departed manager still happened.
+  const activeIds = new Set(activeTeams.map((t) => t.id));
+  const activeVoters = voters.filter((voter) => activeIds.has(voter.teamId));
 
   const resolved = rounds.map((round) => ({
     ...round,
@@ -108,7 +114,9 @@ export default async function NecroporraPage({
     open && myTeam ? await loadMyBallot(db, { gameweek: open.gameweek, teamId: myTeam.teamId }) : null;
 
   const teamName = new Map(teams.map((t) => [t.id, t.managerName]));
-  const table = seasonTable(ballots, resolved, names);
+  // Filtered after it is built: the table's rows come from the ballots, not the names, and
+  // the page numbers them by position, so dropping a row leaves no gap.
+  const table = seasonTable(ballots, resolved, names).filter((row) => activeIds.has(row.teamId));
 
   // Who may fill in somebody else's row. The mark the rows draw needs no lookup: it names
   // the act and not the person.
@@ -176,7 +184,7 @@ export default async function NecroporraPage({
       ) : (
         <NecroporraBallot
           gameweek={open.gameweek}
-          teams={teams.filter((team) => team.id !== myTeam.teamId)}
+          teams={activeTeams.filter((team) => team.id !== myTeam.teamId)}
           chosen={myBallot ? picksOf(myBallot) : []}
           action={vote}
         />
@@ -188,13 +196,13 @@ export default async function NecroporraPage({
             Everyone&rsquo;s picks so far
           </h3>
           <NecroporraBallots
-            rows={roundBallots(voters, ballots, open.gameweek, [])}
+            rows={roundBallots(activeVoters, ballots, open.gameweek, [])}
             teamName={teamName}
             viewerTeamId={myTeam?.teamId ?? null}
             resolved={false}
             castFor={
               mayCastForOthers
-                ? (row) => <BallotForRow gameweek={open.gameweek} row={row} teams={teams} />
+                ? (row) => <BallotForRow gameweek={open.gameweek} row={row} teams={activeTeams} />
                 : null
             }
           />

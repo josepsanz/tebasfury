@@ -13,11 +13,14 @@ import { PageHeader } from "@/components/page-header";
  * own rulings, written down in `domain/constitution.ts`. The one thing it reads from the
  * database is how many managers are in, because that is what turns "65 % of the pot" into
  * a sum somebody can be handed at the end of the season.
+ *
+ * Only managers still in the league count. The one who left had not paid, so her 15 €
+ * was never in the pot — the owner's ruling, 2026-09-25.
  */
 export default async function ConstitutionPage() {
   await requireSession();
-  const { teams } = await loadSnapshots(db);
-  const pot = prizePot(teams.length);
+  const { activeTeams } = await loadSnapshots(db);
+  const pot = prizePot(activeTeams.length);
 
   return (
     <section className="mx-auto max-w-2xl">
@@ -31,7 +34,7 @@ export default async function ConstitutionPage() {
         articles={ARTICLES}
         aside={(article) =>
           article.key === "stakes" ? (
-            <PrizeLadder teamCount={teams.length} pot={pot} />
+            <PrizeLadder teamCount={activeTeams.length} pot={pot} />
           ) : null
         }
       />
