@@ -475,6 +475,21 @@ describe("the activity mapping", () => {
     ]);
   });
 
+  it("skips an entry that names no manager, rather than failing the whole feed", async () => {
+    // Captured 2026-09-25, verbatim: type 10, two days after La Agustineta 96 left, with
+    // no user, player or amount. Requiring `user1Id` turned it into NaN and failed the
+    // sweep. With no manager there is nothing the market log could attach it to.
+    stubPages([
+      [
+        entry(),
+        { activityTypeId: 10, id: "71854043", createdAt: "2026-09-23T19:11:33+02:00" },
+        entry({ id: "44515639", user1Id: null }),
+      ],
+    ]);
+    const rows = await getActivity("at", "018012894");
+    expect(rows.map((r) => r.id)).toEqual(["44515638"]);
+  });
+
   it("turns every field a type omits into null rather than undefined", async () => {
     // The sweep writes these straight into nullable columns; `undefined` would be a
     // different write, and the three types that omit different fields would each

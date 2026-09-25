@@ -556,13 +556,19 @@ export async function getActivity(
     // with no operations at all answers on page zero, and both mean the same thing
     // here: there is nothing further back to ask for.
     if (rows.length === 0) break;
-    operations.push(...rows.map(toMarketOperation));
+    // An entry that names no manager is dropped. The market log is read by the manager
+    // who acted, so there is nothing to attach it to, and storing it would mean making
+    // `actor_manager_id` nullable for every reader. Seen once: type 10, with no user,
+    // player or amount at all.
+    for (const row of rows) {
+      if (row.user1Id != null) operations.push(toMarketOperation({ ...row, user1Id: row.user1Id }));
+    }
   }
 
   return operations;
 }
 
-function toMarketOperation(row: ActivityEntry): MarketOperationRow {
+function toMarketOperation(row: ActivityEntry & { user1Id: number }): MarketOperationRow {
   return {
     id: row.id,
     activityType: row.activityTypeId,

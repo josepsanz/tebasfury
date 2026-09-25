@@ -170,6 +170,10 @@ export const squadSchema = z.object({
  * could name three — so an enum here would either reject tomorrow's type or invite a
  * `default: throw`, and both lose data that a rolling seven-day window never returns.
  *
+ * Even the actor is optional at this layer. A type 10 entry was captured with nothing but
+ * an id, a type and a timestamp, and requiring `user1Id` coerced its absence to NaN and
+ * failed the sweep. The mapping drops such an entry: see `getActivity`.
+ *
  * `createdAt` is left a string and parsed on the far side of the mapping, where the
  * offset it carries (`+02:00`) becomes an instant. Coercing it here would hide which
  * layer owns that conversion.
@@ -177,7 +181,7 @@ export const squadSchema = z.object({
 export const activityEntrySchema = z.object({
   id: z.coerce.string(),
   activityTypeId: z.coerce.number(),
-  user1Id: z.coerce.number(),
+  user1Id: z.coerce.number().nullable().optional(),
   user2Id: z.coerce.number().nullable().optional(),
   playerMasterId: z.coerce.string().nullable().optional(),
   amount: z.coerce.number().nullable().optional(),
