@@ -61,6 +61,17 @@ describe("buildTable", () => {
     expect(table.find((r) => r.teamId === "b")).toMatchObject({ cumulativePoints: 0 });
   });
 
+  it("ranks only the teams it is given, whatever else the snapshots hold", () => {
+    // A manager who has left the league keeps their stored rounds. Leading the table on
+    // them, they must not push the teams that remain down a place they cannot see.
+    const withDeparted = [...season, snap("gone", 1, 90, 1), snap("gone", 2, 90, 1)];
+    const table = buildTable(withDeparted, teams);
+    expect(table.map((r) => [r.teamId, r.position, r.previousPosition])).toEqual([
+      ["a", 1, 1],
+      ["b", 2, 2],
+    ]);
+  });
+
   it("breaks ties by manager name so the order is stable", () => {
     const tied = [snap("a", 1, 10, 1), snap("b", 1, 10, 1)];
     expect(buildTable(tied, teams).map((r) => r.teamId)).toEqual(["a", "b"]);

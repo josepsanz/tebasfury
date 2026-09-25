@@ -74,6 +74,9 @@ export async function claimTeam(
         and(
           eq(teams.id, teamId),
           isNull(teams.userId),
+          // A departed manager's team is not on the board, and a hand-built request must
+          // not be able to claim it either. It reads as "taken" to the caller.
+          isNull(teams.leftAt),
           notExists(
             db.select({ one: sql`1` }).from(teams).where(eq(teams.userId, userId)),
           ),
@@ -133,7 +136,7 @@ export async function releaseTeamAsAdmin(
 }
 
 /**
- * Every team and whether it is claimed, ordered by manager name so the list reads the
+ * Every team still in the league and whether it is claimed, ordered by manager name so the list reads the
  * same for everybody. `claimedBy` DOES cross to the browser: `ClaimList` is a client
  * component, so these ids for all rows are serialized into the RSC payload inlined in
  * the HTML. What the privacy rule forbids is rendering WHO holds a team — no name is
@@ -149,6 +152,7 @@ export async function loadClaimBoard(db: Db): Promise<ClaimRow[]> {
       claimedBy: teams.userId,
     })
     .from(teams)
+    .where(isNull(teams.leftAt))
     .orderBy(asc(teams.managerName));
 }
 

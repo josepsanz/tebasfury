@@ -30,13 +30,15 @@ export default async function StandingsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await requireSession();
-  const { snapshots, teams, isLive } = await loadSnapshots(db);
+  const { snapshots, teams, activeTeams, isLive } = await loadSnapshots(db);
   const myTeam = await loadMyTeam(db, { userId: session.user.id });
 
   const played = [...new Set(snapshots.map((s) => s.gameweek))].sort((a, b) => a - b);
   const round = chosenRound((await searchParams).round, played);
 
-  const rows = buildTable(snapshots, teams);
+  // The season table lists the league as it is now; a past round's table, below, still
+  // shows everyone who played that round — including a manager who has since left.
+  const rows = buildTable(snapshots, activeTeams);
 
   const duties = breakfastDuties(snapshots);
   const names = new Map(teams.map((team) => [team.id, team.managerName]));
@@ -78,7 +80,7 @@ export default async function StandingsPage({
               ) : null}
               <StandingsTable
                 rows={rows}
-                formByTeam={recentForm(snapshots, teams)}
+                formByTeam={recentForm(snapshots, activeTeams)}
                 isLive={isLive}
                 myTeamId={myTeam?.teamId ?? null}
               />

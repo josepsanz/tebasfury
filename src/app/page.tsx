@@ -67,8 +67,11 @@ export default async function HomePage() {
   // Cheap next to the catalogue read this page used to run for its two player boards:
   // thirteen teams times the weeks played, which is sixty-five rows today and under five
   // hundred by May. Nothing here reads `/players` any more.
-  const { snapshots, teams: teamRefs, isLive, currentGameweek } = await loadSnapshots(db);
-  const rows = buildTable(snapshots, teamRefs);
+  const { snapshots, teams: teamRefs, activeTeams, isLive, currentGameweek } =
+    await loadSnapshots(db);
+  // The season table is the league as it is now, so a manager who has left is not in it.
+  // Everything else on this page reads the full list: a past record still names them.
+  const rows = buildTable(snapshots, activeTeams);
   const mine = myTeam ? rows.find((row) => row.teamId === myTeam.teamId) : undefined;
 
   // Only for a manager who has claimed a team: without one there is no "your rank" to
@@ -164,7 +167,7 @@ export default async function HomePage() {
           <SectionHeading>Standings</SectionHeading>
           <StandingsTable
             rows={rows}
-            formByTeam={recentForm(snapshots, teamRefs)}
+            formByTeam={recentForm(snapshots, activeTeams)}
             isLive={isLive}
             myTeamId={myTeam?.teamId ?? null}
           />

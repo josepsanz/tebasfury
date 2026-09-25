@@ -37,7 +37,16 @@ type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 export type PortalData = {
   snapshots: Snapshot[];
+  /**
+   * Every team ever seen, including managers who have left the league. For history: a
+   * past round's table, a name in a record, a departed team's own page.
+   */
   teams: TeamRef[];
+  /**
+   * Only the managers who still belong to the league — see `teams.leftAt`. For anything
+   * that lists the league as it is now: the season table and its form.
+   */
+  activeTeams: TeamRef[];
   lastSync: Date | null;
   currentGameweek: number | null;
   isLive: boolean;
@@ -77,6 +86,9 @@ export async function loadSnapshots(db: Db): Promise<PortalData> {
       teamValue: r.teamValue,
     })),
     teams: teamRows.map((t) => ({ id: t.id, managerName: t.managerName })),
+    activeTeams: teamRows
+      .filter((t) => t.leftAt === null)
+      .map((t) => ({ id: t.id, managerName: t.managerName })),
     lastSync: runs[0]?.finishedAt ?? null,
     currentGameweek: weeks[0]?.number ?? null,
     isLive: weeks[0]?.isLive ?? false,

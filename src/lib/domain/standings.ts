@@ -41,11 +41,17 @@ const weeksIn = (snapshots: Snapshot[]): number[] =>
  * gameweek is the rank WITHIN that round, so the table has to be recomputed from
  * the totals. Ties break on manager name, so the order never wobbles between
  * renders.
+ *
+ * Only the teams passed in are ranked. A snapshot for any other team — a manager who has
+ * left the league, whose rounds are still stored — must not take a place in the table,
+ * or everyone below it would be one place lower than the table they can see.
  */
 function rankAt(snapshots: Snapshot[], teams: TeamRef[], upTo: number): Map<string, number> {
   const totals = new Map(teams.map((t) => [t.id, 0]));
   for (const s of snapshots) {
-    if (s.gameweek <= upTo) totals.set(s.teamId, (totals.get(s.teamId) ?? 0) + s.points);
+    if (s.gameweek <= upTo && totals.has(s.teamId)) {
+      totals.set(s.teamId, (totals.get(s.teamId) ?? 0) + s.points);
+    }
   }
   const names = new Map(teams.map((t) => [t.id, t.managerName]));
   const ordered = [...totals.entries()].sort(

@@ -41,6 +41,12 @@ describe("claimTeam", () => {
     expect(await ownerOf("t1")).toBe("alice");
   });
 
+  it("refuses a departed manager's team, even to a request built by hand", async () => {
+    await h.db.update(teams).set({ leftAt: new Date() }).where(eq(teams.id, "t3"));
+    expect(await claimTeam(h.db, { userId: "alice", teamId: "t3" })).toBe("taken");
+    expect(await ownerOf("t3")).toBeNull();
+  });
+
   it("refuses a team somebody else holds, and leaves that holder in place", async () => {
     await claimTeam(h.db, { userId: "alice", teamId: "t1" });
     expect(await claimTeam(h.db, { userId: "bruno", teamId: "t1" })).toBe("taken");
@@ -136,6 +142,11 @@ describe("the reads the views need", () => {
       { teamId: "t1", managerName: "La rataneta", claimedBy: "alice" },
       { teamId: "t2", managerName: "LamineTheTuareg", claimedBy: null },
     ]);
+  });
+
+  it("leaves a manager who has left the league off the board", async () => {
+    await h.db.update(teams).set({ leftAt: new Date() }).where(eq(teams.id, "t3"));
+    expect((await loadClaimBoard(h.db)).map((r) => r.teamId)).toEqual(["t1", "t2"]);
   });
 
   it("names the caller's own team, and nothing when they have none", async () => {

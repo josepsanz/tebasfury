@@ -38,6 +38,7 @@ describe("loadSnapshots", () => {
     await h.db.insert(teams).values([
       { id: "t1", managerId: 1, managerName: "Manager A" },
       { id: "t2", managerId: 2, managerName: "Manager B" },
+      { id: "t3", managerId: 3, managerName: "Manager Gone", leftAt: new Date("2026-08-20T00:00:00Z") },
     ]);
     await h.db.insert(gameweeks).values([
       { number: 1, opensAt: new Date("2026-08-15T17:00:00Z"), closesAt: new Date("2026-08-18T01:00:00Z"), isLive: false },
@@ -66,7 +67,13 @@ describe("loadSnapshots", () => {
   it("returns every snapshot with its team", async () => {
     const { snapshots, teams: refs } = await loadSnapshots(h.db);
     expect(snapshots).toHaveLength(4);
-    expect(refs.map((t) => t.managerName).sort()).toEqual(["Manager A", "Manager B"]);
+    expect(refs.map((t) => t.managerName).sort()).toEqual(["Manager A", "Manager B", "Manager Gone"]);
+  });
+
+  it("keeps a manager who has left out of the active teams, and in the full list", async () => {
+    const { teams: all, activeTeams } = await loadSnapshots(h.db);
+    expect(activeTeams.map((t) => t.id).sort()).toEqual(["t1", "t2"]);
+    expect(all.map((t) => t.id)).toContain("t3");
   });
 
   it("reports the current gameweek and whether it is live", async () => {
