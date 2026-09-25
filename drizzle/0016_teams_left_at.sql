@@ -1,0 +1,1 @@
+ALTER TABLE "teams" ADD COLUMN "left_at" timestamp with time zone;

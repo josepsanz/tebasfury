@@ -67,6 +67,7 @@ export async function POST(request: Request) {
     squadsSynced: outcome.result.squadsSynced,
     squadsSkipped: outcome.result.squadsSkipped,
     droppedSquadPlayers: outcome.result.droppedSquadPlayers,
+    squadsDeparted: outcome.result.squadsDeparted,
     realTeamsKnown: outcome.result.realTeamsKnown,
     operationsCaptured: outcome.result.operationsCaptured,
     // Lineups are the sweep's one silently-retried failure (see `captureLineups`), and

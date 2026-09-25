@@ -1,7 +1,7 @@
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import { loadRefreshToken, saveRefreshToken } from "./credentials";
-import { CredentialError } from "./errors";
+import { CredentialError, LaLigaApiError } from "./errors";
 import {
   activitySchema,
   currentWeekSchema,
@@ -17,7 +17,7 @@ import {
   type StandingEntry,
 } from "./schemas";
 
-export { CredentialError, CREDENTIAL_ERROR_NAME } from "./errors";
+export { CredentialError, CREDENTIAL_ERROR_NAME, LaLigaApiError, isManagerGone } from "./errors";
 
 /**
  * The production database is `neon-http`, tests run against an in-process
@@ -103,12 +103,27 @@ async function request<T>(
       .text()
       .then((text) => text.slice(0, ERROR_BODY_LIMIT).trim())
       .catch(() => "");
-    throw new Error(
+    throw new LaLigaApiError(
       `LaLiga API answered ${res.status} for ${path}${detail === "" ? "" : `: ${detail}`}`,
+      res.status,
+      errorCodeOf(detail),
     );
   }
   const body: unknown = await res.json();
   return { value: schema.parse(body), body };
+}
+
+/** The `errorCode` of a refusal's JSON body, or null when the body is not that shape. */
+function errorCodeOf(detail: string): string | null {
+  try {
+    const body: unknown = JSON.parse(detail);
+    if (typeof body === "object" && body !== null && "errorCode" in body) {
+      return typeof body.errorCode === "string" ? body.errorCode : null;
+    }
+  } catch {
+    // Not JSON — or cut short by ERROR_BODY_LIMIT. Either way there is no code to read.
+  }
+  return null;
 }
 
 async function apiGet<T>(

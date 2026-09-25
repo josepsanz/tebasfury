@@ -33,6 +33,16 @@ export const teams = pgTable(
      */
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * When the manager was found to have left the league, or null while they belong to it.
+     *
+     * A mark rather than a delete: every table that hangs off a team cascades from this
+     * row, and a manager who leaves still has the rounds they played, the market moves
+     * they made and the votes they cast. The per-team calls (squads, lineups) skip a team
+     * marked here — the API refuses them for a departed manager — and the standings
+     * cadence clears the mark if the team is ever seen in the table again.
+     */
+    leftAt: timestamp("left_at", { withTimezone: true }),
   },
   (table) => [uniqueIndex("teams_user_id_unique").on(table.userId)],
 );

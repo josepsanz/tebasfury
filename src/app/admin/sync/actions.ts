@@ -116,6 +116,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
     squadsSynced,
     squadsSkipped,
     droppedSquadPlayers,
+    squadsDeparted,
     realTeamsKnown,
     operationsCaptured,
     lineupsFailed,
@@ -128,6 +129,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
   // lineup that failed and is silently retried next sweep — see `captureLineups`,
   // which is the one place that failure is otherwise invisible.
   const notes = [
+    squadsDeparted > 0 ? `${squadsDeparted} manager(s) found to have left the league` : null,
     squadsSkipped > 0 ? `${squadsSkipped} squad(s) left unchanged (empty response)` : null,
     droppedSquadPlayers > 0 ? `${droppedSquadPlayers} unknown squad id(s) dropped` : null,
     lineupsFailed > 0 ? `${lineupsFailed} lineup(s) failed (retried next sweep)` : null,

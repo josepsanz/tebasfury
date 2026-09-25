@@ -1,4 +1,4 @@
-import { and, count, eq, notInArray, sql } from "drizzle-orm";
+import { and, count, eq, isNull, notInArray, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import {
@@ -11,7 +11,9 @@ import {
   syncRuns,
   teams,
 } from "@/lib/db/schema";
-import type { FantasyClient, MarketOperationRow, PlayerRow, RealTeamRow } from "@/lib/fantasy-client";
+import { isManagerGone } from "@/lib/fantasy-client";
+import type { FantasyClient, MarketOperationRow, PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
+import { markDeparted } from "./departures";
 import { describeFailure } from "./failure";
 import { captureLineups } from "./lineups";
 import { nextPlayerSweep } from "./next-run";
@@ -39,6 +41,12 @@ export type PlayerSweepResult = {
   squadsSkipped: number;
   /** Squad member ids the catalogue did not recognise, dropped rather than failing the sweep. */
   droppedSquadPlayers: number;
+  /**
+   * Teams whose squad the API refused because the manager has left the league. Each is
+   * marked in `teams.leftAt` and its squad cleared — see `markDeparted` — and no later
+   * sweep asks for it again.
+   */
+  squadsDeparted: number;
   /**
    * How many clubs the catalogue can put a NAME to — the row count of `real_teams`
    * after this sweep, not the number of clubs this sweep happened to observe. The two
@@ -163,7 +171,7 @@ export async function runPlayerSweep(deps: {
     // response is checked against is exactly what upsertCatalogue just wrote — not a
     // stale read of the table from before this sweep.
     const knownPlayerIds = new Set(catalogue.map((p) => p.id));
-    const squads = await replaceSquads(db, client, knownPlayerIds);
+    const squads = await replaceSquads(db, client, knownPlayerIds, now);
 
     await upsertRealTeams(db, squads.realTeams, now);
     const [clubCount] = await db.select({ value: count() }).from(realTeams);
@@ -196,6 +204,7 @@ export async function runPlayerSweep(deps: {
       squadsSynced: squads.squadsSynced,
       squadsSkipped: squads.squadsSkipped,
       droppedSquadPlayers: squads.droppedSquadPlayers,
+      squadsDeparted: squads.squadsDeparted,
       realTeamsKnown: clubCount.value,
       operationsCaptured: operations.length,
       lineupsCaptured: lineups.captured,
@@ -310,11 +319,18 @@ type SquadSweepResult = {
   squadsSynced: number;
   squadsSkipped: number;
   droppedSquadPlayers: number;
+  squadsDeparted: number;
   realTeams: RealTeamRow[];
 };
 
 /**
- * Squads, one call per team, from the teams the standings cadence has recorded.
+ * Squads, one call per team, from the teams the standings cadence has recorded and that
+ * still belong to the league.
+ *
+ * A manager who has left is refused by the API (`030.01.24`), and before `teams.leftAt`
+ * existed that one refusal failed the whole sweep, and every retry after it. Now the
+ * refusal is believed: the team is marked gone, its squad cleared, and the sweep goes on.
+ * Any other refusal still fails the sweep, as before.
  *
  * Insert-then-prune rather than delete-then-insert: `firstSeenAt` means "in this squad
  * since", and deleting every row each sweep would reset it to today for a player who
@@ -338,14 +354,24 @@ async function replaceSquads(
   db: Db,
   client: PlayerClient,
   knownPlayerIds: Set<string>,
+  now: Date,
 ): Promise<SquadSweepResult> {
-  const known = await db.select().from(teams);
+  const known = await db.select().from(teams).where(isNull(teams.leftAt));
   let squadsSkipped = 0;
   let droppedSquadPlayers = 0;
+  let squadsDeparted = 0;
   const clubs = new Map<string, RealTeamRow>();
 
   for (const team of known) {
-    const squad = await client.getSquad(team.id);
+    let squad: SquadRow;
+    try {
+      squad = await client.getSquad(team.id);
+    } catch (error) {
+      if (!isManagerGone(error)) throw error;
+      await markDeparted(db, team.id, now);
+      squadsDeparted += 1;
+      continue;
+    }
 
     // Clubs are learned from every response that PARSED — including one whose
     // membership the guard below then refuses. That guard protects `firstSeenAt` from
@@ -412,9 +438,10 @@ async function replaceSquads(
   }
 
   return {
-    squadsSynced: known.length,
+    squadsSynced: known.length - squadsDeparted,
     squadsSkipped,
     droppedSquadPlayers,
+    squadsDeparted,
     realTeams: [...clubs.values()],
   };
 }

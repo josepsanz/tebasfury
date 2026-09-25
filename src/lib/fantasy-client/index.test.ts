@@ -14,6 +14,8 @@ import {
   getPlayers,
   getSquad,
   getStanding,
+  isManagerGone,
+  LaLigaApiError,
 } from "./index";
 import live from "./__fixtures__/standing-live.json";
 import settled from "./__fixtures__/standing-settled.json";
@@ -407,6 +409,36 @@ describe("the squad mapping", () => {
     const squad = await getSquad("at", "018012894", "9000019");
     expect(squad.holdings.map((h) => h.playerId)).toEqual(["p1"]);
     expect(squad.realTeams).toEqual([]);
+  });
+
+  it("says so, in a way a caller can branch on, when the manager has left the league", async () => {
+    // The body captured on 2026-09-25, verbatim. The message must still carry it: it is
+    // what `sync_runs.error` records for every refusal the sweep does not expect.
+    const body = {
+      code: 400,
+      message:
+        "Sorry, It is not possible to make this operation because the manager does not belong to this league anymore",
+      errorCode: "030.01.24",
+    };
+    stubFetch(body, 400);
+
+    const error = await getSquad("at", "018012894", "38143526").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(LaLigaApiError);
+    expect(error).toMatchObject({ status: 400, errorCode: "030.01.24" });
+    expect((error as Error).message).toContain("does not belong to this league anymore");
+    expect(isManagerGone(error)).toBe(true);
+  });
+
+  it("does not read any other refusal as a departure", async () => {
+    stubFetch({ code: 400, message: "Something else", errorCode: "030.01.01" }, 400);
+    const coded = await getSquad("at", "018012894", "9000019").catch((e: unknown) => e);
+    expect(isManagerGone(coded)).toBe(false);
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("Bad gateway", { status: 502 })));
+    const plain = await getSquad("at", "018012894", "9000019").catch((e: unknown) => e);
+    expect(plain).toMatchObject({ status: 502, errorCode: null });
+    expect(isManagerGone(plain)).toBe(false);
   });
 });
 

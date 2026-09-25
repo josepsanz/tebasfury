@@ -14,7 +14,7 @@ import {
   syncRuns,
   teams,
 } from "@/lib/db/schema";
-import { CREDENTIAL_ERROR_NAME, CredentialError } from "@/lib/fantasy-client";
+import { CREDENTIAL_ERROR_NAME, CredentialError, LaLigaApiError } from "@/lib/fantasy-client";
 import type { LineupRow, MarketOperationRow, PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
 import { MINIMUM_CATALOGUE, runPlayerSweep, utcDate, type PlayerClient } from "./players";
 
@@ -353,6 +353,107 @@ describe("runPlayerSweep", () => {
     const after = await h.db.select().from(squadMembers).where(eq(squadMembers.teamId, "t1"));
     expect(after).toEqual(before);
     expect(result.squadsSkipped).toBe(1);
+  });
+
+  describe("a manager who has left the league", () => {
+    /** The refusal LaLiga gave on 2026-09-25, for the one team named. */
+    function refusingFor(gone: string, base: PlayerClient): PlayerClient {
+      return {
+        ...base,
+        getSquad: async (teamId) => {
+          if (teamId === gone) {
+            throw new LaLigaApiError(
+              `LaLiga API answered 400 for /v1/competition/1/leagues/L/teams/${teamId}`,
+              400,
+              "030.01.24",
+            );
+          }
+          return base.getSquad(teamId);
+        },
+      };
+    }
+
+    beforeEach(async () => {
+      await h.db.insert(teams).values([
+        { id: "t1", managerId: 1, managerName: "Manager A" },
+        { id: "t2", managerId: 2, managerName: "La Agustineta 96" },
+      ]);
+      await runPlayerSweep({
+        db: h.db,
+        client: fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"], t2: ["p1", "p2"] }),
+        now,
+        runId: "s0",
+        trigger: "players-schedule",
+      });
+    });
+
+    it("does not fail the sweep: the team is marked gone and the rest are swept", async () => {
+      const result = await runPlayerSweep({
+        db: h.db,
+        client: refusingFor("t2", fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0", "p3"] })),
+        now: tomorrow,
+        runId: "s1",
+        trigger: "players-manual",
+      });
+
+      expect(result).toMatchObject({ squadsDeparted: 1, squadsSynced: 1 });
+      const [gone] = await h.db.select().from(teams).where(eq(teams.id, "t2"));
+      expect(gone.leftAt).toEqual(tomorrow);
+      const t1 = await h.db.select().from(squadMembers).where(eq(squadMembers.teamId, "t1"));
+      expect(t1.map((m) => m.playerId).sort()).toEqual(["p0", "p3"]);
+    });
+
+    it("clears their squad, because their players went back to the market", async () => {
+      await runPlayerSweep({
+        db: h.db,
+        client: refusingFor("t2", fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"] })),
+        now: tomorrow,
+        runId: "s1",
+        trigger: "players-manual",
+      });
+
+      expect(
+        await h.db.select().from(squadMembers).where(eq(squadMembers.teamId, "t2")),
+      ).toEqual([]);
+    });
+
+    it("is not asked about again once marked", async () => {
+      await h.db.update(teams).set({ leftAt: now }).where(eq(teams.id, "t2"));
+      const asked: string[] = [];
+      const base = fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"] });
+
+      await runPlayerSweep({
+        db: h.db,
+        client: {
+          ...base,
+          getSquad: async (teamId) => {
+            asked.push(teamId);
+            return base.getSquad(teamId);
+          },
+        },
+        now: tomorrow,
+        runId: "s1",
+        trigger: "players-schedule",
+      });
+
+      expect(asked).toEqual(["t1"]);
+    });
+
+    it("is the only refusal believed: any other still fails the sweep", async () => {
+      const base = fakeClient(catalogue(MINIMUM_CATALOGUE), { t1: ["p0"] });
+      const client: PlayerClient = {
+        ...base,
+        getSquad: async () => {
+          throw new LaLigaApiError("LaLiga API answered 500 for /x", 500, null);
+        },
+      };
+
+      await expect(
+        runPlayerSweep({ db: h.db, client, now: tomorrow, runId: "s1", trigger: "players-schedule" }),
+      ).rejects.toThrow("answered 500");
+      const [t2] = await h.db.select().from(teams).where(eq(teams.id, "t2"));
+      expect(t2.leftAt).toBeNull();
+    });
   });
 
   it("still clears a team that has genuinely never had a recorded squad", async () => {

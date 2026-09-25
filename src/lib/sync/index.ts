@@ -4,6 +4,7 @@ import type * as schema from "@/lib/db/schema";
 import { gameweeks, rawSyncPayloads, syncRuns, teamGameweekStats, teams } from "@/lib/db/schema";
 import { openRound } from "@/lib/necroporra";
 import type { FantasyClient, Gameweek, StandingRow } from "@/lib/fantasy-client";
+import { reconcileDepartures } from "./departures";
 import { describeFailure } from "./failure";
 import { decideNextRun } from "./next-run";
 
@@ -97,6 +98,8 @@ export async function runSync(deps: {
         .onConflictDoUpdate({ target: gameweeks.number, set: { isLive: live, ...dates } });
 
       for (const write of upsertTeams(db, rows)) await write;
+      // Only the current week's table says who belongs to the league now.
+      if (isCurrent) await reconcileDepartures(db, rows.map((r) => r.teamId), now);
       for (const write of upsertStats(db, rows, w, live)) await write;
       await db.insert(rawSyncPayloads).values({
         id: `${runId}-${w}`,

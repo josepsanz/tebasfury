@@ -103,6 +103,73 @@ describe("runSync", () => {
     await h.db.delete(necroporraRounds);
   });
 
+  describe("a manager leaving the league", () => {
+    const leftAtOf = async (id: string) =>
+      (await h.db.select().from(teams).where(eq(teams.id, id)))[0]?.leftAt ?? null;
+
+    it("is marked when the current week's table no longer names them", async () => {
+      await h.db.insert(teams).values([
+        { id: "1", managerId: 1, managerName: "Manager A" },
+        { id: "2", managerId: 2, managerName: "Manager B" },
+        { id: "3", managerId: 3, managerName: "Manager C" },
+      ]);
+      const client = fakeClient({ number: 1, isLive: true }, {
+        live: [row("1", "Manager A", 10, null), row("2", "Manager B", 20, null)],
+      });
+
+      await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+
+      expect(await leftAtOf("3")).toEqual(now);
+      expect(await leftAtOf("1")).toBeNull();
+      // Marked, never deleted: the team's history hangs off this row.
+      expect(await h.db.select().from(teams)).toHaveLength(3);
+    });
+
+    it("is not read from a backfilled week, which is the league as it was", async () => {
+      // Week 1 is backfilled and names only team 1; the current week names both. The
+      // old week must not mark team 2 gone on the way to the current one.
+      const client = fakeClient({ number: 2 }, {
+        "1": [row("1", "Manager A", 10, 1)],
+        "2": [row("1", "Manager A", 10, 1), row("2", "Manager B", 5, 2)],
+      });
+
+      await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+
+      expect(await leftAtOf("2")).toBeNull();
+    });
+
+    it("is cleared if the team is seen in the table again", async () => {
+      await h.db.insert(teams).values([
+        { id: "1", managerId: 1, managerName: "Manager A" },
+        { id: "2", managerId: 2, managerName: "Manager B", leftAt: new Date("2026-09-01") },
+      ]);
+      const client = fakeClient({ number: 1, isLive: true }, {
+        live: [row("1", "Manager A", 10, null), row("2", "Manager B", 20, null)],
+      });
+
+      await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+
+      expect(await leftAtOf("2")).toBeNull();
+    });
+
+    it("is not believed from a table that names fewer than half the league", async () => {
+      // A truncated response, not an exodus: marking would wipe four squads.
+      await h.db.insert(teams).values(
+        ["1", "2", "3", "4", "5"].map((id) => ({
+          id, managerId: Number(id), managerName: `Manager ${id}`,
+        })),
+      );
+      const client = fakeClient({ number: 1, isLive: true }, {
+        live: [row("1", "Manager 1", 10, null)],
+      });
+
+      await runSync({ db: h.db, client, now, runId: "r1", trigger: "schedule" });
+
+      const marked = (await h.db.select().from(teams)).filter((t) => t.leftAt !== null);
+      expect(marked).toEqual([]);
+    });
+  });
+
   describe("the Necroporra's round", () => {
     it("is opened for the week the API calls current, closing at its kickoff", async () => {
       // No chain of its own: this sync already runs at least daily and already has the

@@ -130,6 +130,22 @@ describe("captureLineups", () => {
     expect(rows.map((r) => r.playerId).sort()).toEqual(["p1", "p3"]);
   });
 
+  it("does not ask about a manager who has left the league", async () => {
+    // The API refuses every call about a departed manager, and the weeks they played
+    // were stored while they were here.
+    await h.db.insert(gameweeks).values({ number: 5, isLive: true });
+    await h.db.insert(teams).values([
+      { id: "t1", managerId: 1, managerName: "Ana" },
+      { id: "t2", managerId: 2, managerName: "Bruno", leftAt: NOW },
+    ]);
+
+    const client = fakeClient();
+    const counts = await captureLineups(h.db, client, { now: NOW });
+
+    expect(client.asked).toEqual([{ teamId: "t1", week: 5 }]);
+    expect(counts.failed).toBe(0);
+  });
+
   it("keeps the other twelve when one team's lineup fails", async () => {
     // Deliberately NOT the ruling `getActivity` gets. A lost lineup costs a page section
     // and the next sweep asks again; a lost market operation is gone for good, because the

@@ -113,6 +113,13 @@
       "when": 1789404600192,
       "tag": "0015_round_lineups",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790310524634,
+      "tag": "0016_teams_left_at",
+      "breakpoints": true
     }
   ]
 }

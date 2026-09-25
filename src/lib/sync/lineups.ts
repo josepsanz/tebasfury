@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "@/lib/db/schema";
 import { gameweeks, players, roundLineupPlayers, roundLineups, teams } from "@/lib/db/schema";
@@ -83,7 +83,9 @@ export async function captureLineups(
       .select({ number: gameweeks.number, isLive: gameweeks.isLive })
       .from(gameweeks)
       .orderBy(gameweeks.number),
-    db.select({ id: teams.id }).from(teams),
+    // A departed manager's lineups are refused by the API, and the weeks they played
+    // are already stored — see `teams.leftAt`.
+    db.select({ id: teams.id }).from(teams).where(isNull(teams.leftAt)),
     loadStoredLineupWeeks(db),
     db.select({ id: players.id }).from(players),
   ]);
