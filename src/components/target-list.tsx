@@ -12,6 +12,7 @@ const TONE: Record<Tag["tone"], string> = {
 };
 
 const percent = (x: number | null) => (x === null ? "—" : `${x >= 0 ? "+" : "−"}${Math.round(Math.abs(x) * 100)}%`);
+const perDay = (x: number) => `${x >= 0 ? "+" : "−"}${formatMoney(Math.abs(x))}/d`;
 const score = (t: Target, lens: Lens) =>
   lens === "investment" ? percent(t.investment) : t.performance === null ? "—" : t.performance.toFixed(2);
 
@@ -69,6 +70,13 @@ export function TargetList({ rows, lens }: { rows: Target[]; lens: Lens }) {
               </span>
               <span className="text-right text-[12px] tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
                 {percent(t.growth7)}
+                {/* The same week in money: per place in the squad, where the percentage is per
+                    euro. Context only — the score beside it never reads it. */}
+                {t.gainPerDay7 === null ? null : (
+                  <span className="block text-[10px]" style={{ color: "var(--board-ink-dim)" }}>
+                    {perDay(t.gainPerDay7)}
+                  </span>
+                )}
               </span>
               <span className="text-right text-[13px] font-semibold tabular-nums" style={{ fontFamily: "var(--font-mono)" }}>
                 {score(t, lens)}

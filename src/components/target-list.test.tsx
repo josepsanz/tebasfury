@@ -29,6 +29,19 @@ describe("TargetList", () => {
     expect(html).toContain("Rising fast");
     expect(html).toContain("No bids yet");
     expect(html).toContain('href="/players/p1"');
+    // 3.3M against 2.75M a week ago: +550K over seven days, 78,571 a day.
+    expect(html).toContain("+79K/d");
+  });
+
+  it("signs a falling player's money per day with a minus, and dashes an unknown one", () => {
+    const falling = renderToStaticMarkup(
+      <TargetList rows={[toTarget({ ...base, value7DaysAgo: 3_510_000 }, now)]} lens="investment" />,
+    );
+    expect(falling).toContain("−30K/d");
+    const unknown = renderToStaticMarkup(
+      <TargetList rows={[toTarget({ ...base, value7DaysAgo: null }, now)]} lens="investment" />,
+    );
+    expect(unknown).not.toContain("/d<");
   });
 
   it("labels a listing's premium as the house rule", () => {

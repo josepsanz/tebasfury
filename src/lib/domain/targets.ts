@@ -81,6 +81,14 @@ export type Target = {
   costMultiple: number | null;
   growth7: number | null;
   growth14: number | null;
+  /**
+   * The same week as `growth7`, in money per day: what holding the player has been worth
+   * per squad place, where the percentage says what it is worth per euro. Shown beside the
+   * percentage and never scored, so the ranking does not drift towards the dearest players.
+   * Deliberately not `valueTrend`'s three-reading slope, which would disagree with the
+   * percentage printed next to it.
+   */
+  gainPerDay7: number | null;
   form: number | null;
   seasonAverage: number | null;
   investment: number | null;
@@ -154,6 +162,8 @@ export function toTarget(input: TargetInput, now: Date): Target {
   const cost = open?.cost ?? null;
   const growth7 = growth(input.value, input.value7DaysAgo);
   const growth14 = growth(input.value, input.value14DaysAgo);
+  const gainPerDay7 =
+    input.value === null || input.value7DaysAgo === null ? null : (input.value - input.value7DaysAgo) / 7;
   const form = input.points.length >= FORM_ROUNDS ? mean(input.points.slice(0, FORM_ROUNDS)) : null;
   const seasonAverage = input.points.length > 0 ? mean(input.points) : null;
 
@@ -191,6 +201,7 @@ export function toTarget(input: TargetInput, now: Date): Target {
     costMultiple: cost !== null && input.value ? cost / input.value : null,
     growth7,
     growth14,
+    gainPerDay7,
     form,
     seasonAverage,
     investment,

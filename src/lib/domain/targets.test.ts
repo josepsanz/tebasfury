@@ -107,6 +107,19 @@ describe("scores", () => {
     expect(t.investment).toBeCloseTo(0.0909, 3);
   });
 
+  it("states the week's growth in money per day, over the same seven days as the percentage", () => {
+    // 10M against 9.3M a week ago: +700K over seven days is +100K a day.
+    const t = toTarget(input({ value7DaysAgo: 9_300_000, listing: { kind: "league", expiresAt: later, bids: 0 } }), now);
+    expect(t.gainPerDay7).toBeCloseTo(100_000, 6);
+    // Falling is negative, not hidden.
+    expect(toTarget(input({ value7DaysAgo: 10_700_000 }), now).gainPerDay7).toBeCloseTo(-100_000, 6);
+  });
+
+  it("has no money-per-day figure without the snapshot a week ago", () => {
+    expect(toTarget(input({ value7DaysAgo: null }), now).gainPerDay7).toBeNull();
+    expect(toTarget(input({ value: null }), now).gainPerDay7).toBeNull();
+  });
+
   it("has no investment score without seven days of history", () => {
     const t = toTarget(input({ value7DaysAgo: null, listing: { kind: "league", expiresAt: later, bids: 0 } }), now);
     expect(t.growth7).toBeNull();
