@@ -21,6 +21,7 @@ import {
   loadPortraits,
   loadChainHeartbeats,
   loadLeagueStatus,
+  loadLastScheduledPlayerSweep,
   loadLineupWeeks,
   loadRoundLineup,
   loadStoredLineupWeeks,
@@ -895,5 +896,35 @@ describe("loadTargets on an empty league", () => {
     const h = await createTestDatabase();
     expect(await loadTargets(h.db)).toEqual({ inputs: [], marketReadAt: null, auctionClosesAt: null });
     await h.close();
+  });
+});
+
+describe("loadLastScheduledPlayerSweep", () => {
+  let h: TestDatabase;
+  const at = (hour: number) => new Date(Date.UTC(2026, 9, 3, hour));
+
+  beforeAll(async () => {
+    h = await createTestDatabase();
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("ignores a later manual press, which books no successor and must not stand a chain down", async () => {
+    await h.db.insert(syncRuns).values([
+      { id: "sch", trigger: "players-schedule", status: "succeeded", startedAt: at(11), finishedAt: at(11) },
+      { id: "man", trigger: "players-manual", status: "succeeded", startedAt: at(15), finishedAt: at(15) },
+      { id: "std", trigger: "schedule", status: "succeeded", startedAt: at(16), finishedAt: at(16) },
+    ]);
+
+    expect(await loadLastScheduledPlayerSweep(h.db)).toEqual(at(11));
+  });
+
+  it("counts a later wake success, which does book a successor", async () => {
+    await h.db.insert(syncRuns).values({
+      id: "wake", trigger: "players-wake", status: "succeeded", startedAt: at(17), finishedAt: at(17),
+    });
+
+    expect(await loadLastScheduledPlayerSweep(h.db)).toEqual(at(17));
   });
 });

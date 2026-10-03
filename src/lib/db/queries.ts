@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, inArray, like, notExists, notLike, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, like, ne, notExists, notLike, sql, sum } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "./schema";
 import type { Snapshot, TeamRef } from "@/lib/domain/standings";
@@ -360,6 +360,38 @@ export async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
     .select()
     .from(syncRuns)
     .where(and(eq(syncRuns.status, "succeeded"), like(syncRuns.trigger, "players-%")))
+    .orderBy(desc(syncRuns.finishedAt))
+    .limit(1);
+  return sweep?.finishedAt ?? null;
+}
+
+/**
+ * When a sweep that belongs to a chain last succeeded — `loadLastPlayerSweep` without the
+ * "Sweep players" button. This is what the redundancy guard reads, and only that.
+ *
+ * The button books no successor, so it is not a chain, and it must not be able to stand
+ * one down. Counted, an afternoon press would make the chain's 19:45 firing redundant:
+ * that firing would do no work and book nothing, the 19:45 market read would be lost, and
+ * the chain would stay dead until the watchdog noticed and revived it in the small hours.
+ * Excluding it costs one sweep that repeats the press's work, which is idempotent and
+ * cheap next to a lost day.
+ *
+ * `players-schedule` and `players-wake` both still count: each books its successor, so
+ * each IS a chain, and a later one of either is exactly the duplicate the guard exists to
+ * collapse. `loadLastPlayerSweep` stays as it was, because "Last swept" on /players means
+ * the data's age, and a press refreshes the data as much as a chain does.
+ */
+export async function loadLastScheduledPlayerSweep(db: Db): Promise<Date | null> {
+  const [sweep] = await db
+    .select()
+    .from(syncRuns)
+    .where(
+      and(
+        eq(syncRuns.status, "succeeded"),
+        like(syncRuns.trigger, "players-%"),
+        ne(syncRuns.trigger, "players-manual"),
+      ),
+    )
     .orderBy(desc(syncRuns.finishedAt))
     .limit(1);
   return sweep?.finishedAt ?? null;
