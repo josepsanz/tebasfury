@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, inArray, like, ne, notExists, notLike, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, like, notExists, notLike, sql, sum, type SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "./schema";
 import type { Snapshot, TeamRef } from "@/lib/domain/standings";
@@ -286,8 +286,30 @@ export async function claimStandingsRun(
     collapseWindowMs,
   }: { runId: string; trigger: string; now: Date; collapseWindowMs: number },
 ): Promise<boolean> {
-  const windowOpenedAt = new Date(now.getTime() - collapseWindowMs);
+  return claimRunIfQuiet(db, {
+    runId,
+    trigger,
+    now,
+    blocking: and(
+      notLike(syncRuns.trigger, "players-%"),
+      inArray(syncRuns.status, ["running", "succeeded"]),
+      gt(syncRuns.startedAt, new Date(now.getTime() - collapseWindowMs)),
+    ),
+  });
+}
 
+/**
+ * Writes a run's `running` row only if no `blocking` run exists — in ONE statement.
+ *
+ * Shared by both chains' claims, and the one statement is the whole point (see
+ * `claimStandingsRun`): an `INSERT ... SELECT ... WHERE NOT EXISTS` makes the row itself
+ * the claim, so twin deliveries milliseconds apart cannot both pass it, on a driver that
+ * has no transactions.
+ */
+async function claimRunIfQuiet(
+  db: Db,
+  { runId, trigger, now, blocking }: { runId: string; trigger: string; now: Date; blocking: SQL | undefined },
+): Promise<boolean> {
   const claimed = await db
     .insert(syncRuns)
     .select((qb) =>
@@ -308,20 +330,7 @@ export async function claimStandingsRun(
         // SQL with no FROM at all, but the query builder only offers `where` on a select
         // that has one.
         .from(sql`(select 1) as one_row`)
-        .where(
-          notExists(
-            db
-              .select({ one: sql`1` })
-              .from(syncRuns)
-              .where(
-                and(
-                  notLike(syncRuns.trigger, "players-%"),
-                  inArray(syncRuns.status, ["running", "succeeded"]),
-                  gt(syncRuns.startedAt, windowOpenedAt),
-                ),
-              ),
-          ),
-        ),
+        .where(notExists(db.select({ one: sql`1` }).from(syncRuns).where(blocking))),
     )
     .returning({ id: syncRuns.id });
 
@@ -366,35 +375,43 @@ export async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
 }
 
 /**
- * When a sweep that belongs to a chain last succeeded — `loadLastPlayerSweep` without the
- * "Sweep players" button. This is what the redundancy guard reads, and only that.
+ * Claims the right to run a scheduled (or watchdog) player sweep, writing the run's row.
  *
- * The button books no successor, so it is not a chain, and it must not be able to stand
- * one down. Counted, an afternoon press would make the chain's 19:45 firing redundant:
- * that firing would do no work and book nothing, the 19:45 market read would be lost, and
- * the chain would stay dead until the watchdog noticed and revived it in the small hours.
- * Excluding it costs one sweep that repeats the press's work, which is idempotent and
- * cheap next to a lost day.
+ * The sweep's twin of `claimStandingsRun`, and for the same failure: on 2026-10-03 one
+ * booking was delivered twice, half a second apart, and both deliveries swept and booked a
+ * successor. The read-then-decide guard this replaces could not stop it — both read the
+ * table before either had written — and on the Madrid grid the two chains would have
+ * fired in lockstep for ever, doubling every call to the API.
  *
- * `players-schedule` and `players-wake` both still count: each books its successor, so
- * each IS a chain, and a later one of either is exactly the duplicate the guard exists to
- * collapse. `loadLastPlayerSweep` stays as it was, because "Last swept" on /players means
- * the data's age, and a press refreshes the data as much as a chain does.
+ * Blocks on a `players-schedule` or `players-wake` run started inside the window that is
+ * still running or succeeded. Measured from `started_at`, and every booking lands at least
+ * `PLAYER_SWEEP_MIN_LEAD_MS` after the start of the run that made it, which is above the
+ * window — so a chain can never block its own successor.
+ *
+ * Two things never block. A failed run did no work, and its retry is the recovery. And
+ * the "Sweep players" button books no successor, so it is not a chain: counted, an
+ * afternoon press would stand the 19:45 firing down, nothing would be booked, and the
+ * 19:45 market read would be lost until the watchdog woke up in the small hours.
  */
-export async function loadLastScheduledPlayerSweep(db: Db): Promise<Date | null> {
-  const [sweep] = await db
-    .select()
-    .from(syncRuns)
-    .where(
-      and(
-        eq(syncRuns.status, "succeeded"),
-        like(syncRuns.trigger, "players-%"),
-        ne(syncRuns.trigger, "players-manual"),
-      ),
-    )
-    .orderBy(desc(syncRuns.finishedAt))
-    .limit(1);
-  return sweep?.finishedAt ?? null;
+export async function claimPlayerSweep(
+  db: Db,
+  {
+    runId,
+    trigger,
+    now,
+    collapseWindowMs,
+  }: { runId: string; trigger: string; now: Date; collapseWindowMs: number },
+): Promise<boolean> {
+  return claimRunIfQuiet(db, {
+    runId,
+    trigger,
+    now,
+    blocking: and(
+      inArray(syncRuns.trigger, ["players-schedule", "players-wake"]),
+      inArray(syncRuns.status, ["running", "succeeded"]),
+      gt(syncRuns.startedAt, new Date(now.getTime() - collapseWindowMs)),
+    ),
+  });
 }
 
 /**

@@ -156,7 +156,14 @@ export async function runPlayerSweep(deps: {
 }): Promise<PlayerSweepResult> {
   const { db, client, now, runId, trigger } = deps;
 
-  await db.insert(syncRuns).values({ id: runId, trigger, status: "running" });
+  // `onConflictDoNothing` because the scheduled and watchdog endpoints have already written
+  // this row: there the insert IS the collapse guard (`claimPlayerSweep`), made before a
+  // client is built so two deliveries cannot both pass it. The manual button and the tests
+  // still create the row here — the same arrangement as `runSync`.
+  await db
+    .insert(syncRuns)
+    .values({ id: runId, trigger, status: "running" })
+    .onConflictDoNothing();
 
   try {
     const catalogue = await client.getPlayers();

@@ -793,6 +793,16 @@ describe("runPlayerSweep", () => {
     expect(result).toMatchObject({ lineupsCaptured: 2, lineupsSkipped: 0, lineupsFailed: 0 });
   });
 
+  it("runs on a row the scheduled endpoint has already claimed, rather than failing on it", async () => {
+    // `claimPlayerSweep` writes the run's row before the client is built; the sweep must
+    // take that row over, not trip on its primary key.
+    await h.db.insert(syncRuns).values({ id: "s1", trigger: "players-schedule", status: "running", startedAt: now });
+    const client = fakeClient(catalogue(MINIMUM_CATALOGUE));
+    await runPlayerSweep({ db: h.db, client, now, runId: "s1", trigger: "players-schedule" });
+    const [run] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "s1"));
+    expect(run.status).toBe("succeeded");
+  });
+
   it("stores the market alongside the catalogue", async () => {
     const client = fakeClient(catalogue(MINIMUM_CATALOGUE));
     const result = await runPlayerSweep({ db: h.db, client, now, runId: "s1", trigger: "players-schedule" });

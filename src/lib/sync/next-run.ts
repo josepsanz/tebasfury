@@ -63,8 +63,8 @@ export const PLAYER_SWEEP_SPACING_MS = 6 * 60 * 60 * 1000;
 /**
  * The closest a booking may land to the run that makes it.
  *
- * **This is what keeps the grid from killing the chain.** `isRedundantSweep` stands down any
- * firing within `SWEEP_COLLAPSE_WINDOW_MS` of the last success. A grid slot can be minutes
+ * **This is what keeps the grid from killing the chain.** `claimPlayerSweep` stands down any
+ * firing within `SWEEP_COLLAPSE_WINDOW_MS` of another sweep's start. A grid slot can be minutes
  * away (a retry that succeeds just before one), and booking it would end the only chain
  * there is. So a slot nearer than this is skipped for the next. It must stay above the
  * window and below the spacing; a test pins both.
@@ -98,7 +98,8 @@ export function nextPlayerSweepAfterFailure(now: Date): Date {
 }
 
 /**
- * How recent a successful sweep has to be for another one to be redundant.
+ * How recently another scheduled sweep must have STARTED for this one to stand down —
+ * the window `claimPlayerSweep` tests.
  *
  * **This must stay under `PLAYER_SWEEP_MIN_LEAD_MS`, the closest a booking ever lands to
  * the run that made it, and moving one without the other is how the whole chain dies.**
@@ -109,30 +110,6 @@ export function nextPlayerSweepAfterFailure(now: Date): Date {
  * ten seconds without closing it.
  */
 export const SWEEP_COLLAPSE_WINDOW_MS = 5 * 60 * 60 * 1000;
-
-/**
- * Whether a scheduled sweep should stand down because another chain already swept.
- *
- * Nothing in the design stops a second chain existing: every sweep books its successor
- * unconditionally, so each press of "Sweep players" opens a permanent chain alongside
- * the one already running. They cost correctness nothing — the sweep is idempotent —
- * and cost an unofficial API a full catalogue plus one call per team, every day,
- * forever. This is what collapses them: a redundant sweep does no work and, crucially,
- * books no successor, so the extra chain ends there.
- *
- * It can never end all of them. Whichever chain fires first is not redundant, does the
- * work and books tomorrow before any later one stands down; the caller reads only
- * successful sweeps, so a failing chain never silences a healthy one; and two chains
- * firing within the same instant both run, which duplicates a day and collapses on the
- * next.
- *
- * A `lastSuccessAt` in the future is a clock the code cannot reason about, and the
- * failure modes are not symmetric: standing down risks ending every chain, running
- * risks one redundant sweep. So it runs.
- */
-export function isRedundantSweep(lastSuccessAt: Date | null, now: Date): boolean {
-  return withinWindow(lastSuccessAt, now, SWEEP_COLLAPSE_WINDOW_MS);
-}
 
 /**
  * How recently another standings run must have STARTED for this one to be redundant.
@@ -146,32 +123,15 @@ export function isRedundantSweep(lastSuccessAt: Date | null, now: Date): boolean
  * this window was measured against fired its twins 70 ms apart, and no twin pair since
  * has landed further apart than 1.7 s.
  *
- * There is deliberately no `isRedundantSync` beside `isRedundantSweep` to use it, because
- * a guard that READS and then writes cannot win this race. The sweep's duplicates are
- * hours apart, so a read always finds the other chain's finished row; these twins are
- * milliseconds apart and each spends a few hundred more fetching a token before writing
- * anything, so both would read an empty window and both would proceed. The guard is
+ * A guard that READS and then writes cannot win this race: twins milliseconds apart each
+ * spend a few hundred more fetching a token before writing anything, so both would read
+ * an empty window and both would proceed. The sweep learned that the same way on
+ * 2026-10-03, and now claims too (`claimPlayerSweep`). The guard is
  * `claimStandingsRun` instead — one statement that tests this window and writes the run's
  * row together, the same no-transactions reasoning as the team claim and the Necroporra's
  * vote upsert.
  */
 export const SYNC_COLLAPSE_WINDOW_MS = 2 * 60 * 1000;
-
-/**
- * The shared shape of a collapse window: recent enough, and not in the future.
- *
- * The clock-skew branch lives here rather than in each caller because it is the rule most
- * easily lost in a copy — and the one whose loss locks a chain out for as long as the
- * skew lasts.
- */
-function withinWindow(lastSuccessAt: Date | null, now: Date, window: number): boolean {
-  if (lastSuccessAt === null) return false;
-
-  const elapsed = now.getTime() - lastSuccessAt.getTime();
-  if (elapsed < 0) return false;
-
-  return elapsed < window;
-}
 
 /**
  * How quiet a LIVE gameweek's standings chain may go before it is presumed dead.

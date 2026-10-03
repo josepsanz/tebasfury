@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
-import { claimStandingsRun, loadChainHeartbeats, markClaimedRunFailed } from "@/lib/db/queries";
+import { claimPlayerSweep, claimStandingsRun, loadChainHeartbeats, markClaimedRunFailed } from "@/lib/db/queries";
 import { createClient } from "@/lib/fantasy-client";
 import { getEnv } from "@/lib/env";
 import { scheduleNextRun, schedulePlayerSweep, verifyQStashSignature } from "@/lib/scheduler";
-import { nextPlayerSweepAfterFailure, overdueChains, SYNC_COLLAPSE_WINDOW_MS } from "@/lib/sync/next-run";
+import {
+  nextPlayerSweepAfterFailure,
+  overdueChains,
+  SWEEP_COLLAPSE_WINDOW_MS,
+  SYNC_COLLAPSE_WINDOW_MS,
+} from "@/lib/sync/next-run";
 import { runSync } from "@/lib/sync";
 import { runPlayerSweep } from "@/lib/sync/players";
 import { describeFailure } from "@/lib/sync/failure";
@@ -100,24 +105,38 @@ export async function POST(request: Request) {
   }
 
   if (dead.players) {
-    // No collapse guard on this one: `overdueChains` has already established that the
-    // sweep has not run in seven hours, which is two hours past the window that guard
-    // uses. Asking it again would only be asking the same question twice.
     const runId = randomUUID();
-    const outcome = await runAndSchedule({
+    // Claimed like any scheduled sweep, so two overlapping deliveries of this schedule
+    // cannot revive the chain twice. A dead chain always wins the claim: `overdueChains`
+    // only calls it dead an hour past its booked slot, well outside the window.
+    const claimed = await claimPlayerSweep(db, {
+      runId,
+      trigger: "players-wake",
       now,
-      schedule: (at) => schedulePlayerSweep(at, now, runId),
-      nextAfterFailure: nextPlayerSweepAfterFailure,
-      run: async () => {
-        const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
-        return runPlayerSweep({ db, client, now, runId, trigger: "players-wake" });
-      },
+      collapseWindowMs: SWEEP_COLLAPSE_WINDOW_MS,
     });
 
-    if (outcome.status === "failed") {
-      failures.push(`players: ${failureMessage(outcome.error)}`);
-    } else {
-      revived.push("players");
+    if (claimed) {
+      const outcome = await runAndSchedule({
+        now,
+        schedule: (at) => schedulePlayerSweep(at, now, runId),
+        nextAfterFailure: nextPlayerSweepAfterFailure,
+        run: async () => {
+          const client = await createClient(db, getEnv().LALIGA_LEAGUE_ID);
+          return runPlayerSweep({ db, client, now, runId, trigger: "players-wake" });
+        },
+      });
+
+      if (outcome.status === "failed") {
+        await markClaimedRunFailed(db, {
+          runId,
+          now: new Date(),
+          error: describeFailure(outcome.error),
+        });
+        failures.push(`players: ${failureMessage(outcome.error)}`);
+      } else {
+        revived.push("players");
+      }
     }
   }
 

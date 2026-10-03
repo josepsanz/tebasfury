@@ -21,7 +21,7 @@ import {
   loadPortraits,
   loadChainHeartbeats,
   loadLeagueStatus,
-  loadLastScheduledPlayerSweep,
+  claimPlayerSweep,
   loadLineupWeeks,
   loadRoundLineup,
   loadStoredLineupWeeks,
@@ -899,9 +899,15 @@ describe("loadTargets on an empty league", () => {
   });
 });
 
-describe("loadLastScheduledPlayerSweep", () => {
+describe("claimPlayerSweep", () => {
   let h: TestDatabase;
-  const at = (hour: number) => new Date(Date.UTC(2026, 9, 3, hour));
+  const WINDOW = 5 * 60 * 60 * 1000;
+  // The twins measured in production on 2026-10-03: two deliveries of one booking, half a
+  // second apart, both of which swept and both of which booked a successor.
+  const slot = new Date("2026-10-03T16:48:02.601Z");
+  const after = (ms: number) => new Date(slot.getTime() + ms);
+  const claim = (runId: string, now: Date, trigger = "players-schedule") =>
+    claimPlayerSweep(h.db, { runId, trigger, now, collapseWindowMs: WINDOW });
 
   beforeAll(async () => {
     h = await createTestDatabase();
@@ -910,21 +916,42 @@ describe("loadLastScheduledPlayerSweep", () => {
     await h.close();
   });
 
-  it("ignores a later manual press, which books no successor and must not stand a chain down", async () => {
-    await h.db.insert(syncRuns).values([
-      { id: "sch", trigger: "players-schedule", status: "succeeded", startedAt: at(11), finishedAt: at(11) },
-      { id: "man", trigger: "players-manual", status: "succeeded", startedAt: at(15), finishedAt: at(15) },
-      { id: "std", trigger: "schedule", status: "succeeded", startedAt: at(16), finishedAt: at(16) },
-    ]);
-
-    expect(await loadLastScheduledPlayerSweep(h.db)).toEqual(at(11));
+  it("claims when nothing has run, and writes the run's own row", async () => {
+    expect(await claim("pl-first", slot)).toBe(true);
+    const [row] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "pl-first"));
+    expect(row).toMatchObject({ trigger: "players-schedule", status: "running" });
+    expect(row.startedAt).toEqual(slot);
   });
 
-  it("counts a later wake success, which does book a successor", async () => {
-    await h.db.insert(syncRuns).values({
-      id: "wake", trigger: "players-wake", status: "succeeded", startedAt: at(17), finishedAt: at(17),
-    });
+  it("refuses the twin half a second behind, while the first is still in flight", async () => {
+    expect(await claim("pl-twin", after(575))).toBe(false);
+    expect(await h.db.select().from(syncRuns).where(eq(syncRuns.id, "pl-twin"))).toHaveLength(0);
+  });
 
-    expect(await loadLastScheduledPlayerSweep(h.db)).toEqual(at(17));
+  it("claims the next grid slot, five and a half hours on, so the surviving chain keeps going", async () => {
+    expect(await claim("pl-next", after(5.5 * 60 * 60 * 1000))).toBe(true);
+  });
+
+  it("is not blocked by a manual press, which books no successor of its own", async () => {
+    const pressAt = after(12 * 60 * 60 * 1000);
+    await h.db.insert(syncRuns).values({
+      id: "pl-manual", trigger: "players-manual", status: "succeeded", startedAt: pressAt, finishedAt: pressAt,
+    });
+    expect(await claim("pl-after-press", after(12.5 * 60 * 60 * 1000))).toBe(true);
+  });
+
+  it("is not blocked by a run that failed, whose retry is the recovery", async () => {
+    const failedAt = after(24 * 60 * 60 * 1000);
+    await h.db.insert(syncRuns).values({
+      id: "pl-failed", trigger: "players-schedule", status: "failed", startedAt: failedAt, finishedAt: failedAt,
+    });
+    expect(await claim("pl-retry", after(25 * 60 * 60 * 1000))).toBe(true);
+  });
+
+  it("blocks a watchdog revival inside the window, and is not blocked by the standings chain", async () => {
+    expect(await claim("pl-wake", after(25.5 * 60 * 60 * 1000), "players-wake")).toBe(false);
+    const standingsAt = after(40 * 60 * 60 * 1000);
+    await h.db.insert(syncRuns).values({ id: "st-recent", trigger: "schedule", status: "running", startedAt: standingsAt });
+    expect(await claim("pl-beside-standings", after(40 * 60 * 60 * 1000 + 1000))).toBe(true);
   });
 });

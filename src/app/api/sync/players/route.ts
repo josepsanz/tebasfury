@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
-import { loadLastScheduledPlayerSweep } from "@/lib/db/queries";
+import { claimPlayerSweep, markClaimedRunFailed } from "@/lib/db/queries";
 import { createClient } from "@/lib/fantasy-client";
 import { getEnv } from "@/lib/env";
 import { schedulePlayerSweep, verifyQStashSignature } from "@/lib/scheduler";
-import { isRedundantSweep, nextPlayerSweepAfterFailure } from "@/lib/sync/next-run";
+import { nextPlayerSweepAfterFailure, SWEEP_COLLAPSE_WINDOW_MS } from "@/lib/sync/next-run";
+import { describeFailure } from "@/lib/sync/failure";
 import { runPlayerSweep } from "@/lib/sync/players";
 import { failureMessage, runAndSchedule } from "@/lib/sync/scheduled-run";
 
@@ -31,22 +32,27 @@ export async function POST(request: Request) {
 
   const now = new Date();
 
-  // The one place a chain is allowed to end on purpose. Standing down without booking
-  // a successor is what collapses the duplicate chains each press of "Sweep players"
-  // opens; `isRedundantSweep` argues why this cannot end the last one. The manual
-  // button is deliberately not guarded — it stays the recovery lever — and it is not
-  // counted here either: it books no successor, so a press that stood the chain down
-  // would leave nothing booked at all (see `loadLastScheduledPlayerSweep`).
-  const lastSweepAt = await loadLastScheduledPlayerSweep(db);
-  if (isRedundantSweep(lastSweepAt, now)) {
+  const runId = randomUUID();
+
+  // The one place a chain is allowed to end on purpose. Standing down without booking a
+  // successor is what collapses a duplicate chain — two deliveries of one booking, half a
+  // second apart, both swept and both booked on 2026-10-03. The claim is an insert rather
+  // than a read so twins cannot both pass it, and it comes before the client is built
+  // because that is where their milliseconds go. `claimPlayerSweep` argues why it cannot
+  // end the last chain, and why the "Sweep players" button never blocks it.
+  const claimed = await claimPlayerSweep(db, {
+    runId,
+    trigger: "players-schedule",
+    now,
+    collapseWindowMs: SWEEP_COLLAPSE_WINDOW_MS,
+  });
+  if (!claimed) {
     return Response.json({
       skipped: true,
-      reason: "Another chain already swept within the collapse window.",
-      lastSweepAt: lastSweepAt?.toISOString() ?? null,
+      reason: "Another player sweep started within the collapse window.",
     });
   }
 
-  const runId = randomUUID();
   const outcome = await runAndSchedule({
     now,
     schedule: (at) => schedulePlayerSweep(at, now, runId),
@@ -58,6 +64,10 @@ export async function POST(request: Request) {
   });
 
   if (outcome.status === "failed") {
+    // The claimed row is still `running` if the failure came before `runPlayerSweep` got
+    // going — an expired credential, most often. Closing it keeps the history honest.
+    await markClaimedRunFailed(db, { runId, now: new Date(), error: describeFailure(outcome.error) });
+
     // A 500 so QStash retries this delivery too: its retries are the fast recovery,
     // and the successor `runAndSchedule` booked is what survives them running out.
     return Response.json({ error: failureMessage(outcome.error) }, { status: 500 });

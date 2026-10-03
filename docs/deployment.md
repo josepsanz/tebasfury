@@ -326,13 +326,13 @@ and squads it read and when the next one is due; from then on the chain runs its
 
 Pressing it again while the chain is alive no longer starts a second chain: since
 2026-09-14 the button books no successor (see "Sync now" syncs, below), and the chain's
-redundancy guard ignores its runs, so a press can never stand the next scheduled sweep
-down either. A second chain can still arise another way — the watchdog reviving a chain
-that was only late — and that one does not survive: a scheduled sweep that finds another
-chain's success inside the last 5 hours stands down without booking a successor
-(`isRedundantSweep`), so the duplicate ends at its own next firing and one chain is left.
-On the grid that firing can be up to about 12.5 hours away; the cost until then is one
-extra sweep.
+collapse claim ignores its runs, so a press can never stand the next scheduled sweep down
+either. A second chain can still arise another way — one booking delivered twice, as
+happened on 2026-10-03 half a second apart — and it does not survive: every scheduled or
+watchdog sweep first claims its run in one `INSERT ... WHERE NOT EXISTS`
+(`claimPlayerSweep`), and a delivery that finds another sweep started inside the last
+5 hours stands down without booking a successor. Twins cannot both pass it, so the
+duplicate dies on the spot rather than firing in lockstep with the real chain.
 
 Two presses within that same window are the case this does not cover: both open chains
 that fire roughly a cadence apart and each looks legitimate to the other. That is what

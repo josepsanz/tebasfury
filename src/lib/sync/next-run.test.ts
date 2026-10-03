@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   decideNextRun,
-  isRedundantSweep,
   nextRunAfterFailure,
   nextPlayerSweep,
   nextPlayerSweepAfterFailure,
@@ -117,8 +116,9 @@ describe("the player sweep cadence", () => {
         const lead = next.getTime() - t;
         expect(lead).toBeGreaterThanOrEqual(PLAYER_SWEEP_MIN_LEAD_MS);
         expect(lead).toBeLessThanOrEqual(PLAYER_SWEEP_MIN_LEAD_MS + PLAYER_SWEEP_SPACING_MS + 60 * 60 * 1000);
-        const finishedAt = new Date(t + 5 * 60 * 1000);
-        expect(isRedundantSweep(finishedAt, next)).toBe(false);
+        // `claimPlayerSweep` measures its window from the booking run's START, which is
+        // `now` here: the successor must land outside it, or the chain claims nothing.
+        expect(lead).toBeGreaterThan(SWEEP_COLLAPSE_WINDOW_MS);
         const wall = new Intl.DateTimeFormat("en-GB", {
           timeZone: "Europe/Madrid",
           hour: "2-digit",
@@ -138,42 +138,6 @@ describe("the player sweep cadence", () => {
     expect(leagueWallTime(2026, 10, 3, 19, 45).getTime() - leagueWallTime(2026, 10, 3, 13, 45).getTime()).toBe(
       PLAYER_SWEEP_SPACING_MS,
     );
-  });
-});
-
-describe("isRedundantSweep", () => {
-  const sweepNow = new Date("2026-09-08T16:00:00Z");
-  const hoursBefore = (h: number) => new Date(sweepNow.getTime() - h * 60 * 60 * 1000);
-
-  it("runs when nothing has ever swept, so a first sweep is never suppressed", () => {
-    expect(isRedundantSweep(null, sweepNow)).toBe(false);
-  });
-
-  it("suppresses a sweep soon after another chain already swept", () => {
-    expect(isRedundantSweep(hoursBefore(2), sweepNow)).toBe(true);
-  });
-
-  it("lets the surviving chain's own run through", () => {
-    // The property the whole pairing exists for: a chain booking itself at the closest
-    // the grid allows must never land inside its own suppression window. The ordering of
-    // the window, the lead and the spacing is pinned in the cadence block above.
-    const lastTime = new Date(sweepNow.getTime() - PLAYER_SWEEP_MIN_LEAD_MS);
-    expect(isRedundantSweep(lastTime, sweepNow)).toBe(false);
-  });
-
-  it("runs again once the window has passed exactly", () => {
-    const edge = new Date(sweepNow.getTime() - SWEEP_COLLAPSE_WINDOW_MS);
-    expect(isRedundantSweep(edge, sweepNow)).toBe(false);
-  });
-
-  it("suppresses one millisecond inside the window", () => {
-    const inside = new Date(sweepNow.getTime() - SWEEP_COLLAPSE_WINDOW_MS + 1);
-    expect(isRedundantSweep(inside, sweepNow)).toBe(true);
-  });
-
-  it("runs when the clock says the last sweep is in the future, rather than locking out", () => {
-    const skewed = new Date(sweepNow.getTime() + 60 * 60 * 1000);
-    expect(isRedundantSweep(skewed, sweepNow)).toBe(false);
   });
 });
 

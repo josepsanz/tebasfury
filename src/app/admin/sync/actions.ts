@@ -89,7 +89,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
   // No successor booked, for the reason the standings button above gives at length: the
   // buttons sync, the chains schedule themselves, and the watchdog revives whichever has
   // stopped. Because this run books nothing, it is also invisible to the chain's
-  // redundancy guard (`loadLastScheduledPlayerSweep` leaves `players-manual` out): were it
+  // collapse claim (`claimPlayerSweep` never counts `players-manual`): were it
   // counted, an afternoon press would stand the 19:45 firing down with nothing booked
   // after it, and the chain would lie dead until the watchdog's next pass.
   const outcome = await runAndSchedule({
