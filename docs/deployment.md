@@ -428,3 +428,19 @@ during a live gameweek. Marking such a run failed would let QStash's own retry r
 in seconds, but it would also record a sync that wrote real data as a failure, and the
 status bar would under-report how fresh the table is. One recovery mechanism that tells
 the truth beats two that argue.
+
+## Market listings (migration 0017)
+
+`0017_market_listings.sql` creates `market_listings`. **Apply it before deploying the
+code that reads it**, or every player sweep's market read fails (tolerated: the sweep still
+succeeds, and `marketFailed: true` appears in its JSON) and `/targets` errors on its query.
+
+    DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
+
+Then verify, because `drizzle-kit migrate` hides its errors: `market_listings` must exist in
+`information_schema.tables`, and `drizzle.__drizzle_migrations` must have one more row than
+before.
+
+The same deploy moves the player sweep onto a fixed grid (01:45, 07:45, 13:45, 19:45
+Madrid). The chain that is running books its next slot on its first run after the deploy;
+nothing needs restarting.
