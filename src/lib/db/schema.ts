@@ -339,6 +339,33 @@ export const squadMembers = pgTable(
 );
 
 /**
+ * Who is on the league market right now: the daily auction's free agents and the players
+ * managers have listed.
+ *
+ * Current state, REPLACED on every successful read, like `squad_members`. Not a log: market
+ * history is out of scope. One row per player, because a player is on the market once.
+ *
+ * `read_at` is the same on every row, and is what the page reports as "Market read at". A
+ * manager listing's asking price and offer count are deliberately absent; see `getMarket`.
+ */
+export const marketListings = pgTable(
+  "market_listings",
+  {
+    playerId: text("player_id")
+      .primaryKey()
+      .references(() => players.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    /** The listing manager's team, as the market names it. No FK: informational only. */
+    sellerTeamId: text("seller_team_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** The auction's bid count. Null for a manager's listing. */
+    bids: integer("bids"),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [check("market_listings_kind_check", sql`${table.kind} in ('league', 'team')`)],
+);
+
+/**
  * A LaLiga club, learned from `playerMaster.team` on the squad response the sweep
  * already fetches for ownership. Costs no extra API call.
  *

@@ -74,6 +74,8 @@ export async function POST(request: Request) {
     // this endpoint's JSON is the other channel an operator — or a monitor watching
     // it — could read that from, alongside the admin page's notes.
     lineupsCaptured: outcome.result.lineupsCaptured,
+    marketCaptured: outcome.result.marketCaptured,
+    marketFailed: outcome.result.marketFailed,
     nextRunAt: outcome.result.nextRunAt.toISOString(),
   });
 }
