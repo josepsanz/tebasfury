@@ -36,6 +36,9 @@ export function NavLinks({
     { href: "/standings", label: "Standings" },
     { href: "/progress", label: "Progress" },
     { href: "/players", label: "Players" },
+    // Between the two pages it draws from: the catalogue gives it the players and their
+    // values, the market gives it the routes that are open to buy them.
+    { href: "/targets", label: "Targets" },
     { href: "/market", label: "Market" },
     // Beside the log it is read from. The register is the league's own rule; the poll
     // after it is a game, and the order says which is which.
