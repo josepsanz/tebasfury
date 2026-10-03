@@ -1,3 +1,4 @@
+import { leagueDate, leagueWallTime } from "@/lib/domain/clock";
 import type { Gameweek } from "@/lib/fantasy-client";
 
 export const LIVE_INTERVAL_MS = 10 * 60 * 1000;
@@ -38,25 +39,50 @@ export function nextRunAfterFailure(now: Date): Date {
   return new Date(now.getTime() + FAILURE_INTERVAL_MS);
 }
 
-export const PLAYER_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 export const PLAYER_FAILURE_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
- * When the next player sweep should run.
+ * When the sweep runs: four fixed slots a day, in Spain's time.
  *
- * A flat six hours. It was a flat day until 2026-09-09; the market log is what moved it,
- * because that log is captured by THIS chain and a daily sweep meant a signing could sit
- * unseen for a day. Six hours is still a flat interval with no live window to chase —
- * this is the slow half of the design, and the ten-minute standings chain is unaffected.
- *
- * The cost is small and was measured before the change: at four sweeps a day this chain
- * publishes 4 QStash messages against the standings chain's 143 on a matchday, so it is
- * about 2% of the traffic either way. What it does NOT buy is a finer value history —
- * `player_value_snapshots` is keyed by DAY, so the extra sweeps correct the same row
- * rather than adding points to the chart.
+ * It was a flat six hours until 2026-10-03, and a flat interval drifts: its hour depends on
+ * when the chain first fired, so it never reliably read the market just after the daily
+ * auction turns over. The owner's requirement is a read no earlier than 19:30 Madrid time;
+ * 19:45 keeps a quarter of an hour of margin, and the other three slots keep the same four
+ * sweeps a day the flat interval made.
  */
+export const PLAYER_SWEEP_SLOTS = [
+  { hour: 1, minute: 45 },
+  { hour: 7, minute: 45 },
+  { hour: 13, minute: 45 },
+  { hour: 19, minute: 45 },
+] as const;
+
+/** The distance between two slots on an ordinary day. */
+export const PLAYER_SWEEP_SPACING_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * The closest a booking may land to the run that makes it.
+ *
+ * **This is what keeps the grid from killing the chain.** `isRedundantSweep` stands down any
+ * firing within `SWEEP_COLLAPSE_WINDOW_MS` of the last success. A grid slot can be minutes
+ * away (a retry that succeeds just before one), and booking it would end the only chain
+ * there is. So a slot nearer than this is skipped for the next. It must stay above the
+ * window and below the spacing; a test pins both.
+ */
+export const PLAYER_SWEEP_MIN_LEAD_MS = 5.5 * 60 * 60 * 1000;
+
+/** The first grid slot at least `PLAYER_SWEEP_MIN_LEAD_MS` after `now`. */
 export function nextPlayerSweep(now: Date): Date {
-  return new Date(now.getTime() + PLAYER_SWEEP_INTERVAL_MS);
+  const earliest = now.getTime() + PLAYER_SWEEP_MIN_LEAD_MS;
+  const { year, month, day } = leagueDate(new Date(earliest));
+  for (let offset = 0; offset <= 1; offset += 1) {
+    for (const slot of PLAYER_SWEEP_SLOTS) {
+      const at = leagueWallTime(year, month, day + offset, slot.hour, slot.minute);
+      if (at.getTime() >= earliest) return at;
+    }
+  }
+  // Unreachable: the last slot of the next day is always more than 5.5 h after `now`.
+  throw new Error("No player sweep slot found");
 }
 
 /**
@@ -74,14 +100,13 @@ export function nextPlayerSweepAfterFailure(now: Date): Date {
 /**
  * How recent a successful sweep has to be for another one to be redundant.
  *
- * **This must stay a fraction under `PLAYER_SWEEP_INTERVAL_MS`, and moving one without
- * the other is how the whole chain dies.** The surviving chain books itself at exactly
- * that interval, so the window has to sit inside it — a window equal to or longer than
- * the cadence would make every sweep suppress its own successor, and the chain would
- * stop with no error anywhere.
+ * **This must stay under `PLAYER_SWEEP_MIN_LEAD_MS`, the closest a booking ever lands to
+ * the run that made it, and moving one without the other is how the whole chain dies.**
+ * A window equal to or longer than that lead would make a sweep suppress its own
+ * successor, and the chain would stop with no error anywhere.
  *
- * An hour short of six, which is the same one-sixth margin the old 20-of-24 pair had:
- * enough for QStash's delivery drift and the sweep's own ten seconds without closing it.
+ * Half an hour short of the lead: enough for QStash's delivery drift and the sweep's own
+ * ten seconds without closing it.
  */
 export const SWEEP_COLLAPSE_WINDOW_MS = 5 * 60 * 60 * 1000;
 
@@ -167,8 +192,15 @@ export const STANDINGS_OVERDUE_LIVE_MS = 25 * 60 * 1000;
  */
 export const STANDINGS_OVERDUE_IDLE_MS = MAX_INTERVAL_MS + 30 * 60 * 1000;
 
-/** The sweep's six hours plus an hour, for the same reason and with the same margin. */
-export const SWEEP_OVERDUE_MS = PLAYER_SWEEP_INTERVAL_MS + 60 * 60 * 1000;
+/**
+ * How late past its booked slot the sweep may be before it is presumed dead.
+ *
+ * Not a constant gap since the last run: on the grid a healthy gap runs from 5.5 h to about
+ * 12.5 h (a skipped slot, the spring night), so any single threshold either calls a healthy
+ * chain dead or waits half a day to notice a dead one. The question is asked of the slot
+ * the last run would have booked, plus an hour of delivery drift.
+ */
+export const SWEEP_GRACE_MS = 60 * 60 * 1000;
 
 /**
  * Which chains have stopped and need starting again.
@@ -215,6 +247,11 @@ export function overdueChains({
       standingsLastRunAt,
       isLive ? STANDINGS_OVERDUE_LIVE_MS : STANDINGS_OVERDUE_IDLE_MS,
     ),
-    players: overdue(sweepLastRunAt, SWEEP_OVERDUE_MS),
+    players:
+      sweepLastRunAt === null
+        ? true
+        : sweepLastRunAt.getTime() > now.getTime()
+          ? false
+          : now.getTime() >= nextPlayerSweep(sweepLastRunAt).getTime() + SWEEP_GRACE_MS,
   };
 }
