@@ -696,4 +696,13 @@ describe("getMarket", () => {
     ]);
     expect(await getMarket("token", "x")).toEqual([]);
   });
+
+  it("gives the read a deadline, so a hang cannot outlive the sweep that runs it", async () => {
+    // The sweep reads the market last, inside a 300 s function: without a signal a hung
+    // socket would take the run down before it booked its successor.
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(marketFixture), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await getMarket("token", "x");
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+  });
 });
