@@ -654,7 +654,7 @@ describe("getMarket", () => {
   });
 
   const answering = (body: unknown) => {
-    const fetchMock = vi.fn(async (_url: string) => new Response(JSON.stringify(body), { status: 200 }));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(body), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
   };
@@ -688,6 +688,14 @@ describe("getMarket", () => {
     expect(rows).toEqual([
       { playerId: "1", kind: "league", sellerTeamId: null, expiresAt: new Date("2026-10-04T17:00:00Z"), bids: 0 },
     ]);
+  });
+
+  it("keeps a null bid count unknown rather than reading it as no bids", async () => {
+    answering([
+      { discr: "marketPlayerLeague", playerMaster: { id: "1" }, expirationDate: "2026-10-04T19:00:00+02:00", numberOfBids: null },
+    ]);
+    const [row] = await getMarket("token", "x");
+    expect(row.bids).toBeNull();
   });
 
   it("drops a team listing that names no seller", async () => {

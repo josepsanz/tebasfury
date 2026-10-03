@@ -72,6 +72,14 @@ describe("captureMarket", () => {
     expect(await h.db.select().from(marketListings)).toHaveLength(1);
   });
 
+  it("keeps the previous market when no row names a player the catalogue knows", async () => {
+    // A catalogue out of step with the market, not a market with nobody on it.
+    await captureMarket(h.db, client([listing("a")]), { now });
+    const result = await captureMarket(h.db, client([listing("zzz"), listing("yyy")]), { now });
+    expect(result).toEqual({ captured: 0, dropped: 2, failed: true });
+    expect(await h.db.select().from(marketListings)).toHaveLength(1);
+  });
+
   it("keeps one row per player if the API names one twice", async () => {
     const result = await captureMarket(h.db, client([listing("a"), listing("a", { bids: 3 })]), { now });
     expect(result.captured).toBe(1);

@@ -38,7 +38,7 @@ export default async function TargetsPage({
       <PageHeader
         title="Targets"
         note="Everyone you could buy today, ranked by what they would return or score for what they would really cost."
-        meta={`${rows.length} targets`}
+        meta={`${rows.length} ${rows.length === 1 ? "target" : "targets"}`}
       />
 
       <p className="mt-2 text-[11px]" style={{ color: market.stale ? "var(--board-alert)" : "var(--board-ink-dim)" }}>

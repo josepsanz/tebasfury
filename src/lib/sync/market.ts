@@ -25,7 +25,8 @@ export type MarketCapture = { captured: number; dropped: number; failed: boolean
  *
  * An EMPTY read is treated as a failure and the previous market is kept. The daily auction
  * always holds players, so nothing on the market is far likelier a hiccup than a fact, and
- * believing it would blank the page until the next sweep.
+ * believing it would blank the page until the next sweep. A read whose every row names a
+ * player the catalogue does not know is treated the same way, for the same reason.
  *
  * Delete-then-insert with no transaction (Neon HTTP has none): a failure between the two
  * leaves an empty market until the next sweep, which the page reports as never read.
@@ -52,11 +53,13 @@ export async function captureMarket(db: Db, client: MarketClient, { now }: { now
       ).map((row) => row.id),
     );
     const rows = [...byPlayer.values()].filter((row) => known.has(row.playerId));
+    // The same ruling as an empty read, one step later: a market of players the catalogue
+    // has never heard of is a catalogue out of step, not a market with nobody on it, and
+    // wiping the table for it would blank the page as surely.
+    if (rows.length === 0) return { captured: 0, dropped: listings.length, failed: true };
 
     await db.delete(marketListings);
-    if (rows.length > 0) {
-      await db.insert(marketListings).values(rows.map((row) => ({ ...row, readAt: now })));
-    }
+    await db.insert(marketListings).values(rows.map((row) => ({ ...row, readAt: now })));
     return { captured: rows.length, dropped: listings.length - rows.length, failed: false };
   } catch {
     return { captured: 0, dropped: 0, failed: true };

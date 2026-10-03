@@ -206,7 +206,9 @@ export const marketEntrySchema = z.object({
   discr: z.string(),
   playerMaster: z.object({ id: z.coerce.string() }),
   expirationDate: z.string(),
-  numberOfBids: z.coerce.number().optional(),
+  /** Nullable and NOT coerced: `z.coerce.number()` turns a `null` into 0, and 0 is what
+   *  tags a player "No bids yet". An unknown count must stay unknown, not become a claim. */
+  numberOfBids: z.number().nullable().optional(),
   sellerTeam: z.object({ id: z.coerce.string() }).nullable().optional(),
 });
 
