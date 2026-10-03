@@ -66,6 +66,19 @@ describe("routes and cost", () => {
     expect(t).toMatchObject({ route: "clause", cost: 10_500_000 });
   });
 
+  it("gives a tie between a listing and a clause to the clause", () => {
+    const t = toTarget(
+      input({ value: 1_320_000, owner: owner({ buyoutClause: 1_452_000 }), listing: { kind: "team", expiresAt: later, bids: null } }),
+      now,
+    );
+    expect(t).toMatchObject({ route: "clause", cost: 1_452_000 });
+    expect(t.tags.map((x) => x.key)).toContain("cheap-clause");
+  });
+
+  it("opens no route at a cost of zero", () => {
+    expect(toTarget(input({ owner: owner({ buyoutClause: 0 }) }), now).route).toBeNull();
+  });
+
   it("opens no clause route while locked or shielded", () => {
     expect(toTarget(input({ owner: owner({ clauseLockedUntil: later }) }), now).route).toBeNull();
     expect(toTarget(input({ owner: owner({ shielded: true }) }), now).route).toBeNull();
@@ -243,6 +256,7 @@ describe("parseTargetView", () => {
       position: "Forward",
       showInjured: true,
     });
+    expect(parseTargetView({ position: "" }).position).toBeNull();
     expect(parseTargetView({ lens: "x", route: ["a", "b"] })).toMatchObject({ lens: "investment", route: "all" });
   });
 });

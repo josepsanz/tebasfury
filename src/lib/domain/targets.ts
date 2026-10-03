@@ -119,20 +119,30 @@ const tag = (key: TagKey, tone: Tag["tone"]): Tag => ({ key, label: TAG_LABELS[k
 /**
  * Every route open to a buyer now, cheapest first. A listing past its expiry is no route,
  * whatever the last read said: that is what keeps a missed read from offering yesterday's
- * auction.
+ * auction. A route that would cost nothing or less is no route either: a zero figure is a
+ * missing one, not a bargain.
+ *
+ * The listed price is value + 10% rounded to whole euros, so it never carries float noise
+ * (1_320_000 * 1.1 is 1452000.0000000002). Costs within one euro count as equal, and on a
+ * tie the CLAUSE wins, then the auction, then the listing: a clause is unilateral, while a
+ * listing still needs the seller to accept.
  */
 function cheapestRoute(input: TargetInput, clause: ClauseStatus | null, now: Date): { route: Route; cost: number } | null {
   const open: { route: Route; cost: number }[] = [];
   const live = input.listing !== null && input.listing.expiresAt > now;
   if (live && input.value !== null) {
     if (input.listing?.kind === "league") open.push({ route: "auction", cost: input.value });
-    else open.push({ route: "listed", cost: input.value * HOUSE_RULE_PREMIUM });
+    else open.push({ route: "listed", cost: Math.round(input.value * HOUSE_RULE_PREMIUM) });
   }
   if (input.owner?.buyoutClause != null && clause?.state === "takeable") {
     open.push({ route: "clause", cost: input.owner.buyoutClause });
   }
-  // Stable sort: on a tie the order above wins — auction, then listing, then clause.
-  return open.sort((a, b) => a.cost - b.cost)[0] ?? null;
+  const priority: Record<Route, number> = { clause: 0, auction: 1, listed: 2 };
+  return (
+    open
+      .filter((o) => o.cost > 0)
+      .sort((a, b) => (Math.abs(a.cost - b.cost) <= 1 ? priority[a.route] - priority[b.route] : a.cost - b.cost))[0] ?? null
+  );
 }
 
 export function toTarget(input: TargetInput, now: Date): Target {
@@ -227,7 +237,7 @@ export function parseTargetView(params: Record<string, string | string[] | undef
   return {
     lens: LENSES.find((l) => l === one(params.lens)) ?? "investment",
     route: ROUTES.find((r) => r === one(params.route)) ?? "all",
-    position: one(params.position),
+    position: one(params.position) || null,
     showInjured: one(params.injured) === "shown",
   };
 }
