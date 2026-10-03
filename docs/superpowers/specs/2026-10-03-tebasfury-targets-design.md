@@ -177,13 +177,22 @@ fall inside its own chain's 5-hour window. On the cases that break a naive grid:
 the 6-hour grid spacing. A test pins both inequalities, as the existing comment asks of
 the current pair.
 
+### The watchdog must follow the grid
+
+`overdueChains` calls the sweep dead after a constant 7 hours (`SWEEP_OVERDUE_MS`). On the
+grid a healthy gap runs up to about 12.5 hours (a skipped slot, the spring night), so that
+constant would start a second chain beside a healthy one. It is replaced by the question
+the watchdog actually means: **is it more than an hour past the slot the last run would
+have booked?** That is `now ≥ nextPlayerSweep(lastRun) + 1 h`. Found while planning,
+2026-10-03.
+
 ## The calculation
 
 All of this lives in `src/lib/domain/targets.ts`. It is pure, with no database, and every
 threshold is a named constant.
 
 **Cost:** the cheapest open route from the table above, or `null` when no route is open.
-An auction listing whose `expires_at` has passed is **not** an open route (see staleness).
+A listing whose `expires_at` has passed, auction or manager's, is **not** an open route (see staleness).
 
 **Cost multiple:** `cost / value`, shown as "1.00×", "1.10×", "1.37×".
 
@@ -241,8 +250,8 @@ reuses `clauseStatus` from `domain/market.ts` rather than re-deriving the lock.
   is excluded.
 
 **Staleness.** If `read_at` is more than 24 hours old, the header says so in alert colour,
-and auction listings whose `expires_at` has passed stop counting as an open route.
-Listed and clause routes stay, but are marked as read at that time. With no read at all,
+and any listing whose `expires_at` has passed, auction or manager's, stops counting as an
+open route. Clause routes do not depend on the market read and stay. With no read at all,
 the page says the market has not been read yet and ranks clause routes only.
 
 Every visible string is English, following the project's rule.
