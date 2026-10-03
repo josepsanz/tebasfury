@@ -3,7 +3,7 @@
  *
  * Run it with the alias hook:
  *
- *   node --import ./scripts/register-alias.mjs scripts/capture-activity-fixture.mts
+ *   node --experimental-transform-types --import ./scripts/register-alias.mjs scripts/capture-activity-fixture.mts
  *
  * It needs a `.env.local` whose DATABASE_URL points at a database holding a
  * bootstrapped LaLiga credential, and the matching CREDENTIALS_KEY. It goes through

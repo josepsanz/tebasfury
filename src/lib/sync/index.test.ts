@@ -41,6 +41,7 @@ const unusedPlayerCalls = {
     players: [],
   }),
   getActivity: async () => [],
+  getMarket: async () => [],
 };
 
 const row = (

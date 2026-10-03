@@ -10,6 +10,7 @@ import {
   getActivity,
   getCurrentWeek,
   getLineup,
+  getMarket,
   MAX_ACTIVITY_PAGES,
   getPlayers,
   getSquad,
@@ -18,6 +19,7 @@ import {
   LaLigaApiError,
 } from "./index";
 import live from "./__fixtures__/standing-live.json";
+import marketFixture from "./__fixtures__/market.json";
 import settled from "./__fixtures__/standing-settled.json";
 import weekFixture from "./__fixtures__/week-current.json";
 import playersFixture from "./__fixtures__/players.json";
@@ -643,5 +645,55 @@ describe("createClient", () => {
     await client.getStanding(3);
 
     expect(tokenExchanges).toBe(1);
+  });
+});
+
+describe("getMarket", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const answering = (body: unknown) => {
+    const fetchMock = vi.fn(async (_url: string) => new Response(JSON.stringify(body), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  };
+
+  it("asks the singular league path", async () => {
+    const fetchMock = answering(marketFixture);
+    await getMarket("token", "8012894");
+    expect(fetchMock.mock.calls[0][0]).toContain("/v1/competition/1/league/8012894/market");
+  });
+
+  it("maps one entry of each kind from the captured response", async () => {
+    answering(marketFixture);
+    const rows = await getMarket("token", "8012894");
+    const league = rows.find((r) => r.kind === "league");
+    const team = rows.find((r) => r.kind === "team");
+    expect(league).toMatchObject({ sellerTeamId: null });
+    expect(typeof league?.bids).toBe("number");
+    expect(league?.expiresAt).toBeInstanceOf(Date);
+    expect(Number.isNaN(league?.expiresAt.getTime())).toBe(false);
+    expect(team).toMatchObject({ bids: null });
+    expect(typeof team?.sellerTeamId).toBe("string");
+    expect(typeof team?.playerId).toBe("string");
+  });
+
+  it("drops a kind it does not know rather than failing the read", async () => {
+    answering([
+      { discr: "marketPlayerLeague", playerMaster: { id: "1" }, expirationDate: "2026-10-04T19:00:00+02:00", numberOfBids: 0 },
+      { discr: "somethingNew", playerMaster: { id: "2" }, expirationDate: "2026-10-04T19:00:00+02:00" },
+    ]);
+    const rows = await getMarket("token", "x");
+    expect(rows).toEqual([
+      { playerId: "1", kind: "league", sellerTeamId: null, expiresAt: new Date("2026-10-04T17:00:00Z"), bids: 0 },
+    ]);
+  });
+
+  it("drops a team listing that names no seller", async () => {
+    answering([
+      { discr: "marketPlayerTeam", playerMaster: { id: "3" }, expirationDate: "2026-10-04T19:00:00+02:00" },
+    ]);
+    expect(await getMarket("token", "x")).toEqual([]);
   });
 });

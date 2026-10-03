@@ -7,6 +7,7 @@ import {
   currentWeekSchema,
   leaguesSchema,
   lineupSchema,
+  marketSchema,
   playersSchema,
   squadSchema,
   standingSchema,
@@ -581,6 +582,40 @@ function toMarketOperation(row: ActivityEntry & { user1Id: number }): MarketOper
   };
 }
 
+/**
+ * One player on the league market right now.
+ *
+ * `league` is a free agent in the daily auction; `team` is a player a manager has listed.
+ * `bids` is the auction's own count and exists only for `league`; a listing's offer count
+ * is the league's automatic offer and is not carried.
+ */
+export type MarketListingRow = {
+  playerId: string;
+  kind: "league" | "team";
+  sellerTeamId: string | null;
+  expiresAt: Date;
+  bids: number | null;
+};
+
+/** Today's market. Note `league`, singular, measured 2026-10-03. */
+export async function getMarket(accessToken: string, leagueId: string): Promise<MarketListingRow[]> {
+  const entries = await apiGet(
+    accessToken,
+    `/v1/competition/${COMPETITION}/league/${leagueId}/market`,
+    marketSchema,
+  );
+  const rows: MarketListingRow[] = [];
+  for (const entry of entries) {
+    const expiresAt = new Date(entry.expirationDate);
+    if (entry.discr === "marketPlayerLeague") {
+      rows.push({ playerId: entry.playerMaster.id, kind: "league", sellerTeamId: null, expiresAt, bids: entry.numberOfBids ?? null });
+    } else if (entry.discr === "marketPlayerTeam" && entry.sellerTeam?.id) {
+      rows.push({ playerId: entry.playerMaster.id, kind: "team", sellerTeamId: entry.sellerTeam.id, expiresAt, bids: null });
+    }
+  }
+  return rows;
+}
+
 /** The narrow surface a sync run needs, in mapped rows rather than API entries. */
 export type FantasyClient = {
   getCurrentWeek(): Promise<Gameweek>;
@@ -589,6 +624,7 @@ export type FantasyClient = {
   getSquad(teamId: string): Promise<SquadRow>;
   getLineup(teamId: string, week: number): Promise<LineupRow>;
   getActivity(): Promise<MarketOperationRow[]>;
+  getMarket(): Promise<MarketListingRow[]>;
 };
 
 /** Exchanges the credential once and binds it, so one run means one token exchange. */
@@ -601,5 +637,6 @@ export async function createClient(db: Db, leagueId: string): Promise<FantasyCli
     getSquad: (teamId) => getSquad(accessToken, leagueId, teamId),
     getLineup: (teamId, week) => getLineup(accessToken, teamId, week),
     getActivity: () => getActivity(accessToken, leagueId),
+    getMarket: () => getMarket(accessToken, leagueId),
   };
 }
