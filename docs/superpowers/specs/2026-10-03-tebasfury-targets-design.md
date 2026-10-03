@@ -35,8 +35,10 @@ A free agent who is not in today's auction cannot be bought today and is not a t
 route shown on his row, and the one the Route filter matches.
 
 **A clause route is open only when the clause is neither locked nor shielded.** That is
-`clauseStatus` in `domain/market.ts`. `isShielded` has no expiry in the API, so a
-shielded player is treated like a locked one with an unknown end, shown as "Shielded".
+`clauseStatus` in `domain/market.ts`. A shield lasts 24 hours (owner, 2026-10-03), but the
+API sends no start or end time for it. A shielded player sits in the locked group like any
+other, marked **"Shielded"** with the shield mark the portal already uses, and no
+countdown, since none can honestly be given.
 
 **An owned player whose clause is locked and who is not listed has no open route.** He is
 still a target, but he sits in a collapsed "Locked" group at the foot of the page with
@@ -138,40 +140,42 @@ staleness rule (below) is what keeps an old read from misleading anyone.
 ### When the sweep runs
 
 Today the sweep books its successor a flat 6 hours ahead, so its hour drifts and never
-reliably lands just after the auction closes. The new rule:
+reliably lands after the auction closes. The owner's requirement (2026-10-03): **the
+day's first read of the new market must not be before 19:30 Madrid time**, when the new
+auction and values are reliably there, and any later hour is acceptable if it avoids
+complications.
 
-> **next run = the earlier of `now + 6 h` and `auction close + 30 min`**, where *auction
-> close* is the soonest `expires_at` among `kind = 'league'` listings that is still in the
-> future at `now + 30 min`.
+So the sweep moves from a drifting interval to **a fixed grid in Europe/Madrid time:
+01:45, 07:45, 13:45 and 19:45**. That is still four sweeps a day, the same traffic as
+today. 19:45 leaves a quarter of an hour of margin after 19:30.
 
-The close is **read from the data, not hard-coded at 19:00**. If the league closes at
-another hour, the chain follows it. With no league listings, the rule falls back to the
-flat 6 hours.
+> **next run = the first grid slot at least 5.5 hours after `now`.**
+
+`nextPlayerSweep(now)` computes that slot with `Intl` in `Europe/Madrid`, alongside
+`LEAGUE_ZONE` in `domain/clock.ts`, so daylight-saving changes are handled by the zone
+rather than by arithmetic. `nextPlayerSweepAfterFailure` keeps its flat hour: a retry
+should come soon, and the next success goes back onto the grid.
 
 ### The chain must not kill itself
 
-**This is the part that can fail silently, and the spec fixes it explicitly.**
-`isRedundantSweep` stands a firing down, booking no successor, when any sweep succeeded in
-the last 5 hours (`SWEEP_COLLAPSE_WINDOW_MS`). That is safe only while every booking is 6
-hours out. A booking for close + 30 min can land 30 minutes after the previous sweep, and
-the window would then end the only chain there is.
+**This is the part that can fail silently.** `isRedundantSweep` stands a firing down,
+booking no successor, when any sweep succeeded in the last 5 hours
+(`SWEEP_COLLAPSE_WINDOW_MS`). Today that is safe because every booking is 6 hours out.
 
-The fix: **each booking names the run that made it.** `publish` sends
-`{ trigger, bookedBy: runId }` (the run id it already receives for the deduplication id).
-A firing is redundant **only if a sweep succeeded inside the window AND that sweep is not
-the one that booked this firing**. In other words, it stands down only when another chain
-has already done the work.
+The 5.5-hour minimum keeps it safe on a grid, **with no change to the redundancy rule**:
+every booking lands at least 5.5 hours after the success that made it, so it can never
+fall inside its own chain's 5-hour window. On the cases that break a naive grid:
 
-- Duplicate chains still collapse. The older chain's message finds the newer chain's run
-  as the latest success, and that run did not book it.
-- The surviving chain's own successor is never suppressed, however soon it is booked.
-- A message published before this deploy carries no `bookedBy` and keeps today's rule.
+- A failure at 19:45 retried successfully at 20:45 would make 01:45 only 5 hours away. It
+  is skipped, and the chain books 07:45 instead. The gap is longer, and the chain lives.
+- On the night clocks go forward, 19:45 to 01:45 is still 6 real hours. Between 01:45 and
+  07:45 only 5 real hours pass, so 07:45 is skipped for 13:45 that one day.
+- A manual "Sweep players" press books onto the grid like any other run, and the
+  duplicate chain it opens collapses exactly as it does today.
 
-`sync_runs.id` **is** that `runId`: `runPlayerSweep` inserts its row with `id: runId`,
-checked 2026-10-03. So `loadLastPlayerSweep` only has to return the id alongside
-`finished_at` for the comparison with `bookedBy`. A test books a successor at close + 30 min, 30 minutes after a success, and
-asserts that it is **not** redundant. A second test asserts that a foreign chain's firing
-inside the window still is.
+`SWEEP_COLLAPSE_WINDOW_MS` must stay below the 5.5-hour minimum, and that minimum below
+the 6-hour grid spacing. A test pins both inequalities, as the existing comment asks of
+the current pair.
 
 ## The calculation
 
@@ -250,8 +254,10 @@ Every visible string is English, following the project's rule.
   `null` form; expired auction routes; ranking with `null` scores.
 - **`getMarket` schema:** parses the captured fixture. One fixture entry of each `discr`
   maps to the expected row.
-- **Scheduling:** `nextPlayerSweep` picks close + 30 min when it is sooner than 6 h, and 6 h
-  otherwise; the two redundancy tests above.
+- **Scheduling:** `nextPlayerSweep` returns the right grid slot from just before and just
+  after each slot, from a retry 5 h before a slot (it skips that slot), and across both
+  daylight-saving changes; a booked slot is never inside `isRedundantSweep`'s window
+  relative to the run that booked it; the constant inequalities are pinned.
 - **The sweep:** a market read failure leaves the previous `market_listings` intact and the
   sweep succeeds.
 - **The page:** `/targets` is added to `src/app/portal-pages.test.tsx`, with
