@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "./testing";
 import {
   gameweeks,
+  marketListings,
   marketOperations,
   playerGameweekPoints,
   players,
@@ -28,6 +29,7 @@ import {
   loadPlayer,
   loadPlayerCatalogue,
   loadSnapshots,
+  loadTargets,
 } from "./queries";
 import { buildCatalogue } from "@/lib/domain/players";
 
@@ -820,5 +822,78 @@ describe("loadPortraits", () => {
 
   it("asks for nobody and gets nobody, without hitting the database", async () => {
     expect(await loadPortraits(h.db, [])).toEqual(new Map());
+  });
+});
+
+describe("loadTargets", () => {
+  let h: TestDatabase;
+  const readAt = new Date("2026-10-03T17:45:00Z");
+  const closes = new Date("2026-10-04T17:00:00Z");
+
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(teams).values([{ id: "t2", managerId: 2, managerName: "Bruno" }]);
+    await h.db.insert(players).values(
+      [
+        { id: "own", nickname: "Owned" },
+        { id: "auc", nickname: "Auctioned" },
+        { id: "nobody", nickname: "Nobody" },
+      ].map((p) => ({ ...p, position: "Forward", realTeamId: "rt1", status: "ok" })),
+    );
+    await h.db.insert(squadMembers).values({ teamId: "t2", playerId: "own", buyoutClause: 7_000_000, clauseLockedUntil: null });
+    await h.db.insert(marketListings).values({ playerId: "auc", kind: "league", expiresAt: closes, bids: 0, readAt });
+    await h.db.insert(playerValueSnapshots).values([
+      { playerId: "own", takenOn: "2026-09-19", value: 4_000_000 },
+      { playerId: "own", takenOn: "2026-09-26", value: 5_000_000 },
+      { playerId: "own", takenOn: "2026-09-30", value: 5_500_000 },
+      { playerId: "own", takenOn: "2026-10-03", value: 6_000_000 },
+      { playerId: "auc", takenOn: "2026-10-02", value: 2_000_000 },
+      { playerId: "nobody", takenOn: "2026-10-03", value: 1_000_000 },
+    ]);
+    await h.db.insert(playerGameweekPoints).values([
+      { playerId: "own", gameweek: 1, points: 2 },
+      { playerId: "own", gameweek: 2, points: 4 },
+      { playerId: "own", gameweek: 3, points: 6 },
+    ]);
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("gathers owned and listed players, and nobody else", async () => {
+    const { inputs } = await loadTargets(h.db);
+    expect(inputs.map((i) => i.playerId).sort()).toEqual(["auc", "own"]);
+  });
+
+  it("reads growth against the exact days seven and fourteen before the newest snapshot", async () => {
+    const own = (await loadTargets(h.db)).inputs.find((i) => i.playerId === "own");
+    expect(own).toMatchObject({ value: 6_000_000, value7DaysAgo: 5_000_000, value14DaysAgo: 4_000_000 });
+  });
+
+  it("leaves growth unknown when the comparison day was never swept", async () => {
+    const auc = (await loadTargets(h.db)).inputs.find((i) => i.playerId === "auc");
+    expect(auc).toMatchObject({ value: 2_000_000, value7DaysAgo: null, value14DaysAgo: null });
+  });
+
+  it("carries the owner, the listing and the points newest first", async () => {
+    const { inputs } = await loadTargets(h.db);
+    const own = inputs.find((i) => i.playerId === "own");
+    const auc = inputs.find((i) => i.playerId === "auc");
+    expect(own?.owner).toMatchObject({ teamId: "t2", managerName: "Bruno", buyoutClause: 7_000_000, shielded: false });
+    expect(own?.points).toEqual([6, 4, 2]);
+    expect(auc?.listing).toEqual({ kind: "league", expiresAt: closes, bids: 0 });
+    expect(auc?.owner).toBeNull();
+  });
+
+  it("reports when the market was read and when the auction closes", async () => {
+    expect(await loadTargets(h.db)).toMatchObject({ marketReadAt: readAt, auctionClosesAt: closes });
+  });
+});
+
+describe("loadTargets on an empty league", () => {
+  it("returns nothing rather than querying with an empty list", async () => {
+    const h = await createTestDatabase();
+    expect(await loadTargets(h.db)).toEqual({ inputs: [], marketReadAt: null, auctionClosesAt: null });
+    await h.close();
   });
 });
