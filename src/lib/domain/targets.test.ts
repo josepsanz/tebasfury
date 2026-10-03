@@ -3,6 +3,7 @@ import {
   buildTargets,
   daysBefore,
   isMarketStale,
+  marketLine,
   parseTargetView,
   rankTargets,
   toTarget,
@@ -266,5 +267,41 @@ describe("isMarketStale", () => {
     expect(isMarketStale(null, now)).toBe(true);
     expect(isMarketStale(new Date(now.getTime() - 86_400_001), now)).toBe(true);
     expect(isMarketStale(new Date(now.getTime() - 60_000), now)).toBe(false);
+  });
+});
+
+describe("marketLine", () => {
+  // `now` is 20:00 in Madrid; the auction closes at 19:00 and the next sweep is 19:45.
+  const readThisMorning = new Date("2026-10-03T11:45:00Z");
+
+  it("says the market was never read, in the alert colour", () => {
+    expect(marketLine(null, null, now)).toEqual({
+      text: "The market has not been read yet, so only clause routes are ranked.",
+      stale: true,
+    });
+  });
+
+  it("calls a read over a day old stale, and says expired listings are left out", () => {
+    const line = marketLine(new Date(now.getTime() - 86_400_001), past, now);
+    expect(line.stale).toBe(true);
+    expect(line.text).toMatch(/^Market read .*, over a day old\. Expired listings are left out\.$/);
+  });
+
+  it("names when an open auction closes", () => {
+    expect(marketLine(readThisMorning, later, now)).toEqual({
+      text: "Market read 13:45 · auction closes Sun 04 Oct, 19:00",
+      stale: false,
+    });
+  });
+
+  it("says when today's auction has already closed, without calling the read stale", () => {
+    expect(marketLine(readThisMorning, past, now)).toEqual({
+      text: "Market read 13:45 · today's auction closed Sat 03 Oct, 19:00, the new one is read at the next sweep",
+      stale: false,
+    });
+  });
+
+  it("says only when the market was read when no auction is known", () => {
+    expect(marketLine(readThisMorning, null, now)).toEqual({ text: "Market read 13:45", stale: false });
   });
 });

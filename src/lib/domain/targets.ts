@@ -1,4 +1,5 @@
 import { clauseStatus, type ClauseStatus } from "./market";
+import { formatLeagueMoment, formatSyncedAt } from "./clock";
 import { statusLabel } from "./players";
 
 /**
@@ -266,4 +267,44 @@ export function rankTargets(targets: Target[], view: TargetView): Target[] {
 /** Never read, or read more than a day ago. */
 export function isMarketStale(readAt: Date | null, now: Date): boolean {
   return readAt === null || now.getTime() - readAt.getTime() > STALE_MARKET_MS;
+}
+
+/**
+ * The sentence under the Targets header about how far to trust the market it ranks, and
+ * whether to say it in the alert colour.
+ *
+ * Four cases, because the market goes out of date in two different ways. A read over a day
+ * old is stale outright. A read from this morning is fresh, but the auction it holds closes
+ * at 19:00 and the sweep that reads the next one runs at 19:45, so for most of an hour every
+ * day the page ranks a market that has already been settled. Saying nothing in that gap
+ * would present yesterday's auction as today's; saying the read is stale would be wrong too,
+ * since every listing and clause on it is still current. So the line names the close, and
+ * when the new auction will appear, without the alert colour.
+ *
+ * Expired listings are left out by `buildTargets` whichever their kind — a manager's
+ * listing expires as surely as the league's auction — so the stale case says "listings".
+ */
+export function marketLine(
+  readAt: Date | null,
+  auctionClosesAt: Date | null,
+  now: Date,
+): { text: string; stale: boolean } {
+  if (readAt === null) {
+    return { text: "The market has not been read yet, so only clause routes are ranked.", stale: true };
+  }
+  if (isMarketStale(readAt, now)) {
+    return {
+      text: `Market read ${formatLeagueMoment(readAt)}, over a day old. Expired listings are left out.`,
+      stale: true,
+    };
+  }
+  const read = `Market read ${formatSyncedAt(readAt, now)}`;
+  if (auctionClosesAt === null) return { text: read, stale: false };
+  if (auctionClosesAt > now) {
+    return { text: `${read} · auction closes ${formatLeagueMoment(auctionClosesAt)}`, stale: false };
+  }
+  return {
+    text: `${read} · today's auction closed ${formatLeagueMoment(auctionClosesAt)}, the new one is read at the next sweep`,
+    stale: false,
+  };
 }
