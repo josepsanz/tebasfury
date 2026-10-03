@@ -16,6 +16,7 @@ import type { FantasyClient, MarketOperationRow, PlayerRow, RealTeamRow, SquadRo
 import { markDeparted } from "./departures";
 import { describeFailure } from "./failure";
 import { captureLineups } from "./lineups";
+import { captureMarket } from "./market";
 import { nextPlayerSweep } from "./next-run";
 
 /**
@@ -27,7 +28,7 @@ import { nextPlayerSweep } from "./next-run";
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 /** The calls a sweep makes. Narrower than `FantasyClient`, so a fake is a few lines. */
-export type PlayerClient = Pick<FantasyClient, "getPlayers" | "getSquad" | "getActivity" | "getLineup">;
+export type PlayerClient = Pick<FantasyClient, "getPlayers" | "getSquad" | "getActivity" | "getLineup" | "getMarket">;
 
 export type PlayerSweepResult = {
   playersSynced: number;
@@ -72,6 +73,10 @@ export type PlayerSweepResult = {
   lineupsSkipped: number;
   /** One team's lineup that failed this sweep; the next sweep asks again. */
   lineupsFailed: number;
+  /** Market listings stored this sweep — see `captureMarket`. Zero when the read failed. */
+  marketCaptured: number;
+  /** The market read failed or came back empty, and the previous market was kept. */
+  marketFailed: boolean;
   /** Fielded ids the catalogue did not recognise, dropped rather than failing an eleven. */
   droppedLineupPlayers: number;
   nextRunAt: Date;
@@ -193,6 +198,10 @@ export async function runPlayerSweep(deps: {
     // doc comment for why the two must not be harmonised onto one set.
     const lineups = await captureLineups(db, client, { now });
 
+    // Tolerated like the lineups: a missed market read costs the targets page some
+    // freshness, which it reports. After the catalogue, so its players exist for the FK.
+    const market = await captureMarket(db, client, { now });
+
     const nextRunAt = nextPlayerSweep(now);
     await db
       .update(syncRuns)
@@ -210,6 +219,8 @@ export async function runPlayerSweep(deps: {
       lineupsCaptured: lineups.captured,
       lineupsSkipped: lineups.skipped,
       lineupsFailed: lineups.failed,
+      marketCaptured: market.captured,
+      marketFailed: market.failed,
       droppedLineupPlayers: lineups.droppedPlayers,
       nextRunAt,
     };

@@ -167,6 +167,23 @@ describe("/players", () => {
   });
 });
 
+describe("/targets", () => {
+  it("ranks other managers' players and today's auction, never the reader's own", async () => {
+    const { default: Page } = await import("./(portal)/targets/page");
+    const html = await render(() => Page({ searchParams: none }));
+    expect(html).toContain("Rival Striker");
+    expect(html).toContain("Rising fast");
+    expect(html).toContain("Free Agent");
+    expect(html).toContain("No bids yet");
+    expect(html).toContain("Locked — no route open (1)");
+    expect(html).toContain("Locked Keeper");
+    // Ada owns the whole seeded squad.
+    expect(html).not.toContain("Courtois");
+    // The seeded read is from August: the page must say the market is old.
+    expect(html).toContain("over a day old");
+  });
+});
+
 describe("/players/[id]", () => {
   it("leads with what the player scored", async () => {
     const { default: Page } = await import("./(portal)/players/[id]/page");

@@ -3,7 +3,7 @@
  *
  * Run it with the alias hook:
  *
- *   node --import ./scripts/register-alias.mjs scripts/capture-lineup-fixture.mts
+ *   node --experimental-transform-types --import ./scripts/register-alias.mjs scripts/capture-lineup-fixture.mts
  *
  * It needs a `.env.local` whose DATABASE_URL points at a database that already holds
  * a bootstrapped LaLiga credential (bootstrap one at /admin/sync first). It goes

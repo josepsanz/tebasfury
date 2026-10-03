@@ -82,6 +82,8 @@ admin edits on `/admin/sync`:
 - **`/market`** — every signing, sale and clause the league has made since 11 August,
   with what each one made or lost, and a board of who can be taken by clause right now
   and who frees up next.
+- **`/targets`** — who can be bought today (auction, listing, clause), ranked for
+  investment or performance, with tags saying why.
 - **`/teams/[id]`** — one manager's squad, money and market history, and
   **`/teams/[id]/lineup`**, the best eleven their squad can field with every legal
   formation ranked beside it.
@@ -100,7 +102,7 @@ admin edits on `/admin/sync`:
 
 Underneath, two self-scheduling QStash chains keep it fed: standings every ten minutes
 while a gameweek is live (and asleep until the next one opens, with a 24-hour heartbeat),
-and a player-and-market sweep every six hours. Each run books its own successor, so both
+and a player-and-market sweep on a fixed grid (01:45, 07:45, 13:45, 19:45 Madrid). Each run books its own successor, so both
 endpoints carry a collapse guard that ends a duplicate chain without ending the last one
 — and, since a booking that is rejected would otherwise end a chain for good, a QStash
 schedule pokes `/api/sync/wake` every half hour to revive one that has stopped.

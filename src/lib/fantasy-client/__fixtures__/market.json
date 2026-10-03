@@ -1,0 +1,84 @@
+[
+  {
+    "discr": "marketPlayerLeague",
+    "playerMaster": {
+      "images": {
+        "transparent": {
+          "256x256": "https://assets-fantasy.llt-services.com/players/t185/man2580/256x256/man2580_t185_1_001_000.png"
+        }
+      },
+      "id": "2580",
+      "teamId": 5,
+      "name": "Manuel Pellegrini",
+      "lastSeasonPoints": 105,
+      "nickname": "Manuel Pellegrini",
+      "slug": "manuel-pellegrini",
+      "positionId": 5,
+      "position": "Entrenador",
+      "marketValue": 1036850,
+      "playerStatus": "ok",
+      "points": 27,
+      "averagePoints": 3.857142857142857
+    },
+    "id": "341296630",
+    "salePrice": 1036850,
+    "expirationDate": "2026-10-04T19:00:00+02:00",
+    "status": "on_sale",
+    "leagueType": "private",
+    "leagueId": 8012894,
+    "numberOfBids": 0
+  },
+  {
+    "discr": "marketPlayerTeam",
+    "playerMaster": {
+      "images": {
+        "transparent": {
+          "256x256": "https://assets-fantasy.llt-services.com/players/t188/p2772/256x256/p2772_t188_1_001_000.png"
+        }
+      },
+      "id": "2772",
+      "teamId": 16,
+      "name": "Carlos Soler",
+      "lastSeasonPoints": 175,
+      "nickname": "C. Soler",
+      "slug": "c-soler",
+      "positionId": 3,
+      "position": "Centrocampista",
+      "marketValue": 42083906,
+      "playerStatus": "ok",
+      "points": 45,
+      "averagePoints": 6.428571428571429
+    },
+    "playerTeam": {
+      "buyoutClause": 51200913,
+      "playerTeamId": "47249165",
+      "buyoutClauseLockedEndTime": "2026-09-08T20:35:36+02:00",
+      "isShielded": false,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      }
+    },
+    "id": "33305460",
+    "salePrice": 39899639,
+    "expirationDate": "2026-10-04T06:47:00+02:00",
+    "status": "on_sale",
+    "leagueType": "private",
+    "leagueId": 8012894,
+    "numberOfOffers": 1,
+    "directOffer": false,
+    "sellerTeam": {
+      "teamMoney": null,
+      "id": "9000019",
+      "managerId": 9000020,
+      "teamValue": 197546144,
+      "teamPoints": 312,
+      "manager": {
+        "id": "9000020",
+        "managerName": "Manager I",
+        "avatar": ""
+      }
+    }
+  }
+]

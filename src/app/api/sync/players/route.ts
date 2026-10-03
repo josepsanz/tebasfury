@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
-import { loadLastPlayerSweep } from "@/lib/db/queries";
+import { loadLastScheduledPlayerSweep } from "@/lib/db/queries";
 import { createClient } from "@/lib/fantasy-client";
 import { getEnv } from "@/lib/env";
 import { schedulePlayerSweep, verifyQStashSignature } from "@/lib/scheduler";
@@ -34,9 +34,10 @@ export async function POST(request: Request) {
   // The one place a chain is allowed to end on purpose. Standing down without booking
   // a successor is what collapses the duplicate chains each press of "Sweep players"
   // opens; `isRedundantSweep` argues why this cannot end the last one. The manual
-  // button is deliberately not guarded — it stays the recovery lever, and the chain it
-  // duplicates stands down here on its own next firing.
-  const lastSweepAt = await loadLastPlayerSweep(db);
+  // button is deliberately not guarded — it stays the recovery lever — and it is not
+  // counted here either: it books no successor, so a press that stood the chain down
+  // would leave nothing booked at all (see `loadLastScheduledPlayerSweep`).
+  const lastSweepAt = await loadLastScheduledPlayerSweep(db);
   if (isRedundantSweep(lastSweepAt, now)) {
     return Response.json({
       skipped: true,
@@ -74,6 +75,8 @@ export async function POST(request: Request) {
     // this endpoint's JSON is the other channel an operator — or a monitor watching
     // it — could read that from, alongside the admin page's notes.
     lineupsCaptured: outcome.result.lineupsCaptured,
+    marketCaptured: outcome.result.marketCaptured,
+    marketFailed: outcome.result.marketFailed,
     nextRunAt: outcome.result.nextRunAt.toISOString(),
   });
 }

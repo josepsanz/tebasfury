@@ -170,8 +170,11 @@ fall inside its own chain's 5-hour window. On the cases that break a naive grid:
   is skipped, and the chain books 07:45 instead. The gap is longer, and the chain lives.
 - On the night clocks go forward, 19:45 to 01:45 is still 6 real hours. Between 01:45 and
   07:45 only 5 real hours pass, so 07:45 is skipped for 13:45 that one day.
-- A manual "Sweep players" press books onto the grid like any other run, and the
-  duplicate chain it opens collapses exactly as it does today.
+- A manual "Sweep players" press books no successor, so it opens no chain, and the
+  redundancy guard ignores it: `loadLastScheduledPlayerSweep` counts only
+  `players-schedule` and `players-wake` successes. Counting the press would let an
+  afternoon press stand the 19:45 firing down with nothing booked after it, and the
+  chain would stay dead until the watchdog revived it.
 
 `SWEEP_COLLAPSE_WINDOW_MS` must stay below the 5.5-hour minimum, and that minimum below
 the 6-hour grid spacing. A test pins both inequalities, as the existing comment asks of

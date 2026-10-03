@@ -7,6 +7,7 @@ import {
   currentWeekSchema,
   leaguesSchema,
   lineupSchema,
+  marketSchema,
   playersSchema,
   squadSchema,
   standingSchema,
@@ -91,9 +92,11 @@ async function request<T>(
   accessToken: string,
   path: string,
   schema: { parse: (v: unknown) => T },
+  signal?: AbortSignal,
 ): Promise<{ value: T; body: unknown }> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { authorization: `Bearer ${accessToken}`, accept: "application/json" },
+    signal,
   });
   if (!res.ok) {
     // The body is the whole diagnostic. Without it `sync_runs.error` records that
@@ -130,8 +133,9 @@ async function apiGet<T>(
   accessToken: string,
   path: string,
   schema: { parse: (v: unknown) => T },
+  signal?: AbortSignal,
 ): Promise<T> {
-  return (await request(accessToken, path, schema)).value;
+  return (await request(accessToken, path, schema, signal)).value;
 }
 
 /**
@@ -581,6 +585,54 @@ function toMarketOperation(row: ActivityEntry & { user1Id: number }): MarketOper
   };
 }
 
+/**
+ * One player on the league market right now.
+ *
+ * `league` is a free agent in the daily auction; `team` is a player a manager has listed.
+ * `bids` is the auction's own count and exists only for `league`; a listing's offer count
+ * is the league's automatic offer and is not carried.
+ */
+export type MarketListingRow = {
+  playerId: string;
+  kind: "league" | "team";
+  sellerTeamId: string | null;
+  expiresAt: Date;
+  bids: number | null;
+};
+
+/**
+ * How long the market read may take before it is abandoned.
+ *
+ * The only read with a deadline of its own, because it is the only one that runs last in
+ * the sweep and is allowed to fail. Every other call is either short or the sweep's whole
+ * purpose; this one comes after all of them, inside a function Vercel kills at 300 s, and a
+ * hang there would take the run down before it booked its successor — ending the chain to
+ * save a read the sweep was written to survive losing. Twenty seconds is many times what a
+ * healthy read takes, and `captureMarket` turns the abort into `failed: true`, which keeps
+ * yesterday's market and lets the run book on.
+ */
+export const MARKET_TIMEOUT_MS = 20_000;
+
+/** Today's market. Note `league`, singular, measured 2026-10-03. */
+export async function getMarket(accessToken: string, leagueId: string): Promise<MarketListingRow[]> {
+  const entries = await apiGet(
+    accessToken,
+    `/v1/competition/${COMPETITION}/league/${leagueId}/market`,
+    marketSchema,
+    AbortSignal.timeout(MARKET_TIMEOUT_MS),
+  );
+  const rows: MarketListingRow[] = [];
+  for (const entry of entries) {
+    const expiresAt = new Date(entry.expirationDate);
+    if (entry.discr === "marketPlayerLeague") {
+      rows.push({ playerId: entry.playerMaster.id, kind: "league", sellerTeamId: null, expiresAt, bids: entry.numberOfBids ?? null });
+    } else if (entry.discr === "marketPlayerTeam" && entry.sellerTeam?.id) {
+      rows.push({ playerId: entry.playerMaster.id, kind: "team", sellerTeamId: entry.sellerTeam.id, expiresAt, bids: null });
+    }
+  }
+  return rows;
+}
+
 /** The narrow surface a sync run needs, in mapped rows rather than API entries. */
 export type FantasyClient = {
   getCurrentWeek(): Promise<Gameweek>;
@@ -589,6 +641,7 @@ export type FantasyClient = {
   getSquad(teamId: string): Promise<SquadRow>;
   getLineup(teamId: string, week: number): Promise<LineupRow>;
   getActivity(): Promise<MarketOperationRow[]>;
+  getMarket(): Promise<MarketListingRow[]>;
 };
 
 /** Exchanges the credential once and binds it, so one run means one token exchange. */
@@ -601,5 +654,6 @@ export async function createClient(db: Db, leagueId: string): Promise<FantasyCli
     getSquad: (teamId) => getSquad(accessToken, leagueId, teamId),
     getLineup: (teamId, week) => getLineup(accessToken, teamId, week),
     getActivity: () => getActivity(accessToken, leagueId),
+    getMarket: () => getMarket(accessToken, leagueId),
   };
 }

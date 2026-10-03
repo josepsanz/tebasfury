@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatLeagueMoment, formatSyncedAt } from "./clock";
+import { formatLeagueMoment, formatSyncedAt, leagueDate, leagueWallTime } from "./clock";
 
 describe("formatSyncedAt", () => {
   it("gives just the hour when the sync happened today", () => {
@@ -38,5 +38,37 @@ describe("formatLeagueMoment", () => {
     expect(formatLeagueMoment(new Date("2026-09-14T23:40:00Z"))).toContain("01:40");
     // And it rolls to the next day in Madrid, which is the point of formatting there.
     expect(formatLeagueMoment(new Date("2026-09-14T23:40:00Z"))).toContain("15 Sept");
+  });
+});
+
+describe("leagueDate", () => {
+  it("is the calendar day in Spain, not in UTC", () => {
+    // 23:30 UTC on 3 October is already 01:30 on the 4th in Madrid (CEST, +2).
+    expect(leagueDate(new Date("2026-10-03T23:30:00Z"))).toEqual({ year: 2026, month: 10, day: 4 });
+  });
+});
+
+describe("leagueWallTime", () => {
+  it("reads a summer wall time at +2", () => {
+    expect(leagueWallTime(2026, 10, 3, 19, 45).toISOString()).toBe("2026-10-03T17:45:00.000Z");
+  });
+
+  it("reads a winter wall time at +1", () => {
+    expect(leagueWallTime(2026, 12, 1, 19, 45).toISOString()).toBe("2026-12-01T18:45:00.000Z");
+  });
+
+  it("is right on both sides of the autumn change (25 Oct 2026, 03:00 CEST -> 02:00 CET)", () => {
+    expect(leagueWallTime(2026, 10, 25, 1, 45).toISOString()).toBe("2026-10-24T23:45:00.000Z");
+    expect(leagueWallTime(2026, 10, 25, 7, 45).toISOString()).toBe("2026-10-25T06:45:00.000Z");
+  });
+
+  it("is right on both sides of the spring change (28 Mar 2027, 02:00 CET -> 03:00 CEST)", () => {
+    expect(leagueWallTime(2027, 3, 28, 1, 45).toISOString()).toBe("2027-03-28T00:45:00.000Z");
+    expect(leagueWallTime(2027, 3, 28, 7, 45).toISOString()).toBe("2027-03-28T05:45:00.000Z");
+  });
+
+  it("rolls an overflowing day into the next month", () => {
+    // 1 Nov, 01:45 CET (+1): the clocks went back on 25 Oct.
+    expect(leagueWallTime(2026, 10, 32, 1, 45).toISOString()).toBe("2026-11-01T00:45:00.000Z");
   });
 });

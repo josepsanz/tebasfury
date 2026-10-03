@@ -3,6 +3,7 @@ import * as schema from "./schema";
 import {
   allowedEmails,
   gameweeks,
+  marketListings,
   marketOperations,
   necroporraRounds,
   necroporraVotes,
@@ -124,6 +125,32 @@ export async function seedLeague(db: Db) {
       clauseLockedUntil: null,
     })),
   );
+
+  // Targets: one rival player whose clause is open and whose value rose 25% in a week, one
+  // locked away on another team, and one free agent in today's auction. Ada (t1) owns the
+  // whole squad above, so none of HER players may ever appear on /targets.
+  await db.insert(players).values([
+    { id: "rv1", nickname: "Rival Striker", position: "Forward", realTeamId: "rt1", status: "ok", imageUrl: null },
+    { id: "lk1", nickname: "Locked Keeper", position: "Goalkeeper", realTeamId: "rt1", status: "ok", imageUrl: null },
+    { id: "fa1", nickname: "Free Agent", position: "Midfielder", realTeamId: "rt1", status: "ok", imageUrl: null },
+  ]);
+  await db.insert(playerValueSnapshots).values([
+    { playerId: "rv1", takenOn: "2026-08-13", value: 4_000_000 },
+    { playerId: "rv1", takenOn: "2026-08-20", value: 5_000_000 },
+    { playerId: "lk1", takenOn: "2026-08-20", value: 3_000_000 },
+    { playerId: "fa1", takenOn: "2026-08-20", value: 2_000_000 },
+  ]);
+  await db.insert(squadMembers).values([
+    { teamId: "t2", playerId: "rv1", buyoutClause: 6_000_000, clauseLockedUntil: null },
+    { teamId: "t3", playerId: "lk1", buyoutClause: 9_000_000, clauseLockedUntil: new Date("2099-01-01T00:00:00Z") },
+  ]);
+  await db.insert(marketListings).values({
+    playerId: "fa1",
+    kind: "league",
+    expiresAt: new Date("2099-01-01T17:00:00Z"),
+    bids: 0,
+    readAt: new Date("2026-08-20T17:45:00Z"),
+  });
 
   // A purchase and the sale that closes it, so the feed has a profit to work out.
   await db.insert(marketOperations).values([

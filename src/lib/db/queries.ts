@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, inArray, like, notExists, notLike, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, like, ne, notExists, notLike, sql, sum } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "./schema";
 import type { Snapshot, TeamRef } from "@/lib/domain/standings";
@@ -12,8 +12,10 @@ import type {
   ValuePoint,
 } from "@/lib/domain/players";
 import type { MarketOperation } from "@/lib/domain/market";
+import { daysBefore, type TargetInput } from "@/lib/domain/targets";
 import {
   gameweeks,
+  marketListings,
   marketOperations,
   playerGameweekPoints,
   playerValueSnapshots,
@@ -364,6 +366,38 @@ export async function loadLastPlayerSweep(db: Db): Promise<Date | null> {
 }
 
 /**
+ * When a sweep that belongs to a chain last succeeded — `loadLastPlayerSweep` without the
+ * "Sweep players" button. This is what the redundancy guard reads, and only that.
+ *
+ * The button books no successor, so it is not a chain, and it must not be able to stand
+ * one down. Counted, an afternoon press would make the chain's 19:45 firing redundant:
+ * that firing would do no work and book nothing, the 19:45 market read would be lost, and
+ * the chain would stay dead until the watchdog noticed and revived it in the small hours.
+ * Excluding it costs one sweep that repeats the press's work, which is idempotent and
+ * cheap next to a lost day.
+ *
+ * `players-schedule` and `players-wake` both still count: each books its successor, so
+ * each IS a chain, and a later one of either is exactly the duplicate the guard exists to
+ * collapse. `loadLastPlayerSweep` stays as it was, because "Last swept" on /players means
+ * the data's age, and a press refreshes the data as much as a chain does.
+ */
+export async function loadLastScheduledPlayerSweep(db: Db): Promise<Date | null> {
+  const [sweep] = await db
+    .select()
+    .from(syncRuns)
+    .where(
+      and(
+        eq(syncRuns.status, "succeeded"),
+        like(syncRuns.trigger, "players-%"),
+        ne(syncRuns.trigger, "players-manual"),
+      ),
+    )
+    .orderBy(desc(syncRuns.finishedAt))
+    .limit(1);
+  return sweep?.finishedAt ?? null;
+}
+
+/**
  * Which (team, gameweek) lineups are already stored, keyed `"teamId:gameweek"`.
  *
  * `captureLineups` needs this once per sweep, not once per team per week: a Set built
@@ -701,4 +735,125 @@ export async function loadMarket(db: Db): Promise<MarketData> {
       null,
     ),
   };
+}
+
+export type TargetsData = {
+  inputs: TargetInput[];
+  /** When the market was last read; null when it never has been. */
+  marketReadAt: Date | null;
+  /** The earliest close among the daily auction's listings; null with no auction listed. */
+  auctionClosesAt: Date | null;
+};
+
+/**
+ * Everyone who can be bought, with what scoring them needs: every owned player, and every
+ * player on the market. A free agent who is not on the market cannot be bought today and
+ * is not read at all.
+ *
+ * Growth compares each player's NEWEST snapshot with the snapshot exactly seven and
+ * fourteen calendar days before it. Not the nearest earlier one: a stale baseline would
+ * invent momentum, and a day the sweep missed is honestly unknown.
+ *
+ * Points come back newest first, for the candidates only (~170 players), so the whole
+ * season's points table is never shipped.
+ */
+export async function loadTargets(db: Db): Promise<TargetsData> {
+  const [owned, listings] = await Promise.all([
+    db
+      .select({
+        playerId: squadMembers.playerId,
+        teamId: squadMembers.teamId,
+        managerName: teams.managerName,
+        buyoutClause: squadMembers.buyoutClause,
+        clauseLockedUntil: squadMembers.clauseLockedUntil,
+        shielded: squadMembers.shielded,
+      })
+      .from(squadMembers)
+      .innerJoin(teams, eq(teams.id, squadMembers.teamId)),
+    db.select().from(marketListings),
+  ]);
+
+  const marketReadAt = listings.reduce<Date | null>(
+    (latest, l) => (latest === null || l.readAt > latest ? l.readAt : latest),
+    null,
+  );
+  const auctionClosesAt = listings
+    .filter((l) => l.kind === "league")
+    .reduce<Date | null>((first, l) => (first === null || l.expiresAt < first ? l.expiresAt : first), null);
+
+  const ids = [...new Set([...owned.map((o) => o.playerId), ...listings.map((l) => l.playerId)])];
+  if (ids.length === 0) return { inputs: [], marketReadAt, auctionClosesAt };
+
+  const [playerRows, current, pointRows] = await Promise.all([
+    db.select().from(playersTable).where(inArray(playersTable.id, ids)),
+    db
+      .selectDistinctOn([playerValueSnapshots.playerId], {
+        playerId: playerValueSnapshots.playerId,
+        value: playerValueSnapshots.value,
+        takenOn: playerValueSnapshots.takenOn,
+      })
+      .from(playerValueSnapshots)
+      .where(inArray(playerValueSnapshots.playerId, ids))
+      .orderBy(playerValueSnapshots.playerId, desc(playerValueSnapshots.takenOn)),
+    db
+      .select({
+        playerId: playerGameweekPoints.playerId,
+        points: playerGameweekPoints.points,
+      })
+      .from(playerGameweekPoints)
+      .where(inArray(playerGameweekPoints.playerId, ids))
+      .orderBy(playerGameweekPoints.playerId, desc(playerGameweekPoints.gameweek)),
+  ]);
+
+  const pastDays = [...new Set(current.flatMap((c) => [daysBefore(c.takenOn, 7), daysBefore(c.takenOn, 14)]))];
+  const past =
+    pastDays.length === 0
+      ? []
+      : await db
+          .select({
+            playerId: playerValueSnapshots.playerId,
+            takenOn: playerValueSnapshots.takenOn,
+            value: playerValueSnapshots.value,
+          })
+          .from(playerValueSnapshots)
+          .where(and(inArray(playerValueSnapshots.playerId, ids), inArray(playerValueSnapshots.takenOn, pastDays)));
+
+  const pastValue = new Map(past.map((p) => [`${p.playerId}|${p.takenOn}`, p.value]));
+  const currentBy = new Map(current.map((c) => [c.playerId, c]));
+  const ownerBy = new Map(owned.map((o) => [o.playerId, o]));
+  const listingBy = new Map(listings.map((l) => [l.playerId, l]));
+  const pointsBy = new Map<string, number[]>();
+  for (const row of pointRows) {
+    const list = pointsBy.get(row.playerId) ?? [];
+    list.push(row.points);
+    pointsBy.set(row.playerId, list);
+  }
+
+  const inputs: TargetInput[] = playerRows.map((p) => {
+    const now = currentBy.get(p.id);
+    const o = ownerBy.get(p.id);
+    const l = listingBy.get(p.id);
+    return {
+      playerId: p.id,
+      nickname: p.nickname,
+      position: p.position,
+      status: p.status,
+      value: now?.value ?? null,
+      value7DaysAgo: now ? (pastValue.get(`${p.id}|${daysBefore(now.takenOn, 7)}`) ?? null) : null,
+      value14DaysAgo: now ? (pastValue.get(`${p.id}|${daysBefore(now.takenOn, 14)}`) ?? null) : null,
+      owner: o
+        ? {
+            teamId: o.teamId,
+            managerName: o.managerName,
+            buyoutClause: o.buyoutClause,
+            clauseLockedUntil: o.clauseLockedUntil,
+            shielded: o.shielded,
+          }
+        : null,
+      listing: l ? { kind: l.kind === "team" ? "team" : "league", expiresAt: l.expiresAt, bids: l.bids } : null,
+      points: pointsBy.get(p.id) ?? [],
+    };
+  });
+
+  return { inputs, marketReadAt, auctionClosesAt };
 }

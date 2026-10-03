@@ -191,6 +191,29 @@ export const activityEntrySchema = z.object({
 
 export const activitySchema = z.array(activityEntrySchema);
 
+/**
+ * One entry on the league market, either kind.
+ *
+ * Deliberately NOT a discriminated union: a third `discr` the API invents later would fail
+ * the whole parse, and the market read is tolerated, so the cost would be a silently stale
+ * market rather than an error. `getMarket` maps the two known kinds and drops the rest.
+ *
+ * `salePrice` and `numberOfOffers` are left out on purpose. A manager's asking price is the
+ * game's default and the single offer is the league's automatic one (owner, 2026-10-03), so
+ * neither says anything. `expirationDate` stays a string; its offset is parsed in the mapping.
+ */
+export const marketEntrySchema = z.object({
+  discr: z.string(),
+  playerMaster: z.object({ id: z.coerce.string() }),
+  expirationDate: z.string(),
+  /** Nullable and NOT coerced: `z.coerce.number()` turns a `null` into 0, and 0 is what
+   *  tags a player "No bids yet". An unknown count must stay unknown, not become a claim. */
+  numberOfBids: z.number().nullable().optional(),
+  sellerTeam: z.object({ id: z.coerce.string() }).nullable().optional(),
+});
+
+export const marketSchema = z.array(marketEntrySchema);
+
 const fieldedPlayerSchema = z.object({
   playerMaster: z
     .object({

@@ -19,9 +19,11 @@ describe("NavLinks", () => {
 
   it("offers the four destinations every manager has", () => {
     const html = renderToStaticMarkup(<NavLinks canTriggerSync={false} myTeamId={null} />);
-    for (const label of ["Standings", "Progress", "Players", "Market"]) {
+    for (const label of ["Standings", "Progress", "Players", "Targets", "Market"]) {
       expect(html).toContain(label);
     }
+    expect(html.indexOf("Players")).toBeLessThan(html.indexOf("Targets"));
+    expect(html.indexOf("Targets")).toBeLessThan(html.indexOf("Market"));
     expect(html).not.toContain("Sync");
   });
 

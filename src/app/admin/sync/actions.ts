@@ -86,11 +86,12 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
 
   const now = new Date();
   const runId = randomUUID();
-  // No successor booked, for the reason the standings button above gives at length. This
-  // chain's own collapse window (five hours against a six-hour cadence) would have absorbed
-  // a forked chain within one revolution, so this one was never doing harm — but the rule
-  // is worth being the same in both places: the buttons sync, the chains schedule
-  // themselves, and the watchdog revives whichever has stopped.
+  // No successor booked, for the reason the standings button above gives at length: the
+  // buttons sync, the chains schedule themselves, and the watchdog revives whichever has
+  // stopped. Because this run books nothing, it is also invisible to the chain's
+  // redundancy guard (`loadLastScheduledPlayerSweep` leaves `players-manual` out): were it
+  // counted, an afternoon press would stand the 19:45 firing down with nothing booked
+  // after it, and the chain would lie dead until the watchdog's next pass.
   const outcome = await runAndSchedule({
     now,
     schedule: async () => {},
@@ -121,6 +122,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
     operationsCaptured,
     lineupsFailed,
     droppedLineupPlayers,
+    marketFailed,
     nextRunAt,
   } = outcome.result;
   // The counts below are usually all zero and add nothing when they are — they only
@@ -134,6 +136,7 @@ export async function triggerPlayerSweepNow(): Promise<ActionResult> {
     droppedSquadPlayers > 0 ? `${droppedSquadPlayers} unknown squad id(s) dropped` : null,
     lineupsFailed > 0 ? `${lineupsFailed} lineup(s) failed (retried next sweep)` : null,
     droppedLineupPlayers > 0 ? `${droppedLineupPlayers} unknown lineup id(s) dropped` : null,
+    marketFailed ? "market read failed (previous market kept)" : null,
   ].filter((note): note is string => note !== null);
 
   return {

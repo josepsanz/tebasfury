@@ -188,8 +188,10 @@ is live.
 code reads them as null until a sweep fills them, and the sweep writes nothing anywhere
 the columns do not exist yet.
 
-**The figures appear on the first player sweep after the deploy, not before.** That is up
-to six hours; "Sweep players" on `/admin/sync` brings it forward. Until then the clause
+**The figures appear on the first player sweep after the deploy, not before.** On the
+sweep's Madrid grid that is usually under six hours, and up to about 12.5 in the worst case
+(a skipped slot, or the night the clocks go forward); "Sweep players" on `/admin/sync`
+brings it forward. Until then the clause
 column is blank and every held player reads as takeable, because a null lock is a lock
 that has lifted.
 
@@ -322,11 +324,15 @@ first, so it has to be started by hand, once, per environment.
 On `/admin/sync`, press **Sweep players**. A successful sweep reports how many players
 and squads it read and when the next one is due; from then on the chain runs itself.
 
-Pressing it again while the chain is alive does start a second chain — nothing detects
-a QStash message already in flight — but that chain no longer survives. A scheduled
-sweep that finds a successful one inside the last 20 hours stands down without booking
-a successor (`isRedundantSweep`), so the duplicate ends at its own next firing and one
-chain is left. The collapse takes up to six hours; the cost until then is one extra sweep.
+Pressing it again while the chain is alive no longer starts a second chain: since
+2026-09-14 the button books no successor (see "Sync now" syncs, below), and the chain's
+redundancy guard ignores its runs, so a press can never stand the next scheduled sweep
+down either. A second chain can still arise another way — the watchdog reviving a chain
+that was only late — and that one does not survive: a scheduled sweep that finds another
+chain's success inside the last 5 hours stands down without booking a successor
+(`isRedundantSweep`), so the duplicate ends at its own next firing and one chain is left.
+On the grid that firing can be up to about 12.5 hours away; the cost until then is one
+extra sweep.
 
 Two presses within that same window are the case this does not cover: both open chains
 that fire roughly a cadence apart and each looks legitimate to the other. That is what
@@ -428,3 +434,19 @@ during a live gameweek. Marking such a run failed would let QStash's own retry r
 in seconds, but it would also record a sync that wrote real data as a failure, and the
 status bar would under-report how fresh the table is. One recovery mechanism that tells
 the truth beats two that argue.
+
+## Market listings (migration 0017)
+
+`0017_market_listings.sql` creates `market_listings`. **Apply it before deploying the
+code that reads it**, or every player sweep's market read fails (tolerated: the sweep still
+succeeds, and `marketFailed: true` appears in its JSON) and `/targets` errors on its query.
+
+    DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
+
+Then verify, because `drizzle-kit migrate` hides its errors: `market_listings` must exist in
+`information_schema.tables`, and `drizzle.__drizzle_migrations` must have one more row than
+before.
+
+The same deploy moves the player sweep onto a fixed grid (01:45, 07:45, 13:45, 19:45
+Madrid). The chain that is running books its next slot on its first run after the deploy;
+nothing needs restarting.

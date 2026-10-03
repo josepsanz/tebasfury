@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestDatabase, type TestDatabase } from "@/lib/db/testing";
 import {
   gameweeks,
+  marketListings,
   marketOperations,
   playerGameweekPoints,
   playerValueSnapshots,
@@ -15,7 +16,7 @@ import {
   teams,
 } from "@/lib/db/schema";
 import { CREDENTIAL_ERROR_NAME, CredentialError, LaLigaApiError } from "@/lib/fantasy-client";
-import type { LineupRow, MarketOperationRow, PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
+import type { LineupRow, MarketListingRow, MarketOperationRow, PlayerRow, RealTeamRow, SquadRow } from "@/lib/fantasy-client";
 import { MINIMUM_CATALOGUE, runPlayerSweep, utcDate, type PlayerClient } from "./players";
 
 const player = (id: string, over: Partial<PlayerRow> = {}): PlayerRow => ({
@@ -50,6 +51,9 @@ function fakeClient(
   squads: Record<string, string[]> = {},
   clubs: Record<string, RealTeamRow[]> = {},
   operations: MarketOperationRow[] = [],
+  market: MarketListingRow[] = [
+    { playerId: "p0", kind: "league", sellerTeamId: null, expiresAt: new Date("2026-09-08T17:00:00Z"), bids: 0 },
+  ],
 ): PlayerClient {
   return {
     getPlayers: async () => rows,
@@ -64,6 +68,7 @@ function fakeClient(
       realTeams: clubs[teamId] ?? [],
     }),
     getActivity: async () => operations,
+    getMarket: async () => market,
     // Empty players: no test in this file needs a fielded eleven, and an empty list
     // sidesteps `round_lineup_players.player_id`'s foreign key to `players.id` for
     // every fixture here that does not bother to name real ones.
@@ -90,6 +95,7 @@ describe("runPlayerSweep", () => {
     await h.close();
   });
   beforeEach(async () => {
+    await h.db.delete(marketListings);
     await h.db.delete(roundLineupPlayers);
     await h.db.delete(roundLineups);
     await h.db.delete(squadMembers);
@@ -516,6 +522,7 @@ describe("runPlayerSweep", () => {
       },
       getSquad: async (teamId) => ({ teamId, holdings: [], realTeams: [] }),
       getActivity: async () => [],
+      getMarket: async () => [],
       getLineup: async (teamId, week) => ({
         teamId,
         gameweek: week,
@@ -784,6 +791,26 @@ describe("runPlayerSweep", () => {
     });
 
     expect(result).toMatchObject({ lineupsCaptured: 2, lineupsSkipped: 0, lineupsFailed: 0 });
+  });
+
+  it("stores the market alongside the catalogue", async () => {
+    const client = fakeClient(catalogue(MINIMUM_CATALOGUE));
+    const result = await runPlayerSweep({ db: h.db, client, now, runId: "s1", trigger: "players-schedule" });
+    expect(result).toMatchObject({ marketCaptured: 1, marketFailed: false });
+    expect(await h.db.select().from(marketListings)).toHaveLength(1);
+  });
+
+  it("succeeds when the market read fails, and says so", async () => {
+    const client: PlayerClient = {
+      ...fakeClient(catalogue(MINIMUM_CATALOGUE)),
+      getMarket: async () => {
+        throw new Error("market is down");
+      },
+    };
+    const result = await runPlayerSweep({ db: h.db, client, now, runId: "s1", trigger: "players-schedule" });
+    expect(result).toMatchObject({ marketCaptured: 0, marketFailed: true });
+    const [run] = await h.db.select().from(syncRuns).where(eq(syncRuns.id, "s1"));
+    expect(run.status).toBe("succeeded");
   });
 });
 

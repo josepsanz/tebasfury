@@ -120,6 +120,13 @@
       "when": 1790310524634,
       "tag": "0016_teams_left_at",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791057190001,
+      "tag": "0017_market_listings",
+      "breakpoints": true
     }
   ]
 }
