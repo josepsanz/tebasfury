@@ -35,7 +35,13 @@ export function BreakfastList({
           {rows.map((row) => {
             const name = teamName.get(row.teamId) ?? row.teamId;
             const line = (
-              <span className="grid grid-cols-[76px_minmax(0,1fr)_auto] items-baseline gap-2 px-2 py-[6px]">
+              <span
+                className={`grid items-baseline ${
+                  editFor === null
+                    ? "grid-cols-[76px_minmax(0,1fr)_auto]"
+                    : "grid-cols-[76px_minmax(0,1fr)_auto_auto]"
+                } gap-2 px-2 py-[6px]`}
+              >
                 <span
                   className="text-[12px] tabular-nums"
                   style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
@@ -49,6 +55,17 @@ export function BreakfastList({
                 >
                   {row.what ?? ""}
                 </span>
+                {/* The sign that the row opens, for those who may open it. A hidden
+                    disclosure marker with nothing in its place reads as a list that cannot
+                    be corrected. */}
+                {editFor === null ? null : (
+                  <span
+                    className="text-[11px] underline underline-offset-4"
+                    style={{ color: "var(--board-ink-dim)" }}
+                  >
+                    Edit
+                  </span>
+                )}
               </span>
             );
             return (
@@ -59,7 +76,9 @@ export function BreakfastList({
                   <details>
                     <summary
                       className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"
-                      aria-label={`Edit ${name}'s breakfast`}
+                      // The date is part of the name: one manager can bring several breakfasts,
+                      // and the label replaces the row's own text for a screen reader.
+                      aria-label={`Edit ${name}'s breakfast of ${formatBreakfastDay(row.broughtOn)}`}
                     >
                       {line}
                     </summary>

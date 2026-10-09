@@ -345,6 +345,34 @@ describe("/necroporra/breakfasts", () => {
       harness.session = asManager;
     }
   });
+
+  it("shows a recorder which rows open, and names each one apart", async () => {
+    harness.session = asCollaborator;
+    try {
+      const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+      const html = await render(() => Page(month("2026-08")));
+      expect(html).toMatch(/>Edit</);
+      // Chus brought two breakfasts; a screen reader must be able to tell them apart.
+      expect(html).toMatch(/Edit Chus(&#x27;|')s breakfast of Thu 20 Aug/);
+      expect(html).toMatch(/Edit Chus(&#x27;|')s breakfast of Thu 30 Jul/);
+    } finally {
+      harness.session = asManager;
+    }
+  });
+
+  it("caps no date in the form, so a tab left open past midnight can still record today", async () => {
+    // The server refuses a future day against Madrid's clock at the moment of saving; a
+    // `max` frozen at render time would quietly block today after midnight.
+    harness.session = asCollaborator;
+    try {
+      const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+      const html = await render(() => Page(month("2026-08")));
+      expect(html).toContain('type="date"');
+      expect(html).not.toMatch(/type="date"[^>]*max=/);
+    } finally {
+      harness.session = asManager;
+    }
+  });
 });
 
 describe("/claim", () => {

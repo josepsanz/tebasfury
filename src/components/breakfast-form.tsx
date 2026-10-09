@@ -13,9 +13,11 @@ type BreakfastAction = (formData: FormData) => Promise<BreakfastResult>;
  * straight to `action={...}` throws its return value away, and the sentence it answers
  * with is the only way a recorder learns a date was refused.
  *
- * The date cannot be picked past today (`max`), which is a courtesy; the action refuses a
- * future day on its own. After a new entry is recorded only "what" is cleared: the next
- * entry is most often the same day, and sometimes the same manager.
+ * The date input carries no `max`. "Today" is Madrid's, decided by the action when it
+ * saves; a cap baked in when the page rendered would go stale in a tab left open past
+ * midnight and quietly block the very day being recorded. After a new entry is recorded
+ * only "what" is cleared: the next entry is most often the same day, and sometimes the
+ * same manager.
  */
 export function BreakfastForm({
   teams,
@@ -60,7 +62,6 @@ export function BreakfastForm({
           type="date"
           name="broughtOn"
           required
-          max={today}
           defaultValue={initial?.broughtOn ?? today}
           aria-label="Day it was brought"
           className={field}
