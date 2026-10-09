@@ -45,6 +45,12 @@ describe("role policies", () => {
       expect(roles.collaborator.authorize({ user: ["set-role"] }).success).toBe(false);
     });
 
+    it("cannot decide who may sign in", () => {
+      // The grant once sat in `collaboratorGrants` right under a comment saying it must
+      // not, which the `it.each` above happily confirmed as intended.
+      expect(roles.collaborator.authorize({ access: ["manage"] }).success).toBe(false);
+    });
+
     it("cannot enter another manager's ballot, though it may close the round", () => {
       // The first poll action that is NOT in `collaboratorGrants`, so the admin role has
       // to name it and stops being a pure superset. This test is what stops the exception
@@ -57,6 +63,10 @@ describe("role policies", () => {
   describe("admin", () => {
     it("can manage users", () => {
       expect(roles.admin.authorize({ user: ["set-role"] }).success).toBe(true);
+    });
+
+    it("can decide who may sign in", () => {
+      expect(roles.admin.authorize({ access: ["manage"] }).success).toBe(true);
     });
 
     it("can enter another manager's ballot", () => {

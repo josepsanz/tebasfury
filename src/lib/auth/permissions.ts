@@ -38,12 +38,6 @@ export const collaboratorGrants = {
   fairplay: ["read", "annotate", "delete"],
   sync: ["trigger"],
   leagueData: ["correct"],
-  /**
-   * Who may sign in at all. Deliberately NOT in `collaboratorGrants`: triggering a sync
-   * and deciding who reaches the league are different sizes of act, and a collaborator
-   * who can do the first should not silently gain the second.
-   */
-  access: ["manage"],
 } as const;
 
 const collaborator = ac.newRole({ ...collaboratorGrants });
