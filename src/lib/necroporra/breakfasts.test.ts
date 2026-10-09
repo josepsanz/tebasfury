@@ -36,11 +36,19 @@ describe("saveBreakfast", () => {
     ]);
   });
 
+  it("plans a breakfast for a day still to come, and says so in the future tense", async () => {
+    // NOW is 9 October in Madrid, so the 16th has not happened yet.
+    const result = await save({ teamId: "t2", broughtOn: "2026-10-16", what: "Coca" });
+    expect(result).toEqual({ ok: true, message: "Planned: Bruno brings breakfast on Fri 16 Oct." });
+    expect((await loadBreakfasts(h.db)).map((r) => r.broughtOn)).toEqual(["2026-10-16"]);
+  });
+
+  it("calls today's breakfast brought, not planned", async () => {
+    const result = await save({ teamId: "t2", broughtOn: "2026-10-09" });
+    expect(result).toEqual({ ok: true, message: "Recorded: Bruno brought breakfast on Fri 9 Oct." });
+  });
+
   it("refuses in words, and writes nothing", async () => {
-    expect(await save({ teamId: "t2", broughtOn: "2026-10-10" })).toEqual({
-      ok: false,
-      message: "That day has not happened yet.",
-    });
     expect(await save({ teamId: "t9", broughtOn: "2026-10-01" })).toEqual({
       ok: false,
       message: "Gone has left the league.",

@@ -5,6 +5,7 @@ import { breakfasts, teams } from "@/lib/db/schema";
 import {
   MAX_WHAT,
   formatBreakfastDay,
+  isPlanned,
   todayInLeague,
   validateBreakfast,
   type BreakfastInput,
@@ -23,7 +24,6 @@ const VANISHED: BreakfastResult = { ok: false, message: "That breakfast is no lo
 const refusal = (reason: BreakfastRejection, name: string): string =>
   ({
     "bad-date": "That is not a day.",
-    future: "That day has not happened yet.",
     "unknown-team": "That manager is not in this league.",
     "left-team": `${name} has left the league.`,
     "too-long": `Keep what they brought under ${MAX_WHAT} characters.`,
@@ -56,8 +56,9 @@ export async function saveBreakfast(
   const league = await db
     .select({ id: teams.id, name: teams.managerName, leftAt: teams.leftAt })
     .from(teams);
+  const today = todayInLeague(now);
   const verdict = validateBreakfast(input, {
-    today: todayInLeague(now),
+    today,
     teams: league,
     mode: id === undefined ? "create" : "edit",
   });
@@ -75,9 +76,12 @@ export async function saveBreakfast(
       .returning({ id: breakfasts.id });
     if (updated.length === 0) return VANISHED;
   }
+  const day = formatBreakfastDay(verdict.value.broughtOn);
   return {
     ok: true,
-    message: `Recorded: ${name} brought breakfast on ${formatBreakfastDay(verdict.value.broughtOn)}.`,
+    message: isPlanned(verdict.value, today)
+      ? `Planned: ${name} brings breakfast on ${day}.`
+      : `Recorded: ${name} brought breakfast on ${day}.`,
   };
 }
 

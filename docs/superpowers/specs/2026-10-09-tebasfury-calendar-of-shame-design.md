@@ -158,3 +158,22 @@ next to the ballot queries.
 - Linking an entry to a round's duty, or showing who still owes one. Ruled out above.
 - A photo of the breakfast.
 - Notifications of any kind.
+
+## Amendment, 2026-10-09: planned breakfasts
+
+The owner asked, the same day, to be able to write breakfasts down **ahead of time**, so the
+calendar can be used to plan them. It is still breakfasts only. Other kinds of event were
+offered and turned down. This reverses "a date after today in Madrid is refused" above:
+
+- **Any real day is accepted, past or future.** A breakfast dated after today (Madrid) is
+  **planned**. It becomes history **on its own day, with nobody confirming it**. A
+  confirmation step that gets forgotten once leaves a breakfast stuck between the two, and
+  a breakfast that never happened is edited or deleted like any other mistake. Today
+  counts as brought.
+- The answer is in the future tense: "Planned: Bruno brings breakfast on Fri 16 Oct."
+- In the grid a planned day keeps the alert border, but **dashed and unfilled**, and its
+  accessible name ends in ", planned".
+- The page draws two lists:
+  - **"Coming up"**: the plans, soonest first. It is drawn only when there is a plan.
+  - **"Every breakfast"**: the history, as before, without the plans.
+- The header's count counts breakfasts brought, not breakfasts planned.

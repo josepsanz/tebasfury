@@ -93,8 +93,9 @@ admin edits on `/admin/sync`:
 - **`/necroporra`** — the weekly poll for the two teams you think finish the round last,
   with every ballot visible, past rounds browsable and a season table of who guesses best.
 - **`/necroporra/breakfasts`** — the Calendar of Shame: who actually brought the penalty
-  breakfast, on which day and what it was, as a month grid and a full history. Admins and
-  collaborators record, correct and delete entries; everybody else reads them.
+  breakfast, on which day and what it was, as a month grid and a full history, plus the
+  breakfasts already planned for days still to come. Admins and collaborators record, plan,
+  correct and delete entries; everybody else reads them.
 - **`/constitution`** — the Constitution of the Fantasy Comité: the five articles the
   league agreed among themselves, from the 15 € entry and its 65/25/10 split to the
   breakfast shield, the apology, the denigration and the five-day holding rule. Each

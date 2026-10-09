@@ -3,32 +3,39 @@ import type { Breakfast } from "@/lib/necroporra/breakfasts";
 import { formatBreakfastDay } from "@/lib/domain/breakfast-log";
 
 /**
- * Every breakfast ever recorded, in the order the caller gives (newest first).
+ * A list of breakfasts under a heading, in the order the caller gives. The page draws it
+ * twice: the plans still to come, soonest first, and the history, newest first.
  *
  * For somebody who may record, each row is the summary of a `details` disclosure holding
  * the edit form, the same pattern `NecroporraBallots` uses: the list stays a server
  * component and the disclosure ships no JavaScript.
  */
 export function BreakfastList({
+  heading,
+  empty,
   rows,
   teamName,
   editFor,
 }: {
+  heading: string;
+  /** What to say when there are no rows, or null to draw nothing at all. */
+  empty: string | null;
   rows: Breakfast[];
   teamName: Map<string, string>;
   editFor: ((row: Breakfast) => ReactNode) | null;
 }) {
+  if (rows.length === 0 && empty === null) return null;
   return (
     <>
       <h2
         className="mt-10 text-[11px] uppercase tracking-[0.06em]"
         style={{ color: "var(--board-ink-dim)" }}
       >
-        Every breakfast
+        {heading}
       </h2>
       {rows.length === 0 ? (
         <p className="mt-3 text-[13px]" style={{ color: "var(--board-ink-dim)" }}>
-          Nobody has brought breakfast yet.
+          {empty}
         </p>
       ) : (
         <ul className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
