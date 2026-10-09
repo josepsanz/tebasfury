@@ -2,6 +2,7 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
 import {
   allowedEmails,
+  breakfasts,
   gameweeks,
   marketListings,
   marketOperations,
@@ -206,6 +207,14 @@ export async function seedLeague(db: Db) {
     { gameweek: SEED_SETTLED_WEEK, teamId: "t2", firstTeamId: "t3", secondTeamId: "t1" },
     { gameweek: SEED_SETTLED_WEEK, teamId: "t3", firstTeamId: "t1", secondTeamId: null },
     { gameweek: SEED_LIVE_WEEK, teamId: "t1", firstTeamId: "t3", secondTeamId: "t2" },
+  ]);
+
+  // Two breakfasts on one day and one the month before, so the grid draws a shared cell
+  // and the list has an order to keep. Dated around the seeded season.
+  await db.insert(breakfasts).values([
+    { teamId: "t3", broughtOn: "2026-08-20", what: "Churros", recordedBy: SEED_USER.id },
+    { teamId: "t2", broughtOn: "2026-08-20", what: null, recordedBy: SEED_USER.id },
+    { teamId: "t3", broughtOn: "2026-07-30", what: "Ensaïmada", recordedBy: SEED_USER.id },
   ]);
 
   // `t1`'s eleven for the settled round: a 4-4-2 with the keeper implied by the endpoint.

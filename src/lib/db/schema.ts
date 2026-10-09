@@ -527,6 +527,34 @@ export const necroporraVotes = pgTable(
 );
 
 /**
+ * One breakfast somebody actually brought: the Calendar of Shame.
+ *
+ * A record of what happened, not of what the rule asked for. `breakfastDuties` says who
+ * OWES breakfast after a round; this says who brought one, and when, and the owner ruled
+ * the two stay unlinked. An entry can therefore exist with no round behind it, and a duty
+ * can go unrecorded.
+ *
+ * Keyed on the team, as `necroporra_votes` is, because the managers with no portal account
+ * bring breakfast too. `brought_on` is a `date`: a breakfast happens on a day, and an
+ * instant would land on a different day depending on who read it.
+ */
+export const breakfasts = pgTable(
+  "breakfasts",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    teamId: text("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    broughtOn: date("brought_on", { mode: "string" }).notNull(),
+    what: text("what"),
+    /** Who wrote it down last, which the league may well ask. */
+    recordedBy: text("recorded_by").references(() => user.id, { onDelete: "set null" }),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("breakfasts_brought_on_idx").on(table.broughtOn)],
+);
+
+/**
  * What one team fielded in one round.
  *
  * `gameweek` deliberately references nothing, exactly as `necroporra_votes` and

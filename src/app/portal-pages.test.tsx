@@ -61,6 +61,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 
 const asManager = { user: { id: SEED_USER.id, role: "user" } };
 const asAdmin = { user: { id: SEED_USER.id, role: "admin" } };
+const asCollaborator = { user: { id: SEED_USER.id, role: "collaborator" } };
 
 const none = Promise.resolve({});
 const render = async (page: () => Promise<React.ReactElement>) =>
@@ -226,6 +227,7 @@ describe("/necroporra", () => {
     const { default: Page } = await import("./(portal)/necroporra/page");
     const html = await render(() => Page({ searchParams: none }));
     expect(html).toContain("Chus");
+    expect(html).toContain('href="/necroporra/breakfasts"');
   });
 
   it("tallies who the league names, and who has named the reader", async () => {
@@ -300,6 +302,76 @@ describe("/necroporra", () => {
     // wrong way round would pass on the labels alone.
     expect(html.slice(first, last)).toContain("Ada");
     expect(html.slice(last, last + 120)).toContain("Chus");
+  });
+});
+
+describe("/necroporra/breakfasts", () => {
+  const month = (m: string) => ({ searchParams: Promise.resolve({ month: m }) });
+
+  it("marks both bringers on a shared day, and lists every breakfast newest first", async () => {
+    const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+    const html = await render(() => Page(month("2026-08")));
+    expect(html).toContain("August 2026");
+    const grid = html.slice(html.indexOf("August 2026"), html.indexOf("Every breakfast"));
+    expect(grid).toContain("Chus");
+    expect(grid).toContain("Bruno");
+    const list = html.slice(html.indexOf("Every breakfast"));
+    expect(list.indexOf("Thu 20 Aug")).toBeLessThan(list.indexOf("Thu 30 Jul"));
+    expect(list).toContain("Ensaïmada");
+  });
+
+  it("falls back to the current month on a malformed one", async () => {
+    const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+    const html = await render(() => Page(month("2026-13")));
+    expect(html).not.toContain("2026-13");
+    expect(html).toContain("Every breakfast");
+  });
+
+  it("shows a manager no way to write", async () => {
+    const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+    const html = await render(() => Page(month("2026-08")));
+    expect(html).not.toMatch(/>Record</);
+    expect(html).not.toMatch(/>Delete</);
+  });
+
+  it("gives a collaborator the form and the row controls", async () => {
+    harness.session = asCollaborator;
+    try {
+      const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+      const html = await render(() => Page(month("2026-08")));
+      expect(html).toMatch(/>Record</);
+      expect(html).toMatch(/>Delete</);
+    } finally {
+      harness.session = asManager;
+    }
+  });
+
+  it("shows a recorder which rows open, and names each one apart", async () => {
+    harness.session = asCollaborator;
+    try {
+      const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+      const html = await render(() => Page(month("2026-08")));
+      expect(html).toMatch(/>Edit</);
+      // Chus brought two breakfasts; a screen reader must be able to tell them apart.
+      expect(html).toMatch(/Edit Chus(&#x27;|')s breakfast of Thu 20 Aug/);
+      expect(html).toMatch(/Edit Chus(&#x27;|')s breakfast of Thu 30 Jul/);
+    } finally {
+      harness.session = asManager;
+    }
+  });
+
+  it("caps no date in the form, so a tab left open past midnight can still record today", async () => {
+    // The server refuses a future day against Madrid's clock at the moment of saving; a
+    // `max` frozen at render time would quietly block today after midnight.
+    harness.session = asCollaborator;
+    try {
+      const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+      const html = await render(() => Page(month("2026-08")));
+      expect(html).toContain('type="date"');
+      expect(html).not.toMatch(/type="date"[^>]*max=/);
+    } finally {
+      harness.session = asManager;
+    }
   });
 });
 

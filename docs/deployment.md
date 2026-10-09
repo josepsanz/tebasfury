@@ -450,3 +450,14 @@ before.
 The same deploy moves the player sweep onto a fixed grid (01:45, 07:45, 13:45, 19:45
 Madrid). The chain that is running books its next slot on its first run after the deploy;
 nothing needs restarting.
+
+## Breakfasts (migration 0018)
+
+`0018_breakfasts.sql` creates `breakfasts`, the Calendar of Shame. **Apply it before
+deploying the code that reads it.** Only `/necroporra/breakfasts` reads the table, so
+deploying first breaks that one page and nothing else, but there is no reason to.
+
+    DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
+
+Then verify: `breakfasts` must exist in `information_schema.tables`, and
+`drizzle.__drizzle_migrations` must have one more row than before.

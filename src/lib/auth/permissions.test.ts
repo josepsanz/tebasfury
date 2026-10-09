@@ -29,6 +29,10 @@ describe("role policies", () => {
       expect(roles.user.authorize({ leagueData: ["correct"] }).success).toBe(false);
     });
 
+    it("cannot record a breakfast", () => {
+      expect(roles.user.authorize({ breakfast: ["record"] }).success).toBe(false);
+    });
+
     it("cannot enter another manager's ballot", () => {
       expect(roles.user.authorize({ poll: ["voteFor"] }).success).toBe(false);
     });
@@ -63,6 +67,10 @@ describe("role policies", () => {
   describe("admin", () => {
     it("can manage users", () => {
       expect(roles.admin.authorize({ user: ["set-role"] }).success).toBe(true);
+    });
+
+    it("can record a breakfast", () => {
+      expect(roles.admin.authorize({ breakfast: ["record"] }).success).toBe(true);
     });
 
     it("can decide who may sign in", () => {

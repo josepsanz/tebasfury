@@ -13,6 +13,11 @@ export const statement = {
   sync: ["trigger"],
   leagueData: ["correct"],
   /**
+   * Writing down who brought breakfast: create, correct or delete one entry of the
+   * Calendar of Shame. One action for all three, because nobody wants them apart.
+   */
+  breakfast: ["record"],
+  /**
    * Who may sign in at all. Deliberately NOT in `collaboratorGrants`: triggering a sync
    * and deciding who reaches the league are different sizes of act, and a collaborator
    * who can do the first should not silently gain the second.
@@ -38,6 +43,7 @@ export const collaboratorGrants = {
   fairplay: ["read", "annotate", "delete"],
   sync: ["trigger"],
   leagueData: ["correct"],
+  breakfast: ["record"],
 } as const;
 
 const collaborator = ac.newRole({ ...collaboratorGrants });
