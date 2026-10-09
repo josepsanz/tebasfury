@@ -5,15 +5,20 @@
  * players. It is deliberately a count and not a timestamp: how fresh the data is now
  * lives in the status strip, on every page, and repeating it here would give a reader
  * two clocks to reconcile.
+ *
+ * `metaHref` makes the count a download of what it counts — the players page hands it
+ * the CSV of every player. A plain anchor, not `Link`: it is a file, not a page.
  */
 export function PageHeader({
   title,
   note,
   meta,
+  metaHref,
 }: {
   title: string;
   note?: string;
   meta?: string;
+  metaHref?: string;
 }) {
   return (
     <header className="mb-1">
@@ -24,7 +29,13 @@ export function PageHeader({
             className="shrink-0 text-[10.5px] tabular-nums"
             style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
           >
-            {meta}
+            {metaHref ? (
+              <a href={metaHref} download className="underline underline-offset-2" title="Download as CSV">
+                {meta}
+              </a>
+            ) : (
+              meta
+            )}
           </span>
         ) : null}
       </div>

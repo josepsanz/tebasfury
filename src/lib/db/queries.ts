@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, inArray, like, notExists, notLike, sql, sum, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, like, lte, notExists, notLike, sql, sum, type SQL } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import type * as schema from "./schema";
 import type { Snapshot, TeamRef } from "@/lib/domain/standings";
@@ -605,6 +605,72 @@ export async function loadPlayerCatalogue(db: Db): Promise<CatalogueData> {
     clubs: clubRows,
     ownershipKnown: ownershipRows.length > 0,
     lastSweep,
+  };
+}
+
+/**
+ * What the CSV export needs beyond the catalogue: a fortnight of value readings, the last
+ * three scores and the live market, for every player.
+ *
+ * Fifteen readings, not fifteen calendar days: snapshots are at most one a day, so the
+ * fifteen newest always reach the day fourteen before the newest when it was swept at all,
+ * and a stalled sweep still leaves the three readings a trend needs. Both cuts are made by
+ * a window in Postgres, for the reason `loadPlayerCatalogue` sums there.
+ */
+export type PlayerExportExtras = {
+  values: Map<string, ValuePoint[]>;
+  points: Map<string, number[]>;
+  listings: Map<string, { kind: string; expiresAt: Date; bids: number | null }>;
+};
+
+export async function loadPlayerExportExtras(db: Db): Promise<PlayerExportExtras> {
+  const recentValues = db
+    .select({
+      playerId: playerValueSnapshots.playerId,
+      takenOn: playerValueSnapshots.takenOn,
+      value: playerValueSnapshots.value,
+      rank: sql<number>`row_number() over (partition by ${playerValueSnapshots.playerId} order by ${playerValueSnapshots.takenOn} desc)`.as(
+        "rank",
+      ),
+    })
+    .from(playerValueSnapshots)
+    .as("recent_values");
+
+  const recentPoints = db
+    .select({
+      playerId: playerGameweekPoints.playerId,
+      gameweek: playerGameweekPoints.gameweek,
+      points: playerGameweekPoints.points,
+      rank: sql<number>`row_number() over (partition by ${playerGameweekPoints.playerId} order by ${playerGameweekPoints.gameweek} desc)`.as(
+        "rank",
+      ),
+    })
+    .from(playerGameweekPoints)
+    .as("recent_points");
+
+  const [valueRows, pointRows, listingRows] = await Promise.all([
+    db.select().from(recentValues).where(lte(recentValues.rank, 15)),
+    db.select().from(recentPoints).where(lte(recentPoints.rank, 3)).orderBy(recentPoints.playerId, recentPoints.rank),
+    db.select().from(marketListings),
+  ]);
+
+  const values = new Map<string, ValuePoint[]>();
+  for (const row of valueRows) {
+    const list = values.get(row.playerId) ?? [];
+    list.push({ takenOn: row.takenOn, value: Number(row.value) });
+    values.set(row.playerId, list);
+  }
+  const points = new Map<string, number[]>();
+  for (const row of pointRows) {
+    const list = points.get(row.playerId) ?? [];
+    list.push(row.points);
+    points.set(row.playerId, list);
+  }
+
+  return {
+    values,
+    points,
+    listings: new Map(listingRows.map((l) => [l.playerId, { kind: l.kind, expiresAt: l.expiresAt, bids: l.bids }])),
   };
 }
 

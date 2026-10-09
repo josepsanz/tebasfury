@@ -29,13 +29,13 @@ export default async function PlayersPage() {
     );
   }
 
-
   return (
     <section className="mx-auto max-w-2xl">
       <PageHeader
         title="Players"
         note="Every eligible player, what they cost and what they score."
         meta={`${rows.length} players`}
+        metaHref="/players/export"
       />
 
       <PlayerCatalogue

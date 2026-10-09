@@ -31,6 +31,7 @@ import {
   loadPlayerCatalogue,
   loadSnapshots,
   loadTargets,
+  loadPlayerExportExtras,
 } from "./queries";
 import { buildCatalogue } from "@/lib/domain/players";
 
@@ -953,5 +954,53 @@ describe("claimPlayerSweep", () => {
     const standingsAt = after(40 * 60 * 60 * 1000);
     await h.db.insert(syncRuns).values({ id: "st-recent", trigger: "schedule", status: "running", startedAt: standingsAt });
     expect(await claim("pl-beside-standings", after(40 * 60 * 60 * 1000 + 1000))).toBe(true);
+  });
+});
+
+describe("loadPlayerExportExtras", () => {
+  let h: TestDatabase;
+  const closes = new Date("2026-10-04T17:00:00Z");
+
+  beforeAll(async () => {
+    h = await createTestDatabase();
+    await h.db.insert(players).values(
+      [
+        { id: "a", nickname: "A" },
+        { id: "b", nickname: "B" },
+      ].map((p) => ({ ...p, position: "Forward", realTeamId: "rt1", status: "ok" })),
+    );
+    // Twenty days for one player: only the fifteen newest come back.
+    await h.db.insert(playerValueSnapshots).values(
+      Array.from({ length: 20 }, (_, i) => ({
+        playerId: "a",
+        takenOn: `2026-09-${String(i + 1).padStart(2, "0")}`,
+        value: 1_000_000 + i,
+      })),
+    );
+    await h.db.insert(playerGameweekPoints).values(
+      [1, 2, 3, 4, 5].map((gameweek) => ({ playerId: "a", gameweek, points: gameweek * 2 })),
+    );
+    await h.db.insert(marketListings).values({ playerId: "b", kind: "league", expiresAt: closes, bids: 3, readAt: closes });
+  });
+  afterAll(async () => {
+    await h.close();
+  });
+
+  it("keeps each player's fifteen newest value readings", async () => {
+    const { values } = await loadPlayerExportExtras(h.db);
+    const a = values.get("a") ?? [];
+    expect(a).toHaveLength(15);
+    expect(a.map((v) => v.takenOn).sort()[0]).toBe("2026-09-06");
+    expect(values.has("b")).toBe(false);
+  });
+
+  it("keeps the last three scores, newest first", async () => {
+    const { points } = await loadPlayerExportExtras(h.db);
+    expect(points.get("a")).toEqual([10, 8, 6]);
+  });
+
+  it("carries the market as it was read", async () => {
+    const { listings } = await loadPlayerExportExtras(h.db);
+    expect(listings.get("b")).toEqual({ kind: "league", expiresAt: closes, bids: 3 });
   });
 });
