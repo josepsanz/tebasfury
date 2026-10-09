@@ -162,6 +162,12 @@ export default async function NecroporraPage({
         note="Name the two teams you think finish the round last. One point if you get it."
         meta={rounds.length === 0 ? "no rounds yet" : `${rounds.length} rounds`}
       />
+      <p className="mt-2 text-[12px]">
+        <Link href="/necroporra/breakfasts" className="underline underline-offset-4">
+          Calendar of Shame
+        </Link>
+        <span style={{ color: "var(--board-ink-dim)" }}> — who brought breakfast, and when.</span>
+      </p>
 
       <h2 className={HEADING} style={{ color: "var(--board-ink-dim)" }}>
         {open === null ? "Nothing open" : `Round ${open.gameweek} — closes ${madrid(open.closesAt)}`}
