@@ -127,6 +127,13 @@
       "when": 1791057190001,
       "tag": "0017_market_listings",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791545876383,
+      "tag": "0018_breakfasts",
+      "breakpoints": true
     }
   ]
 }
