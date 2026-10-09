@@ -97,12 +97,22 @@ export function monthGrid<E extends { broughtOn: string }>(m: Month, entries: E[
 export const MAX_WHAT = 200;
 
 export type BreakfastInput = { teamId: string; broughtOn: string; what: string };
-export type BreakfastRejection = "bad-date" | "future" | "unknown-team" | "left-team" | "too-long";
+export type BreakfastRejection = "bad-date" | "unknown-team" | "left-team" | "too-long";
+
+/**
+ * A breakfast dated after today is PLANNED: somebody has said they will bring it.
+ *
+ * It turns into history on its own day, with nobody confirming it — the owner's ruling,
+ * because a confirmation step forgotten once leaves a breakfast stranded between the two.
+ * One that never happened is edited or deleted like any other mistake. Today already
+ * counts as brought.
+ */
+export const isPlanned = (entry: { broughtOn: string }, today: string) => entry.broughtOn > today;
 
 /**
  * What a recorder may write down.
  *
- * A breakfast not yet brought is not history, so a day after today is refused. A manager
+ * Any real day, past or future: a future one is a plan (see `isPlanned`). A manager
  * who has left the league is refused for a NEW entry but accepted on an edit, because their
  * old entries must still be correctable.
  */
@@ -113,7 +123,6 @@ export function validateBreakfast(
   | { ok: true; value: { teamId: string; broughtOn: string; what: string | null } }
   | { ok: false; reason: BreakfastRejection } {
   if (parseDay(input.broughtOn) === null) return { ok: false, reason: "bad-date" };
-  if (input.broughtOn > ctx.today) return { ok: false, reason: "future" };
 
   const team = ctx.teams.find((t) => t.id === input.teamId);
   if (team === undefined) return { ok: false, reason: "unknown-team" };

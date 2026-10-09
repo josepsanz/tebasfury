@@ -1,6 +1,12 @@
 import Link from "next/link";
 import type { Breakfast } from "@/lib/necroporra/breakfasts";
-import { monthLabel, shiftMonth, type GridCell, type Month } from "@/lib/domain/breakfast-log";
+import {
+  isPlanned,
+  monthLabel,
+  shiftMonth,
+  type GridCell,
+  type Month,
+} from "@/lib/domain/breakfast-log";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -10,7 +16,8 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
  * A breakfast day is the one loud thing on the page: tinted and bordered in the alert colour,
  * with every bringer's name under the number. Everything else stays at the portal's quiet
  * baseline, so the eye lands on the shame and nothing else. Today carries only an outline,
- * because it is a place to look from, not a fact.
+ * because it is a place to look from, not a fact. A day still to come is dashed and
+ * unfilled: a breakfast somebody has promised, not one the league has eaten.
  *
  * `min-w-0` on every cell is what keeps seven columns inside a 360 px phone: without it a
  * long manager name widens its column and the grid scrolls sideways.
@@ -68,6 +75,9 @@ export function BreakfastCalendar({
 
           const shamed = cell.entries.length > 0;
           const isToday = cell.iso === today;
+          // A day still to come holds only plans. Dashed and unfilled: the same colour as
+          // the shame it promises, without claiming it has happened.
+          const planned = shamed && isPlanned({ broughtOn: cell.iso }, today);
           return (
             <div
               key={cell.iso}
@@ -78,13 +88,16 @@ export function BreakfastCalendar({
                   : isToday
                     ? "var(--board-ink-dim)"
                     : "var(--board-line)",
-                background: shamed
-                  ? "color-mix(in srgb, var(--board-alert) 16%, transparent)"
-                  : undefined,
+                borderStyle: planned ? "dashed" : undefined,
+                background:
+                  shamed && !planned
+                    ? "color-mix(in srgb, var(--board-alert) 16%, transparent)"
+                    : undefined,
               }}
+              role={shamed ? "group" : undefined}
               aria-label={
                 shamed
-                  ? `${cell.day}: ${cell.entries.map((e) => teamName.get(e.teamId) ?? e.teamId).join(", ")}`
+                  ? `${cell.day}: ${cell.entries.map((e) => teamName.get(e.teamId) ?? e.teamId).join(", ")}${planned ? ", planned" : ""}`
                   : undefined
               }
             >

@@ -320,6 +320,27 @@ describe("/necroporra/breakfasts", () => {
     expect(list).toContain("Ensaïmada");
   });
 
+  it("lists planned breakfasts apart from the history, and counts only those brought", async () => {
+    const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+    const html = await render(() => Page(month("2026-08")));
+    expect(html).toContain("3 breakfasts");
+    const coming = html.indexOf("Coming up");
+    const history = html.indexOf("Every breakfast");
+    expect(coming).toBeGreaterThan(-1);
+    expect(coming).toBeLessThan(history);
+    expect(html.slice(coming, history)).toContain("Croissants");
+    expect(html.slice(history)).not.toContain("Croissants");
+  });
+
+  it("draws a planned day differently from one already brought", async () => {
+    const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
+    const html = await render(() => Page(month("2099-01")));
+    expect(html).toContain("15: Bruno, planned");
+    const august = await render(() => Page(month("2026-08")));
+    expect(august).toContain(`aria-label="20: Bruno, Chus"`);
+    expect(august).not.toContain("planned");
+  });
+
   it("falls back to the current month on a malformed one", async () => {
     const { default: Page } = await import("./(portal)/necroporra/breakfasts/page");
     const html = await render(() => Page(month("2026-13")));

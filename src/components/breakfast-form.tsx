@@ -13,9 +13,9 @@ type BreakfastAction = (formData: FormData) => Promise<BreakfastResult>;
  * straight to `action={...}` throws its return value away, and the sentence it answers
  * with is the only way a recorder learns a date was refused.
  *
- * The date input carries no `max`. "Today" is Madrid's, decided by the action when it
- * saves; a cap baked in when the page rendered would go stale in a tab left open past
- * midnight and quietly block the very day being recorded. After a new entry is recorded
+ * The date input carries no `max`: a day still to come is how a breakfast is planned, and
+ * whether a day is past or future is the action's to decide, against Madrid's clock at
+ * the moment it saves. After a new entry is recorded
  * only "what" is cleared: the next entry is most often the same day, and sometimes the
  * same manager.
  */

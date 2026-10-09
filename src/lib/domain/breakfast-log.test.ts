@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatBreakfastDay,
+  isPlanned,
   monthGrid,
   monthLabel,
   monthParam,
@@ -107,11 +108,8 @@ describe("validateBreakfast", () => {
   it.each(["", "2026-02-30", "09/10/2026", "2026-10-9"])("refuses the date %s", (broughtOn) => {
     expect(validateBreakfast({ ...ok, broughtOn }, ctx)).toEqual({ ok: false, reason: "bad-date" });
   });
-  it("refuses tomorrow", () => {
-    expect(validateBreakfast({ ...ok, broughtOn: "2026-10-10" }, ctx)).toEqual({
-      ok: false,
-      reason: "future",
-    });
+  it("accepts a day in the future, which is how a breakfast is planned", () => {
+    expect(validateBreakfast({ ...ok, broughtOn: "2026-10-16" }, ctx).ok).toBe(true);
   });
   it("refuses a team that is not in the league", () => {
     expect(validateBreakfast({ ...ok, teamId: "nope" }, ctx)).toEqual({
@@ -129,5 +127,14 @@ describe("validateBreakfast", () => {
       reason: "too-long",
     });
     expect(validateBreakfast({ ...ok, what: "x".repeat(200) }, ctx).ok).toBe(true);
+  });
+});
+
+describe("isPlanned", () => {
+  // A planned breakfast becomes history on its own day, with nobody confirming it.
+  it("calls tomorrow planned, and today already brought", () => {
+    expect(isPlanned({ broughtOn: "2026-10-10" }, "2026-10-09")).toBe(true);
+    expect(isPlanned({ broughtOn: "2026-10-09" }, "2026-10-09")).toBe(false);
+    expect(isPlanned({ broughtOn: "2026-10-08" }, "2026-10-09")).toBe(false);
   });
 });
