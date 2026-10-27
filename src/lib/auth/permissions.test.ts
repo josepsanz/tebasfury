@@ -38,6 +38,26 @@ describe("role policies", () => {
     });
   });
 
+  describe("pariah", () => {
+    // Reads the league like a manager and administers nothing. What a pariah may NOT
+    // visit is not a permission at all: it is decided by `isPariah` at each page.
+    it("can read the fair play register", () => {
+      expect(roles.pariah.authorize({ fairplay: ["read"] }).success).toBe(true);
+    });
+
+    it.each([
+      ["sync", "trigger"],
+      ["access", "manage"],
+      ["poll", "create"],
+      ["poll", "voteFor"],
+      ["breakfast", "record"],
+      ["leagueData", "correct"],
+      ["user", "set-role"],
+    ])("cannot %s:%s", (resource, action) => {
+      expect(roles.pariah.authorize(permissionFor(resource, action)).success).toBe(false);
+    });
+  });
+
   describe("collaborator", () => {
     it.each(grantCases)("can %s:%s", (resource, action) => {
       expect(roles.collaborator.authorize(permissionFor(resource, action)).success).toBe(

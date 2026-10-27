@@ -5,6 +5,7 @@ import { loadPlayerCatalogue, loadPortraits, loadSnapshots } from "@/lib/db/quer
 import { buildCatalogue } from "@/lib/domain/players";
 import { parseMetric, rankFormations } from "@/lib/domain/lineup";
 import { requireSession } from "@/lib/auth/guards";
+import { refusePariahUnlessOwnTeam } from "@/lib/auth/pariah-guards";
 import { PageHeader } from "@/components/page-header";
 import { LineupBoard } from "@/components/lineup-board";
 
@@ -26,8 +27,9 @@ export default async function LineupPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  await requireSession();
+  const session = await requireSession();
   const { id } = await params;
+  await refusePariahUnlessOwnTeam(session, id);
   const query = await searchParams;
 
   const { teams } = await loadSnapshots(db);

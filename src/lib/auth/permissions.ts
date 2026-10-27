@@ -33,6 +33,16 @@ const user = ac.newRole({
 });
 
 /**
+ * A manager the league has shunned. The same grants as `user`, on purpose: what a pariah
+ * loses is not an action but a view — other teams, players, the market, the targets — and
+ * those pages are open to every manager without naming a permission. So the ban is
+ * `isPariah`, checked by `refusePariah` on each of those pages, not a statement here.
+ */
+const pariah = ac.newRole({
+  fairplay: ["read"],
+});
+
+/**
  * What a collaborator may do: everything an admin may do except manage users
  * and roles. Defined once here so that `admin` inherits it by composition
  * rather than repeating it — if `collaborator` gains a new resource, `admin`
@@ -64,6 +74,6 @@ const admin = ac.newRole({
   ...adminAc.statements,
 });
 
-export const roles = { user, collaborator, admin };
+export const roles = { user, pariah, collaborator, admin };
 
 export type RoleName = keyof typeof roles;

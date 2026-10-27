@@ -3,6 +3,7 @@ import { loadPlayerCatalogue, loadPlayerExportExtras } from "@/lib/db/queries";
 import { buildCatalogue } from "@/lib/domain/players";
 import { playersCsv } from "@/lib/domain/player-export";
 import { requireSession } from "@/lib/auth/guards";
+import { refusePariah } from "@/lib/auth/pariah-guards";
 
 /**
  * Every player as a CSV download, linked from the count on /players.
@@ -12,7 +13,8 @@ import { requireSession } from "@/lib/auth/guards";
  * reader lands on the login screen rather than on an error.
  */
 export async function GET() {
-  await requireSession();
+  const session = await requireSession();
+  refusePariah(session);
   const [catalogue, extras] = await Promise.all([loadPlayerCatalogue(db), loadPlayerExportExtras(db)]);
   const now = new Date();
   const rows = buildCatalogue(catalogue);

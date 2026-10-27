@@ -7,9 +7,11 @@ import { hasStoredCredential } from "@/lib/fantasy-client/credentials";
 import { decideAccess, requirePermission } from "@/lib/auth/guards";
 import { SyncControls } from "./sync-controls";
 import { AccessList } from "./access-list";
+import { PariahList } from "./pariah-list";
 import { loadAllowedEmailRows } from "@/lib/access";
+import { loadPariahCandidates } from "@/lib/pariah";
 import { getEnv } from "@/lib/env";
-import { allowEmails, disallowEmail } from "./actions";
+import { allowEmails, disallowEmail, togglePariah } from "./actions";
 import { CREDENTIAL_RECOVERY_MESSAGE, isCredentialFailure } from "./credential-state";
 
 export default async function SyncPage() {
@@ -23,11 +25,12 @@ export default async function SyncPage() {
   // log ten rows in under one busy weekend hour (see the doc comment on the query),
   // so a player sweep's own row is almost never among the ten most recent runs. It is
   // the diagnostic `docs/deployment.md` step 8 actually depends on.
-  const [hasCredential, runs, lastPlayerSweep, allowed] = await Promise.all([
+  const [hasCredential, runs, lastPlayerSweep, allowed, candidates] = await Promise.all([
     hasStoredCredential(db),
     db.select().from(syncRuns).orderBy(desc(syncRuns.startedAt)).limit(10),
     loadLastPlayerSweep(db),
     loadAllowedEmailRows(db),
+    loadPariahCandidates(db),
   ]);
 
   // The page is reachable with `sync: ["trigger"]`, which a collaborator has; the list
@@ -89,6 +92,15 @@ export default async function SyncPage() {
             </Link>{" "}
             before they can vote.
           </p>
+
+          <h2 className="mt-10 text-lg font-semibold">Pariahs</h2>
+          <p className="mt-1 text-[12.5px]" style={{ color: "var(--board-ink-dim)" }}>
+            A pariah keeps the standings, the progress, the fair-play register, the
+            Necroporra, the Constitution and their own team. Every other team, every player,
+            the market and the targets send them to a page that tells them what they are.
+            It takes effect on their next page load. Admins and collaborators are not listed.
+          </p>
+          <PariahList rows={candidates} toggle={togglePariah} />
         </>
       ) : null}
 

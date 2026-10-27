@@ -5,6 +5,7 @@ import { loadMarket, loadPlayer } from "@/lib/db/queries";
 import { formatMoney, pointsSeries, statusLabel, valueSeries } from "@/lib/domain/players";
 import { clauseStatus } from "@/lib/domain/market";
 import { requireSession } from "@/lib/auth/guards";
+import { refusePariah } from "@/lib/auth/pariah-guards";
 import { PlayerCharts } from "@/components/player-charts";
 import { OwnerLabel } from "@/components/owner-label";
 import { ClauseNote } from "@/components/clause-marks";
@@ -15,7 +16,8 @@ import { MarketFeed } from "@/components/market-feed";
 export default async function PlayerPage({ params }: { params: Promise<{ id: string }> }) {
   // The guard runs before the lookup: an anonymous visitor must not be able to tell an
   // existing player id from a missing one by the difference between a redirect and a 404.
-  await requireSession();
+  const session = await requireSession();
+  refusePariah(session);
   const { id } = await params;
   const detail = await loadPlayer(db, id);
   if (detail === null) notFound();

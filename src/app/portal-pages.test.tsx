@@ -62,6 +62,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 const asManager = { user: { id: SEED_USER.id, role: "user" } };
 const asAdmin = { user: { id: SEED_USER.id, role: "admin" } };
 const asCollaborator = { user: { id: SEED_USER.id, role: "collaborator" } };
+const asPariah = { user: { id: SEED_USER.id, name: SEED_USER.name, role: "pariah" } };
 
 const none = Promise.resolve({});
 const render = async (page: () => Promise<React.ReactElement>) =>
@@ -414,6 +415,23 @@ describe("/admin/sync", () => {
     harness.session = asManager;
   });
 
+  it("offers the admin a pariah control on every ordinary manager", async () => {
+    harness.session = asAdmin;
+    const { default: Page } = await import("./admin/sync/page");
+    const html = await render(() => Page());
+    expect(html).toContain("Pariahs");
+    expect(html).toContain("Declare pariah");
+    harness.session = asManager;
+  });
+
+  it("keeps the pariah control from a collaborator", async () => {
+    harness.session = asCollaborator;
+    const { default: Page } = await import("./admin/sync/page");
+    const html = await render(() => Page());
+    expect(html).not.toContain("Declare pariah");
+    harness.session = asManager;
+  });
+
   it("turns away a manager, because triggering a sync is not a manager's to do", async () => {
     // The page's own `requirePermission({ sync: ["trigger"] })`, decided by the real
     // access rules. A permission quietly widened to the `user` role fails here.
@@ -438,5 +456,99 @@ describe("/constitution", () => {
     const html = await render(() => Page());
     expect(html).toContain("shields that team for the next 3 rounds");
     expect(html).toContain('href="/standings"');
+  });
+});
+
+describe("a pariah", () => {
+  // Ada again, so her own team is t1 and a rival is t2. The ban is the real
+  // `refusePariah`, which these tests do not fake: only the session is.
+  beforeAll(() => {
+    harness.session = asPariah;
+  });
+  afterAll(() => {
+    harness.session = asManager;
+  });
+
+  /** Where a page's redirect points: Next carries the target in the error's digest. */
+  const redirectedTo = async (visit: () => Promise<unknown>) => {
+    try {
+      await visit();
+    } catch (error) {
+      const digest = String((error as { digest?: string }).digest ?? "");
+      if (digest.startsWith("NEXT_REDIRECT")) return digest.split(";")[2];
+      throw error;
+    }
+    return null;
+  };
+
+  it.each([
+    ["/players", () => import("./(portal)/players/page").then((m) => m.default())],
+    [
+      "/players/[id]",
+      () =>
+        import("./(portal)/players/[id]/page").then((m) =>
+          m.default({ params: Promise.resolve({ id: "nobody" }) }),
+        ),
+    ],
+    ["/players/export", () => import("./(portal)/players/export/route").then((m) => m.GET())],
+    ["/market", () => import("./(portal)/market/page").then((m) => m.default({ searchParams: none }))],
+    ["/targets", () => import("./(portal)/targets/page").then((m) => m.default({ searchParams: none }))],
+    [
+      "a rival's team",
+      () =>
+        import("./(portal)/teams/[id]/page").then((m) =>
+          m.default({ params: Promise.resolve({ id: "t2" }), searchParams: none }),
+        ),
+    ],
+    [
+      "a rival's lineup",
+      () =>
+        import("./(portal)/teams/[id]/lineup/page").then((m) =>
+          m.default({ params: Promise.resolve({ id: "t2" }), searchParams: none }),
+        ),
+    ],
+  ])("is sent from %s to the pariah page", async (_, visit) => {
+    expect(await redirectedTo(visit)).toBe("/pariah");
+  });
+
+  it("may still look at their own team", async () => {
+    const { default: Page } = await import("./(portal)/teams/[id]/page");
+    const html = await render(() =>
+      Page({ params: Promise.resolve({ id: "t1" }), searchParams: none }),
+    );
+    expect(html).toContain("Courtois");
+  });
+
+  it("may still read the league", async () => {
+    const standings = await import("./(portal)/standings/page");
+    const progress = await import("./(portal)/progress/page");
+    const fairPlay = await import("./(portal)/fair-play/page");
+    const necroporra = await import("./(portal)/necroporra/page");
+    const constitution = await import("./(portal)/constitution/page");
+    await render(() => standings.default({ searchParams: none }));
+    await render(() => progress.default());
+    await render(() => fairPlay.default());
+    await render(() => necroporra.default({ searchParams: none }));
+    await render(() => constitution.default());
+  });
+
+  it("is turned away from Sync like any manager", async () => {
+    const { default: Page } = await import("./admin/sync/page");
+    expect(await redirectedTo(() => Page())).toBe("/");
+  });
+
+  it("is named on the pariah page, and pointed back at their own team", async () => {
+    const { default: Page } = await import("./(portal)/pariah/page");
+    const html = await render(() => Page());
+    expect(html).toContain("Ada");
+    expect(html).toContain("is a pariah.");
+    expect(html).toContain('href="/teams/t1"');
+  });
+
+  it("is the only one the pariah page is for", async () => {
+    harness.session = asManager;
+    const { default: Page } = await import("./(portal)/pariah/page");
+    expect(await redirectedTo(() => Page())).toBe("/");
+    harness.session = asPariah;
   });
 });

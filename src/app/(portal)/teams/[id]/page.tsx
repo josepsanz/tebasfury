@@ -27,6 +27,7 @@ import {
   formatWorstRecord,
 } from "@/lib/domain/metric-copy";
 import { requireSession } from "@/lib/auth/guards";
+import { refusePariahUnlessOwnTeam } from "@/lib/auth/pariah-guards";
 import { PageHeader } from "@/components/page-header";
 import { MetricGrid, type Metric } from "@/components/metric-grid";
 import { MarketMoney } from "@/components/market-money";
@@ -60,8 +61,9 @@ export default async function TeamPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  await requireSession();
+  const session = await requireSession();
   const { id } = await params;
+  await refusePariahUnlessOwnTeam(session, id);
   const { snapshots, teams } = await loadSnapshots(db);
 
   const team = teams.find((candidate) => candidate.id === id);
