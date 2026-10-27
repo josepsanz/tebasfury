@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { loadTargets } from "@/lib/db/queries";
 import { loadMyTeam } from "@/lib/claims";
 import { requireSession } from "@/lib/auth/guards";
+import { refusePariah } from "@/lib/auth/pariah-guards";
 import { buildTargets, marketLine, parseTargetView, rankTargets } from "@/lib/domain/targets";
 import { PageHeader } from "@/components/page-header";
 import { TargetControls } from "@/components/target-controls";
@@ -23,6 +24,7 @@ export default async function TargetsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const session = await requireSession();
+  refusePariah(session);
   const [{ inputs, marketReadAt, auctionClosesAt }, myTeam] = await Promise.all([
     loadTargets(db),
     loadMyTeam(db, { userId: session.user.id }),

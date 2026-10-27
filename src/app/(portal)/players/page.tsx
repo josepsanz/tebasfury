@@ -3,6 +3,7 @@ import { loadPlayerCatalogue } from "@/lib/db/queries";
 import { buildCatalogue } from "@/lib/domain/players";
 import { clauseStatus, type ClauseStatus } from "@/lib/domain/market";
 import { requireSession } from "@/lib/auth/guards";
+import { refusePariah } from "@/lib/auth/pariah-guards";
 import { PlayerCatalogue } from "@/components/player-catalogue";
 import { PageHeader } from "@/components/page-header";
 import { formatSyncedAt } from "@/lib/domain/clock";
@@ -11,7 +12,8 @@ import { formatSyncedAt } from "@/lib/domain/clock";
 // takes no `searchParams`: one reader of them, and it is the component that has to follow
 // them on a back navigation.
 export default async function PlayersPage() {
-  await requireSession();
+  const session = await requireSession();
+  refusePariah(session);
   const { players, totals, values, ownership, clubs, ownershipKnown, lastSweep } =
     await loadPlayerCatalogue(db);
   const rows = buildCatalogue({ players, totals, values, ownership, clubs });

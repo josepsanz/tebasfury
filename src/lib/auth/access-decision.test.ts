@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideAccess } from "./access-decision";
+import { decideAccess, decidePariahTeamAccess, isPariah } from "./access-decision";
 
 const sessionFor = (role: string) => ({ user: { id: "u1", role } });
 
@@ -49,5 +49,38 @@ describe("decideAccess", () => {
       kind: "redirect",
       to: "/",
     });
+  });
+});
+
+describe("isPariah", () => {
+  it("is true for the pariah role only", () => {
+    expect(isPariah(sessionFor("pariah"))).toBe(true);
+    expect(isPariah(sessionFor("user"))).toBe(false);
+    expect(isPariah(sessionFor("admin"))).toBe(false);
+    expect(isPariah(null)).toBe(false);
+  });
+});
+
+describe("decidePariahTeamAccess", () => {
+  it("lets a pariah see their own team", () => {
+    expect(decidePariahTeamAccess(sessionFor("pariah"), "t1", "t1")).toEqual({ kind: "allow" });
+  });
+
+  it("sends a pariah looking at a rival to /pariah", () => {
+    expect(decidePariahTeamAccess(sessionFor("pariah"), "t2", "t1")).toEqual({
+      kind: "redirect",
+      to: "/pariah",
+    });
+  });
+
+  it("sends a pariah with no team of their own to /pariah", () => {
+    expect(decidePariahTeamAccess(sessionFor("pariah"), "t2", null)).toEqual({
+      kind: "redirect",
+      to: "/pariah",
+    });
+  });
+
+  it("lets anybody else see any team", () => {
+    expect(decidePariahTeamAccess(sessionFor("user"), "t2", "t1")).toEqual({ kind: "allow" });
   });
 });

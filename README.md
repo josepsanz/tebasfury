@@ -101,8 +101,12 @@ admin edits on `/admin/sync`:
   breakfast shield, the apology, the denigration and the five-day holding rule. Each
   article links to the page that applies it, and the stake is shown as the money it comes
   to rather than as a percentage.
-- **`/admin/sync`** — the LaLiga credential, both sync buttons, the run history, and the
-  list of who may sign in and who has claimed a team.
+- **`/admin/sync`** — the LaLiga credential, both sync buttons, the run history, the
+  list of who may sign in and who has claimed a team, and the pariahs.
+- **`/pariah`** — where a manager the admin has declared a **pariah** lands. A pariah keeps
+  the standings, progress, fair play, the Necroporra, the Constitution and their own team;
+  every other team, every player, the market and the targets send them here, to a page that
+  names them. The links stay put: the ban is on the page they reach, not on the link.
 
 Underneath, two self-scheduling QStash chains keep it fed: standings every ten minutes
 while a gameweek is live (and asleep until the next one opens, with a 24-hour heartbeat),

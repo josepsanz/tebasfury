@@ -115,6 +115,13 @@ short message saying the league is private. An ordinary sign-in failure lands on
 same page with a different message, so "did not complete" and "private league" mean
 different things and only the second one is about the list.
 
+### Declaring a pariah
+
+The **Pariahs** section of `/admin/sync` (admin only) moves an ordinary manager between
+the `user` and `pariah` roles. It never lists or rewrites an admin or a collaborator, and
+it takes effect on the pariah's next page load: the role is read from the database on
+every request, so there is no session to end. Pardoning sets the role back to `user`.
+
 ### Removing somebody from the league
 
 Removing an address on `/admin/sync` stops them signing in **again**; it does not end the

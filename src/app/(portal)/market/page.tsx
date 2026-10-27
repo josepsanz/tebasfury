@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { loadMarket, loadPlayerCatalogue } from "@/lib/db/queries";
 import { requireSession } from "@/lib/auth/guards";
+import { refusePariah } from "@/lib/auth/pariah-guards";
 import { clauseBoard } from "@/lib/domain/market";
 import { buildCatalogue } from "@/lib/domain/players";
 import { MarketFeed } from "@/components/market-feed";
@@ -21,7 +22,8 @@ export default async function MarketPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  await requireSession();
+  const session = await requireSession();
+  refusePariah(session);
   const page = chosenPage((await searchParams).page);
   const { operations, managerNames, playerNames, teamIdByManagerId, logBegan } =
     await loadMarket(db);

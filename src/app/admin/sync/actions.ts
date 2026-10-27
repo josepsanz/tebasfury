@@ -9,6 +9,7 @@ import { getEnv } from "@/lib/env";
 import { requirePermission } from "@/lib/auth/guards";
 import { addAllowedEmails, existingAllowedEmails, removeAllowedEmail } from "@/lib/access";
 import { parseAllowlist } from "@/lib/auth/allowlist";
+import { setPariah } from "@/lib/pariah";
 import { runSync } from "@/lib/sync";
 import { nextPlayerSweepAfterFailure } from "@/lib/sync/next-run";
 import { runPlayerSweep } from "@/lib/sync/players";
@@ -202,4 +203,29 @@ export async function disallowEmail(formData: FormData): Promise<ActionResult> {
   return removed
     ? { ok: true, message: `${email} removed. Any session they already hold runs until it expires.` }
     : { ok: false, message: "That address was not on the list." };
+}
+
+/**
+ * Declares a manager a pariah, or pardons one: `pariah` in the form is "true" or "false".
+ *
+ * Guarded by `access: ["manage"]`, the admin's alone, for the same reason as the sign-in
+ * list: deciding who the league shuns is the same size of act as deciding who reaches it.
+ * It bites on the pariah's next page load; there is no session to end.
+ */
+export async function togglePariah(formData: FormData): Promise<ActionResult> {
+  await requirePermission({ access: ["manage"] });
+
+  const userId = String(formData.get("userId") ?? "");
+  const name = String(formData.get("name") ?? "That manager");
+  const pariah = formData.get("pariah") === "true";
+  if (userId === "") return { ok: false, message: "No manager was named." };
+
+  const changed = await setPariah(db, { userId, pariah });
+  revalidatePath("/admin/sync");
+
+  if (!changed) return { ok: false, message: "Only an ordinary manager can be shunned or pardoned." };
+  return {
+    ok: true,
+    message: pariah ? `${name} is a pariah, from their next page.` : `${name} is pardoned.`,
+  };
 }
