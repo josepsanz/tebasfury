@@ -123,6 +123,8 @@ describe("holdings", () => {
     ]);
     expect(result.map((h) => h.hours)).toEqual([72, 12]);
     expect(result.map((h) => h.breach)).toEqual([true, true]);
+    // The sale names its holding: a fair-play ruling hangs on this id, not on the player.
+    expect(result.map((h) => h.releasedBy)).toEqual(["sell1", "sell2"]);
   });
 
   it("keeps two managers' holdings of the same player apart", () => {

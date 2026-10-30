@@ -58,6 +58,11 @@ export type Holding = {
   /** Null when the acquisition happened before this log began. */
   acquiredAt: Date | null;
   releasedAt: Date;
+  /**
+   * The id of the operation that ended the holding: the sale, or the clause that took the
+   * player. Stable across syncs, so it is what a fair-play ruling hangs on.
+   */
+  releasedBy: string;
   /** Null whenever `acquiredAt` is: an unknown period is not a number. */
   hours: number | null;
   /**
@@ -158,6 +163,7 @@ export function holdings(operations: MarketOperation[]): Holding[] {
         playerId,
         acquiredAt,
         releasedAt: operation.occurredAt,
+        releasedBy: operation.id,
         hours,
         // The one line that keeps the fair-play rule honest.
         breach: voluntary && hours !== null && hours < HOLD_HOURS,

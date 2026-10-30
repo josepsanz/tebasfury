@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { breaches, holdings, type MarketOperation } from "@/lib/domain/market";
+import { breaches, holdings, type Holding, type MarketOperation } from "@/lib/domain/market";
+import { RULING_LABEL, UNRULED, type Ruling, type RulingStatus } from "@/lib/domain/fair-play-rulings";
 import { formatLeagueMoment } from "@/lib/domain/clock";
 import { shortOfTheHold } from "@/lib/domain/prose";
 import { Profit } from "./profit";
@@ -17,6 +19,12 @@ import { Profit } from "./profit";
  * three days. A column headed "breaches" would give both the same weight, and the number a
  * reader actually needs to judge is how short the sale fell.
  *
+ * Beside each breach sits what the league decided about it — still pending, remedied or
+ * waived — and an optional note. Facts about the league's answer, not a verdict of the
+ * page's own: a breach nobody has ruled on says "Still pending". For somebody who may
+ * rule, a `details` disclosure under the row holds the form, so the register stays a
+ * server component.
+ *
  * Two kinds of holding are deliberately absent, and the footnote says so for the second:
  *
  * - **A player taken by clause** (Ruling 3). The five-day rule is about choosing to sell;
@@ -30,12 +38,18 @@ export function FairPlayRegister({
   managerNames,
   playerNames,
   teamIdByManagerId,
+  rulings,
+  editFor,
 }: {
   operations: MarketOperation[];
   managerNames: Map<number, string>;
   playerNames: Map<string, string>;
   /** Manager id to team id, so a name can link to its page. */
   teamIdByManagerId: Map<number, string>;
+  /** The league's ruling on each breach, by the id of the sale. No entry is still pending. */
+  rulings: Map<string, Ruling>;
+  /** The ruling form for a breach, or null for a reader who may not rule. */
+  editFor: ((holding: Holding, ruling: Ruling) => ReactNode) | null;
 }) {
   const closed = holdings(operations);
   const broken = [...breaches(operations)].sort(
@@ -67,6 +81,13 @@ export function FairPlayRegister({
     </Link>
   );
 
+  /** Pending is the alert colour: the one status that still asks something of somebody. */
+  const statusColor: Record<RulingStatus, string> = {
+    pending: "var(--board-alert)",
+    remedied: "var(--board-gain)",
+    waived: "var(--board-free)",
+  };
+
   const footnote =
     unjudged === 0 ? null : (
       <p className="mt-2 px-2 text-[10.5px]" style={{ color: "var(--board-ink-dim)" }}>
@@ -89,35 +110,68 @@ export function FairPlayRegister({
   return (
     <>
       <ol className="mt-3 border-t" style={{ borderColor: "var(--board-line)" }}>
-        {broken.map((holding) => (
-          <li
-            key={`${holding.managerId}:${holding.playerId}:${holding.releasedAt.getTime()}`}
-            className="grid grid-cols-[1fr_auto] items-baseline gap-3 border-b px-2 py-[7px]"
-            style={{ borderColor: "var(--board-line)" }}
-          >
-            <span className="min-w-0">
-              <span className="block text-[13px]">
-                {manager(holding.managerId)} sold {player(holding.playerId)}
-              </span>
-              <span className="block text-[10.5px]">
-                <span style={{ color: "var(--board-alert)" }}>
-                  {/* Three decimals, because the difference between twelve minutes and a
-                      whole day is the difference between a slip and a decision. */}
-                  held {((holding.hours as number) / 24).toFixed(3)} days —{" "}
-                  {shortOfTheHold(holding.hours as number)}
+        {broken.map((holding) => {
+          const ruling = rulings.get(holding.releasedBy) ?? UNRULED;
+          const line = (
+            <span className="grid grid-cols-[1fr_auto] items-baseline gap-3 px-2 py-[7px]">
+              <span className="min-w-0">
+                <span className="block text-[13px]">
+                  {manager(holding.managerId)} sold {player(holding.playerId)}{" "}
+                  <span
+                    className="whitespace-nowrap text-[11px]"
+                    style={{ color: statusColor[ruling.status] }}
+                  >
+                    {RULING_LABEL[ruling.status]}
+                  </span>
                 </span>
-                {" · "}
-                <span
-                  className="tabular-nums"
-                  style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
-                >
-                  {formatLeagueMoment(holding.releasedAt)}
+                <span className="block text-[10.5px]">
+                  <span style={{ color: "var(--board-alert)" }}>
+                    {/* Three decimals, because the difference between twelve minutes and a
+                        whole day is the difference between a slip and a decision. */}
+                    held {((holding.hours as number) / 24).toFixed(3)} days —{" "}
+                    {shortOfTheHold(holding.hours as number)}
+                  </span>
+                  {" · "}
+                  <span
+                    className="tabular-nums"
+                    style={{ fontFamily: "var(--font-mono)", color: "var(--board-ink-dim)" }}
+                  >
+                    {formatLeagueMoment(holding.releasedAt)}
+                  </span>
                 </span>
+                {ruling.note === null ? null : (
+                  <span className="block text-[12px]" style={{ color: "var(--board-ink-dim)" }}>
+                    {ruling.note}
+                  </span>
+                )}
               </span>
+              <Profit value={holding.profit} />
             </span>
-            <Profit value={holding.profit} />
-          </li>
-        ))}
+          );
+          return (
+            <li
+              key={holding.releasedBy}
+              className="border-b"
+              style={{ borderColor: "var(--board-line)" }}
+            >
+              {line}
+              {editFor === null ? null : (
+                // Its own disclosure under the row, not the row as a summary: the row holds
+                // two links, and a summary's label would hide them from a screen reader.
+                <details className="px-2 pb-2">
+                  <summary
+                    className="cursor-pointer list-none text-[11px] underline underline-offset-4 [&::-webkit-details-marker]:hidden"
+                    style={{ color: "var(--board-ink-dim)" }}
+                    aria-label={`Edit the ruling on ${managerNames.get(holding.managerId) ?? holding.managerId}'s sale of ${playerNames.get(holding.playerId) ?? holding.playerId}`}
+                  >
+                    Edit ruling
+                  </summary>
+                  <div className="mt-2">{editFor(holding, ruling)}</div>
+                </details>
+              )}
+            </li>
+          );
+        })}
       </ol>
       {footnote}
     </>
