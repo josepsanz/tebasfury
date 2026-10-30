@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MarketOperation } from "@/lib/domain/market";
+import type { Ruling } from "@/lib/domain/fair-play-rulings";
 import { FairPlayRegister } from "./fair-play-register";
 
 const op = (over: Partial<MarketOperation> = {}): MarketOperation => ({
@@ -14,7 +15,16 @@ const op = (over: Partial<MarketOperation> = {}): MarketOperation => ({
   ...over,
 });
 
-const register = (operations: MarketOperation[]) =>
+const register = (
+  operations: MarketOperation[],
+  {
+    rulings = new Map(),
+    editFor = null,
+  }: {
+    rulings?: Map<string, Ruling>;
+    editFor?: ((holding: { releasedBy: string }, ruling: Ruling) => React.ReactNode) | null;
+  } = {},
+) =>
   renderToStaticMarkup(
     <FairPlayRegister
       operations={operations}
@@ -23,6 +33,8 @@ const register = (operations: MarketOperation[]) =>
         new Map([["p1", "F. Garcés"], ["p2", "Otxoa"], ["p3", "Iñigo"], ["p4", "Zubimendi"]])
       }
       teamIdByManagerId={new Map([[1, "t1"], [2, "t2"]])}
+      rulings={rulings}
+      editFor={editFor}
     />,
   );
 
@@ -112,6 +124,30 @@ describe("FairPlayRegister", () => {
     const html = register(heldFor(95.95, { player: "p1", manager: 1, paid: 2_000_000, got: 5_611_947 }));
     expect(html).toContain('href="/teams/t1"');
     expect(html).toContain('href="/players/p1"');
+  });
+
+  it("calls a breach nobody has ruled on still pending", () => {
+    const html = register(heldFor(95.95, { player: "p1", manager: 1, paid: 2_000_000, got: 5_611_947 }));
+    expect(html).toContain("Still pending");
+  });
+
+  it("shows the league's ruling and its note beside the breach", () => {
+    const html = register(heldFor(119.8, { player: "p1", manager: 1, paid: 2_000_000, got: 1_412_984 }), {
+      rulings: new Map([["sell-p1", { status: "waived", note: "Twelve minutes, let it go" }]]),
+    });
+    expect(html).toContain("Waived");
+    expect(html).toContain("Twelve minutes, let it go");
+    expect(html).not.toContain("Still pending");
+  });
+
+  it("offers the ruling form only to somebody who may rule", () => {
+    const sale = heldFor(95.95, { player: "p1", manager: 1, paid: 2_000_000, got: 5_611_947 });
+    expect(register(sale)).not.toContain("Edit ruling");
+    const html = register(sale, {
+      editFor: (holding, ruling) => <i>{`form for ${holding.releasedBy} at ${ruling.status}`}</i>,
+    });
+    expect(html).toContain("Edit ruling");
+    expect(html).toContain("form for sell-p1 at pending");
   });
 
   it("says the rule is unbroken when it is, rather than drawing an empty list", () => {

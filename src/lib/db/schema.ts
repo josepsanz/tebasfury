@@ -555,6 +555,37 @@ export const breakfasts = pgTable(
 );
 
 /**
+ * What the league decided about one fair-play breach: still pending, remedied or waived,
+ * with an optional note.
+ *
+ * The breach itself is still never stored — it is arithmetic over the operation log, so a
+ * corrected sync corrects the register for free. Only the league's answer is, keyed on the
+ * sale that broke the rule. No row means nobody has ruled, which reads as `pending`.
+ *
+ * The status is checked by the table as well as the domain, as `necroporra_votes` checks
+ * its own rule: three words, and a fourth would mean a migration and a decision.
+ */
+export const fairPlayRulings = pgTable(
+  "fair_play_rulings",
+  {
+    saleId: text("sale_id")
+      .primaryKey()
+      .references(() => marketOperations.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    note: text("note"),
+    /** Who ruled last, which the league may well ask. */
+    recordedBy: text("recorded_by").references(() => user.id, { onDelete: "set null" }),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "fair_play_rulings_status",
+      sql`${table.status} in ('pending', 'remedied', 'waived')`,
+    ),
+  ],
+);
+
+/**
  * What one team fielded in one round.
  *
  * `gameweek` deliberately references nothing, exactly as `necroporra_votes` and

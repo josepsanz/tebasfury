@@ -468,3 +468,15 @@ deploying first breaks that one page and nothing else, but there is no reason to
 
 Then verify: `breakfasts` must exist in `information_schema.tables`, and
 `drizzle.__drizzle_migrations` must have one more row than before.
+
+## Fair-play rulings (migration 0019)
+
+`0019_fair_play_rulings.sql` creates `fair_play_rulings`, the league's answer to each
+breach (still pending, remedied or waived, and a note). **Apply it before deploying the
+code that reads it:** `/fair-play` reads the table on every render, so deploying first
+breaks that page.
+
+    DATABASE_URL="<neon-url>" pnpm drizzle-kit migrate
+
+Then verify: `fair_play_rulings` must exist in `information_schema.tables`, and
+`drizzle.__drizzle_migrations` must have one more row than before.

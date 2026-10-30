@@ -149,6 +149,25 @@ describe("/fair-play", () => {
     expect(html).toContain("3 days short");
     expect(html).not.toContain("Forward 1");
   });
+
+  it("states every breach's ruling, and offers no way to change it to a manager", async () => {
+    const { default: Page } = await import("./(portal)/fair-play/page");
+    const html = await render(() => Page());
+    expect(html).toContain("Still pending");
+    expect(html).not.toContain("Edit ruling");
+  });
+
+  it("lets a collaborator rule on a breach", async () => {
+    harness.session = asCollaborator;
+    try {
+      const { default: Page } = await import("./(portal)/fair-play/page");
+      const html = await render(() => Page());
+      expect(html).toContain("Edit ruling");
+      expect(html).toContain("Save ruling");
+    } finally {
+      harness.session = asManager;
+    }
+  });
 });
 
 describe("/progress", () => {

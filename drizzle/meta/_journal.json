@@ -134,6 +134,13 @@
       "when": 1791545876383,
       "tag": "0018_breakfasts",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793319004595,
+      "tag": "0019_fair_play_rulings",
+      "breakpoints": true
     }
   ]
 }
