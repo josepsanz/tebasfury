@@ -135,7 +135,7 @@ describe("FairPlayRegister", () => {
     const html = register(heldFor(119.8, { player: "p1", manager: 1, paid: 2_000_000, got: 1_412_984 }), {
       rulings: new Map([["sell-p1", { status: "waived", note: "Twelve minutes, let it go" }]]),
     });
-    expect(html).toContain("Waived");
+    expect(html).toContain("Excused");
     expect(html).toContain("Twelve minutes, let it go");
     expect(html).not.toContain("Still pending");
   });

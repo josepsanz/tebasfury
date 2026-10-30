@@ -42,7 +42,7 @@ describe("saveRuling", () => {
   it("rules on a breach and says whose sale it was", async () => {
     expect(await save({ saleId: "sell1", status: "waived", note: "Agreed at dinner" })).toEqual({
       ok: true,
-      message: "Ada's sale of Forward 1: Waived.",
+      message: "Ada's sale of Forward 1: Excused.",
     });
     expect(await loadRulings(h.db)).toEqual(
       new Map([["sell1", { status: "waived", note: "Agreed at dinner" }]]),

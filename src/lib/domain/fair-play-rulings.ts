@@ -19,7 +19,8 @@ export const UNRULED: Ruling = { status: "pending", note: null };
 export const RULING_LABEL: Record<RulingStatus, string> = {
   pending: "Still pending",
   remedied: "Remedied",
-  waived: "Waived",
+  // Stored as `waived`, shown as "Excused": the league's word for a breach it accepts.
+  waived: "Excused",
 };
 
 /** A note is a line beside a row, not an essay. */
