@@ -76,6 +76,7 @@ export default async function MarketPage({
         title="Market"
         note="Players are not sold before five days. Sales inside that window are marked."
         meta={`${operations.length} operations`}
+        metaHref="/market/export"
       />
 
       <h2 className="mt-8 text-[11px] uppercase tracking-[0.06em]" style={{ color: "var(--board-ink-dim)" }}>

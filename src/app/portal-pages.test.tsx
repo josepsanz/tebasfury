@@ -135,6 +135,19 @@ describe("/market", () => {
     expect(html).toContain("Forward 1");
     expect(html).toContain("1.0M");
   });
+
+  it("makes the operation count a download of every operation", async () => {
+    const { default: Page } = await import("./(portal)/market/page");
+    const html = await render(() => Page({ searchParams: none }));
+    expect(html).toContain('href="/market/export"');
+
+    const { GET } = await import("./(portal)/market/export/route");
+    const response = await GET();
+    expect(response.headers.get("Content-Disposition")).toMatch(/attachment; filename="tebasfury-market-/);
+    const lines = (await response.text()).trimEnd().split("\r\n");
+    expect(lines[0]).toContain("id,occurred_at,kind");
+    expect(lines.some((line) => line.includes("Forward 1"))).toBe(true);
+  });
 });
 
 describe("/fair-play", () => {
@@ -511,6 +524,7 @@ describe("a pariah", () => {
     ],
     ["/players/export", () => import("./(portal)/players/export/route").then((m) => m.GET())],
     ["/market", () => import("./(portal)/market/page").then((m) => m.default({ searchParams: none }))],
+    ["/market/export", () => import("./(portal)/market/export/route").then((m) => m.GET())],
     ["/targets", () => import("./(portal)/targets/page").then((m) => m.default({ searchParams: none }))],
     [
       "a rival's team",
